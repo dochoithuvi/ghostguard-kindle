@@ -30,6 +30,17 @@ return {
     allow_legacy_license_migration = false,
     legacy_license_paths = {},
 
+    -- License v4.1 online registry. Network I/O is never performed in the raw touch hot path.
+    online_license_enabled = true,
+    online_license_registry_url = "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/licenses/licenses.json",
+    online_license_signature_url = "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/licenses/licenses.sig",
+    online_license_cache_json = "/mnt/us/.dcpro_ghostguard/online_licenses.json",
+    online_license_cache_sig = "/mnt/us/.dcpro_ghostguard/online_licenses.sig",
+    online_license_sync_state = "/mnt/us/.dcpro_ghostguard/online_license_sync_state",
+    online_license_grace_seconds = 604800,
+    online_license_connect_timeout = 5,
+    online_license_total_timeout = 12,
+
     run_marker = "/mnt/us/.dcpro_ghostguard/RUNNING",
     launch_once_marker = "/mnt/us/.dcpro_ghostguard/LAUNCH_ONCE",
     auto_protect_marker = "/mnt/us/.dcpro_ghostguard/AUTO_PROTECT",

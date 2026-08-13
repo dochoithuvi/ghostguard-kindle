@@ -18,6 +18,7 @@ const EVP_MD *EVP_sha256(void);
 int EVP_DigestVerifyInit(EVP_MD_CTX *ctx, EVP_PKEY_CTX **pctx, const EVP_MD *type, ENGINE *e, EVP_PKEY *pkey);
 int EVP_DigestVerifyUpdate(EVP_MD_CTX *ctx, const void *d, size_t cnt);
 int EVP_DigestVerifyFinal(EVP_MD_CTX *ctx, const unsigned char *sig, size_t siglen);
+int EVP_Digest(const void *data, size_t count, unsigned char *md, unsigned int *size, const EVP_MD *type, ENGINE *impl);
 ]]
 
 local M = {}
@@ -103,6 +104,20 @@ function M.verify(public_key_path, message, signature_b64)
     lib.EVP_MD_CTX_free(ctx)
     lib.EVP_PKEY_free(pkey)
     return ok, ok and "RSA_SHA256_VALID" or "SIGNATURE_MISMATCH"
+end
+
+
+function M.sha256Hex(message)
+    local lib, err = load_crypto()
+    if not lib then return nil, err end
+    message = tostring(message or "")
+    local out = ffi.new("unsigned char[32]")
+    local outlen = ffi.new("unsigned int[1]")
+    local ok = lib.EVP_Digest(message, #message, out, outlen, lib.EVP_sha256(), nil) == 1
+    if not ok or tonumber(outlen[0]) ~= 32 then return nil, "SHA256_FAILED" end
+    local parts = {}
+    for i = 0, 31 do parts[#parts+1] = string.format("%02x", tonumber(out[i])) end
+    return table.concat(parts)
 end
 
 return M

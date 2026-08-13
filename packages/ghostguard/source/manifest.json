@@ -3,11 +3,11 @@
   "id": "ghostguard",
   "name": "DCPRO GhostGuard",
   "author": "Do Choi Thu Vi",
-  "description": "KOReader GhostGuard public v4 license integration preview (per-device RSA license).",
+  "description": "KOReader GhostGuard RC with RSA v4.1 local + signed online license registry.",
   "version": [
     0,
-    5,
-    1
+    6,
+    0
   ],
   "dependencies": [
     {

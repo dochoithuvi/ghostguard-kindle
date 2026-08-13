@@ -132,6 +132,18 @@ function DCPROGhostGuard:completeCustomerSetupAndProtect(reason)
     return false
 end
 
+function DCPROGhostGuard:syncOnlineLicense(show_result)
+    if self.load_error or not self.guard then return false end
+    local ok, detail, allowed, policy = self.guard:syncOnlineLicense()
+    if show_result then
+        show((ok and _("Đồng bộ license online hoàn tất.\n") or _("Không đồng bộ được license online. Đang dùng cache/license local nếu có.\n")) .. tostring(detail), 10)
+    end
+    if ok and allowed == false and self.guard:isRunning() then
+        self.guard:stop("online-license-policy")
+    end
+    return ok, detail, allowed, policy
+end
+
 function DCPROGhostGuard:showToolsPanel()
     if self.load_error then
         show(_("KOReader đã thấy plugin nhưng runtime không nạp được:\n\n") .. tostring(self.load_error), 12)
@@ -205,6 +217,10 @@ function DCPROGhostGuard:showToolsPanel()
                 {
                     text = _("Trạng thái GhostGuard"),
                     callback = function() self:showStatus() end,
+                },
+                {
+                    text = _("Đồng bộ license online"),
+                    callback = function() self:syncOnlineLicense(true); ctx.repaint() end,
                 },
                 {
                     text = _("Dừng và đóng báo cáo"),
@@ -353,6 +369,9 @@ function DCPROGhostGuard:init()
 
     if not self.load_error then
         UIManager:scheduleIn(0.5, function() self:registerSimpleUI(1) end)
+        UIManager:scheduleIn(3.0, function()
+            pcall(function() self:syncOnlineLicense(false) end)
+        end)
         local requested, requested_mode = self.guard:consumeLaunchRequest()
         local start_reason, start_mode
         local licensed = self.guard:licenseValid(true)

@@ -1,3 +1,15 @@
+# DCPRO GhostGuard v0.6.0 RC — License Sync branch
+
+This RC is based on the v0.5.1 HF3/ExitTrace runtime and adds signed online license registry support.
+It does **not** claim the later Adaptive/TouchMap runtime is merged yet.
+
+License v4.1:
+- RSA local `license.key` remains supported.
+- Signed `licenses.json` + `licenses.sig` may activate/renew/revoke by hashed Kindle serial.
+- Raw serials and customer names are not published in the registry.
+- Network sync happens outside the raw touch event hot path.
+- STOP and SAFE_MODE remain available on any license failure.
+
 # DCPRO GhostGuard — public v4 integration preview
 
 KPM package ID: `ghostguard`

@@ -155,6 +155,9 @@ end
 function GhostGuard:licenseStatusText()
     return self.license:statusText()
 end
+function GhostGuard:syncOnlineLicense()
+    return self.license:syncOnline()
+end
 function GhostGuard:licenseHelpText()
     return self.license:activationHelp()
 end
