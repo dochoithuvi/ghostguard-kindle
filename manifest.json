@@ -1,0 +1,21 @@
+{
+  "manifest_version": 2,
+  "id": "dochoithuvi-ghostguard",
+  "name": "Do Choi Thu Vi GhostGuard Repository",
+  "description": "Public KPM repository for DCPRO GhostGuard on Kindle.",
+  "packages": {
+    "ghostguard": {
+      "name": "DCPRO GhostGuard",
+      "author": "Do Choi Thu Vi",
+      "description": "KOReader GhostGuard for Kindle with per-device RSA license v4 and fail-open protection.",
+      "artifacts": [
+        {
+          "url": "packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [0, 5, 1],
+          "dependencies": [{"id": "koreader"}],
+          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
+        }
+      ]
+    }
+  }
+}
