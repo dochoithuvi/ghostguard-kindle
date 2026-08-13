@@ -16,7 +16,7 @@ EVP_MD_CTX *EVP_MD_CTX_new(void);
 void EVP_MD_CTX_free(EVP_MD_CTX *ctx);
 const EVP_MD *EVP_sha256(void);
 int EVP_DigestVerifyInit(EVP_MD_CTX *ctx, EVP_PKEY_CTX **pctx, const EVP_MD *type, ENGINE *e, EVP_PKEY *pkey);
-int EVP_DigestVerifyUpdate(EVP_MD_CTX *ctx, const void *d, size_t cnt);
+int EVP_DigestUpdate(EVP_MD_CTX *ctx, const void *d, size_t cnt);
 int EVP_DigestVerifyFinal(EVP_MD_CTX *ctx, const unsigned char *sig, size_t siglen);
 int EVP_Digest(const void *data, size_t count, unsigned char *md, unsigned int *size, const EVP_MD *type, ENGINE *impl);
 ]]
@@ -98,14 +98,16 @@ function M.verify(public_key_path, message, signature_b64)
     end
 
     local ok = lib.EVP_DigestVerifyInit(ctx, nil, lib.EVP_sha256(), nil, pkey) == 1
-    if ok then ok = lib.EVP_DigestVerifyUpdate(ctx, message, #message) == 1 end
+    -- LibreSSL exposes EVP_DigestVerifyUpdate as a preprocessor alias to
+    -- EVP_DigestUpdate, not as an exported symbol. LuaJIT FFI therefore must
+    -- call the real exported symbol directly.
+    if ok then ok = lib.EVP_DigestUpdate(ctx, message, #message) == 1 end
     if ok then ok = lib.EVP_DigestVerifyFinal(ctx, sig, #sig) == 1 end
 
     lib.EVP_MD_CTX_free(ctx)
     lib.EVP_PKEY_free(pkey)
     return ok, ok and "RSA_SHA256_VALID" or "SIGNATURE_MISMATCH"
 end
-
 
 function M.sha256Hex(message)
     local lib, err = load_crypto()
