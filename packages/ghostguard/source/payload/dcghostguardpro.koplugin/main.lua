@@ -42,6 +42,8 @@ function DCPROGhostGuard:loadRuntime()
     if not GhostGuard then return false, "ghostguard.lua: " .. err end
     local SimpleUIBridge; SimpleUIBridge, err = load_local("simpleui_bridge.lua")
     if not SimpleUIBridge then return false, "simpleui_bridge.lua: " .. err end
+    local ZenUIBridge; ZenUIBridge, err = load_local("zenui_bridge.lua")
+    if not ZenUIBridge then return false, "zenui_bridge.lua: " .. err end
 
     local ok, guard_or_err = pcall(GhostGuard.new, GhostGuard, config, Storage, TouchObserver,
         ProfileManager, LicenseManager, CloudManager, plugin_dir)
@@ -57,6 +59,7 @@ function DCPROGhostGuard:loadRuntime()
         end)
     end
     self.simpleui = SimpleUIBridge:new(self, plugin_dir)
+    self.zenui = ZenUIBridge:new(self, plugin_dir)
     return true
 end
 
@@ -76,6 +79,7 @@ end
 function DCPROGhostGuard:showStatus()
     if self.load_error then show(tostring(self.load_error), 12); return end
     local extra = self.simpleui and ("\nSimpleUI: " .. self.simpleui:statusText()) or ""
+    if self.zenui then extra = extra .. "\nZenUI: " .. self.zenui:statusText() end
     show(self.guard:statusText() .. extra, 18)
 end
 
@@ -368,6 +372,10 @@ function DCPROGhostGuard:runSmartAction(reason)
 end
 
 function DCPROGhostGuard:registerSimpleUI(attempt)
+    if type(rawget(_G, "__ZEN_UI_REGISTER_HOME_ITEM")) == "function" then
+        logger.info("DCPRO GhostGuard: Zen UI active; SimpleUI bridge skipped")
+        return
+    end
     if not self.simpleui or self.simpleui.registered then return end
     attempt = attempt or 1
     local ok, err = self.simpleui:register()
@@ -381,6 +389,27 @@ end
 
 function DCPROGhostGuard:unregisterSimpleUI()
     if self.simpleui then self.simpleui:unregister() end
+end
+
+function DCPROGhostGuard:registerZenUI(attempt)
+    if not self.zenui or self.zenui.registered then return end
+    attempt = attempt or 1
+    local ok, err = self.zenui:register()
+    if ok then return end
+    if attempt < 8 then
+        UIManager:scheduleIn(2, function() self:registerZenUI(attempt + 1) end)
+    else
+        logger.info("DCPRO GhostGuard ZenUI integration unavailable:", err)
+    end
+end
+
+function DCPROGhostGuard:unregisterZenUI()
+    if self.zenui then self.zenui:unregister() end
+end
+
+function DCPROGhostGuard:onZenUIReady()
+    self:unregisterSimpleUI()
+    self:registerZenUI(1)
 end
 
 function DCPROGhostGuard:recordExitReason(reason, detail, traceback_text)
@@ -412,6 +441,7 @@ function DCPROGhostGuard:init()
 
     if not self.load_error then
         UIManager:scheduleIn(0.5, function() self:registerSimpleUI(1) end)
+        UIManager:scheduleIn(0.8, function() self:registerZenUI(1) end)
         UIManager:scheduleIn(1.5, function()
             self.online_startup_sync = true
             pcall(function() self:syncOnlineLicense(false) end)
@@ -641,12 +671,14 @@ end
 function DCPROGhostGuard:onPowerOff()
     self:recordExitReason("POWER_OFF", "KOReader dispatched onPowerOff", debug.traceback("onPowerOff", 2))
     self:unregisterSimpleUI()
+    self:unregisterZenUI()
     if self.guard then self.guard:stop("poweroff") end
 end
 
 function DCPROGhostGuard:onReboot()
     self:recordExitReason("REBOOT", "KOReader dispatched onReboot", debug.traceback("onReboot", 2))
     self:unregisterSimpleUI()
+    self:unregisterZenUI()
     if self.guard then self.guard:stop("reboot") end
 end
 
@@ -663,6 +695,7 @@ end
 function DCPROGhostGuard:stopPlugin()
     self:recordExitReason("PLUGIN_STOP", "GhostGuard plugin explicitly stopped", debug.traceback("stopPlugin", 2))
     self:unregisterSimpleUI()
+    self:unregisterZenUI()
     if self.guard then self.guard:stop("plugin-stop") end
     return true
 end

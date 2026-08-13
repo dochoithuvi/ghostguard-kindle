@@ -7,13 +7,21 @@
     "ghostguard": {
       "name": "DCPRO GhostGuard",
       "author": "Do Choi Thu Vi",
-      "description": "KOReader GhostGuard v0.6.4 RC - LibreSSL RSA verify compatibility for signed online license sync.",
+      "description": "KOReader GhostGuard v0.6.5 RC - Native/SimpleUI/ZenUI bridges, Library icon fix and RSA v4.1 online activation.",
       "artifacts": [
         {
-          "url": "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.4_kindle5-kindlepw2-kindlehf.kpkg",
-          "version": [0, 6, 4],
+          "url": "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.5_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [
+            0,
+            6,
+            5
+          ],
           "dependencies": [],
-          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
+          "supported_platforms": [
+            "kindle5",
+            "kindlepw2",
+            "kindlehf"
+          ]
         }
       ]
     }

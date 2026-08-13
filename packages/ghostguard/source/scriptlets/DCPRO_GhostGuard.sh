@@ -1,7 +1,7 @@
 #!/bin/sh
 # Name: DCPRO GhostGuard
 # Author: Đồ Chơi Thú Vị
-# Icon: /mnt/us/dcpro/ghostguard/assets/ghostguard_library_600x960.jpg
+# Icon: /mnt/us/koreader/plugins/dcghostguardpro.koplugin/assets/ghostguard.svg
 # DCPRO GhostGuard v0.5.0 Final launcher — direct KOReader launch.
 
 MNT_US="${DCPRO_MNT_US:-/mnt/us}"
