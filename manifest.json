@@ -7,11 +7,11 @@
     "ghostguard": {
       "name": "DCPRO GhostGuard",
       "author": "Do Choi Thu Vi",
-      "description": "KOReader GhostGuard v0.6.1 RC with RSA v4.1 signed online registry and first-launch activation fix.",
+      "description": "KOReader GhostGuard v0.6.2 RC - KPM 0.2.2 archive compatibility hotfix with RSA v4.1 online activation.",
       "artifacts": [
         {
-          "url": "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.1_kindle5-kindlepw2-kindlehf.kpkg",
-          "version": [0, 6, 1],
+          "url": "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.2_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [0, 6, 2],
           "dependencies": [],
           "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
         }
