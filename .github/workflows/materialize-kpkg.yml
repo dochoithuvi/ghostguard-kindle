@@ -17,29 +17,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Rebuild KPM artifact
+      - name: Rebuild and validate KPM artifact
         shell: bash
         run: |
           set -euo pipefail
+          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg'
           mkdir -p packages/ghostguard/artifacts
-          cat .bootstrap/ghostguard_0.5.1.kpkg.b64.part* \
-            | base64 --decode \
-            > packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg
-          echo '31067b54337d335efae575abcb3adbb54a1a796a16b18f7dc0a6406109b7947a  packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg' \
-            | sha256sum --check --strict
-          tar -tzf packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg > /tmp/ghostguard-kpkg-files.txt
+          cat .bootstrap/ghostguard_0.5.1.kpkg.b64.part* | base64 --decode > "$ARTIFACT"
+          echo "31067b54337d335efae575abcb3adbb54a1a796a16b18f7dc0a6406109b7947a  $ARTIFACT" | sha256sum --check --strict
+          tar -tzf "$ARTIFACT" > /tmp/ghostguard-kpkg-files.txt
           grep -Eq '^\./manifest\.json$|^manifest\.json$' /tmp/ghostguard-kpkg-files.txt
 
-      - name: Commit artifact
+      - name: Materialize public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg'
+          rm -rf packages/ghostguard/source
+          mkdir -p packages/ghostguard/source
+          tar -xzf "$ARTIFACT" -C packages/ghostguard/source
+          printf '%s  %s\n' \
+            '31067b54337d335efae575abcb3adbb54a1a796a16b18f7dc0a6406109b7947a' \
+            "$ARTIFACT" > SHA256SUMS.txt
+
+      - name: Commit artifact and source
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg
+          git add packages/ghostguard/artifacts packages/ghostguard/source SHA256SUMS.txt
           if git diff --cached --quiet; then
-            echo 'Artifact already current.'
+            echo 'Artifact and source already current.'
           else
-            git commit -m 'Materialize GhostGuard 0.5.1 KPM artifact'
+            git commit -m 'Materialize GhostGuard 0.5.1 artifact and public source'
             git push
           fi
