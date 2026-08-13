@@ -3,17 +3,9 @@
   "id": "ghostguard",
   "name": "DCPRO GhostGuard",
   "author": "Do Choi Thu Vi",
-  "description": "KOReader GhostGuard v0.6.1 RC with RSA v4.1 online first-launch activation fix.",
-  "version": [
-    0,
-    6,
-    1
-  ],
-  "dependencies": [
-    {
-      "id": "koreader"
-    }
-  ],
+  "description": "KOReader GhostGuard v0.6.2 RC - KPM 0.2.2 archive compatibility hotfix with RSA v4.1 online activation.",
+  "version": [0, 6, 2],
+  "dependencies": [],
   "supported_platforms": [
     "kindle5",
     "kindlepw2",
