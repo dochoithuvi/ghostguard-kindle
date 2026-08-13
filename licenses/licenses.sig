@@ -1,0 +1,7 @@
+{
+  "signature_format": 1,
+  "key_id": "ghostguard-rc-2026-08",
+  "sig_alg": "RSA-SHA256",
+  "content_sha256": "6b295d0a077a1ff09d670e69927062662441a88a9cfc190e2cacbeda1cc34790",
+  "sig": "MYfNXuyHNoVb0ZKUocsvkyQh3fSH94zD2YqU1GY3bei51AW3Ee4szaWB55fmV7CYYD0DCi++thMop3a21lzLXReeLDZkT2csQWj0nbgcyoSR4W+ZBM4tp0dBOpCGfMk5LKHQwJN2FzgCHCerYRMLxk8yOn2yPfukykZXOvhBnmk925TnqG4aumB82o81Toz362hiK+4ZHE49OG1rzVuZwGAZYM/mEeCTKmOTLx0CctkJSGiMZDzv08DEBeSzA7g3odzTksnny3mz3CfqPlsxgsct4UMtnU4WQyzRen3c2/ZVEX7DcGXMGNHhsSV70Enhs98LQlfeyruCn4AFoO6Zfam2+5wUFDVtZ6JA65VdlotjVEerpf+NAHZ/s0cWNoWN1ryfQJmihskQYwdN8h4eng73R7d73bygfHGPX3xyLpo6P5xqt7+qHe6DBrIztGCbWGuVB1C4Jc4G6WQ3Qz0f9p6FaLlT3audLPPFtr1amFDOnwpmX934gpgsh5KZmyKd"
+}
