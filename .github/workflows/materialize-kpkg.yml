@@ -27,8 +27,8 @@ jobs:
             > packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg
           echo '31067b54337d335efae575abcb3adbb54a1a796a16b18f7dc0a6406109b7947a  packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg' \
             | sha256sum --check --strict
-          tar -tzf packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg \
-            | grep -qx './manifest.json\|manifest.json'
+          tar -tzf packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg > /tmp/ghostguard-kpkg-files.txt
+          grep -Eq '^\./manifest\.json$|^manifest\.json$' /tmp/ghostguard-kpkg-files.txt
 
       - name: Commit artifact
         shell: bash
