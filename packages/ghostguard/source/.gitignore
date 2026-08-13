@@ -1,0 +1,6 @@
+# Never commit GhostGuard private signing material
+*private*.pem
+private/
+issuer-private/
+license.key
+*.key

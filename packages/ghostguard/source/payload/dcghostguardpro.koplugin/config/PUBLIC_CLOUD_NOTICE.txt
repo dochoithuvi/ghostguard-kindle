@@ -1,0 +1,5 @@
+DCPRO GhostGuard public build
+
+No Cloud upload credential is bundled.
+If Cloud reporting is enabled later, place a private configuration at the external path expected by defaults.lua.
+Never commit WEB_APP_URL/UPLOAD_TOKEN secrets to the public repository or .kpkg.

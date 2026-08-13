@@ -1,0 +1,11 @@
+DCPRO GhostGuard — License v4
+
+Operational GhostGuard modes (Learning/Observe/Protect) require a valid per-device license.key.
+The plugin UI, status, STOP and SAFE_MODE remain available without a license so KOReader always fails open.
+
+Canonical path:
+/mnt/us/koreader/plugins/dcghostguardpro.koplugin/license.key
+
+Public package contains only an RSA public verification key.
+The private signing key is NEVER installed on Kindle and MUST NOT be committed to the public repository.
+License v3 must be re-issued as v4.
