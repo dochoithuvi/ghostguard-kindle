@@ -4,9 +4,11 @@ Public KPM repository for **DCPRO GhostGuard**, a KOReader touch-protection plug
 
 ## Current release
 
-**0.6.0 RC — License Sync**
+**0.6.1 RC — License Sync + first-launch activation fix**
 
 This release is based on the v0.5.1 HF3/ExitTrace runtime and adds the v4.1 hybrid licensing layer. It does **not** claim that the later Adaptive/TouchMap branch has been merged yet.
+
+v0.6.1 keeps a Library/bootstrap launch request pending while the first signed online-license check runs. If the serial is authorized, GhostGuard starts the requested mode automatically, so an online-only first install does not require a second tap.
 
 ## Package ID
 
@@ -44,7 +46,7 @@ Prerequisites:
 - KPM/KMC already installed.
 - Network access for first install/update.
 
-The bootstrap finds the KPM binary, registers `https://bit.ly/ghostguard`, installs/updates package `ghostguard`, writes a `LAUNCH_ONCE` request, and opens KOReader.
+The bootstrap finds the KPM binary, registers `https://bit.ly/ghostguard`, installs/updates package `ghostguard`, writes a `LAUNCH_ONCE` request, and opens KOReader. v0.6.1 then holds that request until signed online authorization finishes and starts the requested mode when authorized.
 
 This bootstrap is still an RC path and requires physical Kindle testing before being treated as production.
 
@@ -89,7 +91,7 @@ manifest.json
 licenses/licenses.json
 licenses/licenses.sig
 bootstrap/DCPRO_GhostGuard_OneClick_Installer.sh
-packages/ghostguard/artifacts/ghostguard_0.6.0_kindle5-kindlepw2-kindlehf.kpkg
+packages/ghostguard/artifacts/ghostguard_0.6.1_kindle5-kindlepw2-kindlehf.kpkg
 packages/ghostguard/source/
 ```
 
