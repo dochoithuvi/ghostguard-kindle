@@ -1,10 +1,8 @@
-name: Build GhostGuard 0.6.4 LibreSSL License Sync RC
+name: Publish GhostGuard 0.6.5 UI Bridge RC
 
 on:
   push:
     paths:
-      - 'packages/ghostguard/source/payload/dcghostguardpro.koplugin/license_crypto.lua'
-      - 'packages/ghostguard/source/manifest.json'
       - '.github/workflows/materialize-kpkg.yml'
   workflow_dispatch:
 
@@ -12,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  build-artifact:
+  publish-artifact:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,27 +18,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Regenerate source checksums
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd packages/ghostguard/source
-          find . -type f ! -name checksums.sha256 -print0 | sort -z | xargs -0 sha256sum > checksums.sha256
-          sha256sum --check checksums.sha256
+      - name: Apply v0.6.5 source patch
+        run: python3 tools/apply_v065_to_source.py
 
       - name: Validate source and signed registry
         shell: bash
         run: |
           set -euo pipefail
+          cd packages/ghostguard/source
+          sha256sum --check checksums.sha256
+          cd ../../..
           python3 - <<'PY'
           import json, pathlib, re
           root=pathlib.Path('.')
           manifest=json.loads((root/'packages/ghostguard/source/manifest.json').read_text())
           assert manifest['manifest_version'] == 2
-          assert manifest['version'] == [0,6,4]
+          assert manifest['version'] == [0,6,5]
           assert manifest['dependencies'] == []
           main=(root/'packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua').read_text()
+          assert 'load_local("zenui_bridge.lua")' in main
+          assert 'function DCPROGhostGuard:onZenUIReady()' in main
           assert 'text = _("Đồng bộ license online")' in main
+          bridge=(root/'packages/ghostguard/source/payload/dcghostguardpro.koplugin/zenui_bridge.lua').read_text()
+          assert '__ZEN_UI_REGISTER_HOME_ITEM' in bridge
+          assert '__ZEN_UI_UNREGISTER_HOME_ITEM' in bridge
+          scriptlet=(root/'packages/ghostguard/source/scriptlets/DCPRO_GhostGuard.sh').read_text()
+          assert '# Icon: /mnt/us/koreader/plugins/dcghostguardpro.koplugin/assets/ghostguard.svg' in scriptlet
           crypto=(root/'packages/ghostguard/source/payload/dcghostguardpro.koplugin/license_crypto.lua').read_text()
           assert 'EVP_DigestUpdate' in crypto
           assert 'lib.EVP_DigestVerifyUpdate' not in crypto
@@ -72,12 +75,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.6.4_kindle5-kindlepw2-kindlehf.kpkg'
+          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.6.5_kindle5-kindlepw2-kindlehf.kpkg'
           mkdir -p packages/ghostguard/artifacts
           python3 - <<'PY'
           import pathlib, tarfile
           src = pathlib.Path('packages/ghostguard/source')
-          out = pathlib.Path('packages/ghostguard/artifacts/ghostguard_0.6.4_kindle5-kindlepw2-kindlehf.kpkg')
+          out = pathlib.Path('packages/ghostguard/artifacts/ghostguard_0.6.5_kindle5-kindlepw2-kindlehf.kpkg')
           names = sorted(p.name for p in src.iterdir())
           names.remove('manifest.json')
           names.insert(0, 'manifest.json')
@@ -88,21 +91,50 @@ jobs:
           tar -tzf "$ARTIFACT" > /tmp/ghostguard-kpkg-files.txt
           grep -qx 'manifest.json' /tmp/ghostguard-kpkg-files.txt
           ! grep -qx './manifest.json' /tmp/ghostguard-kpkg-files.txt
-          tar -xOf "$ARTIFACT" manifest.json | python3 -c 'import json,sys; m=json.load(sys.stdin); assert m["version"] == [0,6,4] and m["dependencies"] == []'
+          ! grep -q 'main.lua.orig' /tmp/ghostguard-kpkg-files.txt
+          tar -xOf "$ARTIFACT" manifest.json | python3 -c 'import json,sys; m=json.load(sys.stdin); assert m["version"] == [0,6,5] and m["dependencies"] == []'
           SHA="$(sha256sum "$ARTIFACT" | awk '{print $1}')"
           printf '%s  %s\n' "$SHA" "$ARTIFACT" > SHA256SUMS.txt
           echo "KPKG_SHA256=$SHA"
 
-      - name: Commit v0.6.4 source and artifact
+      - name: Promote KPM manifest to v0.6.5
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('manifest.json')
+          m=json.loads(p.read_text())
+          a=m['packages']['ghostguard']['artifacts'][0]
+          m['packages']['ghostguard']['description']='KOReader GhostGuard v0.6.5 RC - Native/SimpleUI/ZenUI bridges, Library icon fix and RSA v4.1 online activation.'
+          a['url']='https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.5_kindle5-kindlepw2-kindlehf.kpkg'
+          a['version']=[0,6,5]
+          a['dependencies']=[]
+          p.write_text(json.dumps(m, ensure_ascii=False, indent=2) + '\n')
+          PY
+          python3 - <<'PY'
+          import json
+          m=json.load(open('manifest.json'))
+          a=m['packages']['ghostguard']['artifacts'][0]
+          assert a['version']==[0,6,5]
+          assert a['dependencies']==[]
+          assert a['url'].endswith('ghostguard_0.6.5_kindle5-kindlepw2-kindlehf.kpkg')
+          PY
+
+      - name: Commit v0.6.5 source, artifact and KPM manifest
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add packages/ghostguard/source packages/ghostguard/artifacts/ghostguard_0.6.4_kindle5-kindlepw2-kindlehf.kpkg SHA256SUMS.txt
+          git add \
+            packages/ghostguard/source \
+            packages/ghostguard/artifacts/ghostguard_0.6.5_kindle5-kindlepw2-kindlehf.kpkg \
+            manifest.json \
+            SHA256SUMS.txt
           if git diff --cached --quiet; then
-            echo 'v0.6.4 source/artifact already current.'
+            echo 'GhostGuard v0.6.5 is already public.'
           else
-            git commit -m 'Materialize GhostGuard 0.6.4 LibreSSL compatibility RC'
+            git commit -m 'Promote GhostGuard 0.6.5 UI Bridge RC'
             git push
           fi
