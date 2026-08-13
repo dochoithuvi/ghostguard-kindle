@@ -1,9 +1,10 @@
-name: Build GhostGuard 0.6.3 Standard Menu License Sync RC
+name: Build GhostGuard 0.6.4 LibreSSL License Sync RC
 
 on:
   push:
     paths:
-      - '.bootstrap/v063_apply.patch'
+      - 'packages/ghostguard/source/payload/dcghostguardpro.koplugin/license_crypto.lua'
+      - 'packages/ghostguard/source/manifest.json'
       - '.github/workflows/materialize-kpkg.yml'
   workflow_dispatch:
 
@@ -18,26 +19,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Apply v0.6.3 standard-menu sync patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          VERSION="$(python3 - <<'PY'
-          import json
-          v=json.load(open('packages/ghostguard/source/manifest.json'))['version']
-          print('.'.join(map(str,v)))
-          PY
-          )"
-          if [ "$VERSION" = '0.6.2' ]; then
-            patch --dry-run -p1 < .bootstrap/v063_apply.patch
-            patch -p1 < .bootstrap/v063_apply.patch
-          elif [ "$VERSION" = '0.6.3' ]; then
-            echo 'Source already at v0.6.3; patch not reapplied.'
-          else
-            echo "Unexpected source version: $VERSION" >&2
-            exit 1
-          fi
 
       - name: Regenerate source checksums
         shell: bash
@@ -56,11 +37,13 @@ jobs:
           root=pathlib.Path('.')
           manifest=json.loads((root/'packages/ghostguard/source/manifest.json').read_text())
           assert manifest['manifest_version'] == 2
-          assert manifest['version'] == [0,6,3]
+          assert manifest['version'] == [0,6,4]
           assert manifest['dependencies'] == []
           main=(root/'packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua').read_text()
           assert 'text = _("Đồng bộ license online")' in main
-          assert 'callback = function() self:syncOnlineLicense(true) end' in main
+          crypto=(root/'packages/ghostguard/source/payload/dcghostguardpro.koplugin/license_crypto.lua').read_text()
+          assert 'EVP_DigestUpdate' in crypto
+          assert 'lib.EVP_DigestVerifyUpdate' not in crypto
           reg=json.loads((root/'licenses/licenses.json').read_text())
           sig=json.loads((root/'licenses/licenses.sig').read_text())
           assert reg['registry_format']==1
@@ -89,12 +72,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.6.3_kindle5-kindlepw2-kindlehf.kpkg'
+          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.6.4_kindle5-kindlepw2-kindlehf.kpkg'
           mkdir -p packages/ghostguard/artifacts
           python3 - <<'PY'
           import pathlib, tarfile
           src = pathlib.Path('packages/ghostguard/source')
-          out = pathlib.Path('packages/ghostguard/artifacts/ghostguard_0.6.3_kindle5-kindlepw2-kindlehf.kpkg')
+          out = pathlib.Path('packages/ghostguard/artifacts/ghostguard_0.6.4_kindle5-kindlepw2-kindlehf.kpkg')
           names = sorted(p.name for p in src.iterdir())
           names.remove('manifest.json')
           names.insert(0, 'manifest.json')
@@ -105,21 +88,21 @@ jobs:
           tar -tzf "$ARTIFACT" > /tmp/ghostguard-kpkg-files.txt
           grep -qx 'manifest.json' /tmp/ghostguard-kpkg-files.txt
           ! grep -qx './manifest.json' /tmp/ghostguard-kpkg-files.txt
-          tar -xOf "$ARTIFACT" manifest.json | python3 -c 'import json,sys; m=json.load(sys.stdin); assert m["version"] == [0,6,3] and m["dependencies"] == []'
+          tar -xOf "$ARTIFACT" manifest.json | python3 -c 'import json,sys; m=json.load(sys.stdin); assert m["version"] == [0,6,4] and m["dependencies"] == []'
           SHA="$(sha256sum "$ARTIFACT" | awk '{print $1}')"
           printf '%s  %s\n' "$SHA" "$ARTIFACT" > SHA256SUMS.txt
           echo "KPKG_SHA256=$SHA"
 
-      - name: Commit v0.6.3 source and artifact
+      - name: Commit v0.6.4 source and artifact
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add packages/ghostguard/source packages/ghostguard/artifacts/ghostguard_0.6.3_kindle5-kindlepw2-kindlehf.kpkg SHA256SUMS.txt
+          git add packages/ghostguard/source packages/ghostguard/artifacts/ghostguard_0.6.4_kindle5-kindlepw2-kindlehf.kpkg SHA256SUMS.txt
           if git diff --cached --quiet; then
-            echo 'v0.6.3 source/artifact already current.'
+            echo 'v0.6.4 source/artifact already current.'
           else
-            git commit -m 'Materialize GhostGuard 0.6.3 standard-menu license sync RC'
+            git commit -m 'Materialize GhostGuard 0.6.4 LibreSSL compatibility RC'
             git push
           fi
