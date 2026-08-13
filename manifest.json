@@ -12,7 +12,7 @@
         {
           "url": "packages/ghostguard/artifacts/ghostguard_0.6.1_kindle5-kindlepw2-kindlehf.kpkg",
           "version": [0, 6, 1],
-          "dependencies": [{"id": "koreader"}],
+          "dependencies": [],
           "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
         }
       ]
