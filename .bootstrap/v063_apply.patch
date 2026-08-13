@@ -15,7 +15,7 @@ diff --git a/packages/ghostguard/source/manifest.json b/packages/ghostguard/sour
 diff --git a/packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua b/packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua
 --- a/packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua
 +++ b/packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua
-@@ -522,6 +522,11 @@ function DCPROGhostGuard:addToMainMenu(menu_items)
+@@ -522,6 +522,10 @@ function DCPROGhostGuard:addToMainMenu(menu_items)
                  show(self.guard:licenseStatusText() .. "\n\n" .. self.guard:licenseHelpText(), 14)
              end,
          }
