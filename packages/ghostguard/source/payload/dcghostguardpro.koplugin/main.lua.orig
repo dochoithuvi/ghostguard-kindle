@@ -556,10 +556,6 @@ function DCPROGhostGuard:addToMainMenu(menu_items)
             end,
         }
         sub_items[#sub_items + 1] = {
-            text = _("Đồng bộ license online"), keep_menu_open = true,
-            callback = function() self:syncOnlineLicense(true) end,
-        }
-        sub_items[#sub_items + 1] = {
             text = _("Dừng và gửi báo cáo Cloud"),
             callback = function() self:cloudUploadFlow("manual-cloud") end,
         }
