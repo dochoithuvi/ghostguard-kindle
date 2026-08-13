@@ -1,6 +1,6 @@
-# DCPRO GhostGuard v0.6.0 RC — License Sync branch
+# DCPRO GhostGuard v0.6.1 RC — License Sync first-launch fix
 
-This RC is based on the v0.5.1 HF3/ExitTrace runtime and adds signed online license registry support.
+This RC is based on the v0.5.1 HF3/ExitTrace runtime and adds signed online license registry support. v0.6.1 keeps a first-launch request pending until signed online authorization completes, so one-click installs do not require a second tap.
 It does **not** claim the later Adaptive/TouchMap runtime is merged yet.
 
 License v4.1:

@@ -1,1 +1,1 @@
-943d19ddf079844ecb4abdbd451b19a221ac055392f45512844570976a0b3266  packages/ghostguard/artifacts/ghostguard_0.6.0_kindle5-kindlepw2-kindlehf.kpkg
+a31fde149fc7324232e9545f2afefdd395aaf54584a6ed04eede6365f5a330d6  packages/ghostguard/artifacts/ghostguard_0.6.1_kindle5-kindlepw2-kindlehf.kpkg

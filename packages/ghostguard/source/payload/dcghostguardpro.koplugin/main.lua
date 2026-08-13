@@ -141,6 +141,49 @@ function DCPROGhostGuard:syncOnlineLicense(show_result)
     if ok and allowed == false and self.guard:isRunning() then
         self.guard:stop("online-license-policy")
     end
+
+    -- A Library/bootstrap launch may arrive before the first online registry sync.
+    -- Keep that request pending and start it immediately after signed online
+    -- authorization succeeds, so first-time customers do not need a second tap.
+    if ok and allowed == true and self.pending_online_start_mode then
+        local mode = self.pending_online_start_mode
+        local reason = self.pending_online_start_reason or "online-license-launch"
+        self.pending_online_start_mode = nil
+        self.pending_online_start_reason = nil
+        if not self.guard:isRunning() and not self.guard.autostart_blocked then
+            UIManager:scheduleIn(0.1, function()
+                if self.guard and not self.guard:isRunning() and not self.guard.autostart_blocked then
+                    self:startMode(mode, reason)
+                end
+            end)
+        end
+    elseif ok and allowed == false and self.pending_online_start_mode then
+        self.pending_online_start_mode = nil
+        self.pending_online_start_reason = nil
+        if not show_result then
+            show(_("GhostGuard chưa được kích hoạt cho Serial này.\n\n") .. tostring(policy or detail), 12)
+        end
+    elseif ok and allowed == true and self.online_startup_sync
+        and not self.startup_license_was_valid and not self.guard:isRunning()
+        and not self.guard.autostart_blocked then
+        -- Normal KOReader startup with an online-only license: preserve the same
+        -- auto-protect / customer-auto-learning behavior as a local RSA license.
+        local mode, reason
+        if self.guard:isAutoProtectEnabled() and self.guard:profileApproved()
+            and self.guard:protectSupported() then
+            mode, reason = self.config.protect_mode, "online-auto-protect"
+        elseif self.config.customer_autolearn_default and self.guard:protectSupported()
+            and not self.guard:profileApproved() then
+            mode, reason = self.config.calibration_mode, "online-customer-auto-learning"
+        end
+        if mode then
+            UIManager:scheduleIn(self.config.auto_start_delay_seconds, function()
+                if self.guard and not self.guard:isRunning() and not self.guard.autostart_blocked then
+                    self:startMode(mode, reason)
+                end
+            end)
+        end
+    end
     return ok, detail, allowed, policy
 end
 
@@ -369,18 +412,23 @@ function DCPROGhostGuard:init()
 
     if not self.load_error then
         UIManager:scheduleIn(0.5, function() self:registerSimpleUI(1) end)
-        UIManager:scheduleIn(3.0, function()
+        UIManager:scheduleIn(1.5, function()
+            self.online_startup_sync = true
             pcall(function() self:syncOnlineLicense(false) end)
+            self.online_startup_sync = false
         end)
         local requested, requested_mode = self.guard:consumeLaunchRequest()
         local start_reason, start_mode
         local licensed = self.guard:licenseValid(true)
+        self.startup_license_was_valid = licensed == true
         if requested then
             if licensed then
                 start_reason, start_mode = "home-launcher", requested_mode
             else
-                UIManager:scheduleIn(1, function()
-                    show(_("GhostGuard chưa được kích hoạt.\n\n") .. self.guard:licenseHelpText(), 14)
+                self.pending_online_start_mode = requested_mode
+                self.pending_online_start_reason = "home-launcher-online"
+                UIManager:scheduleIn(0.7, function()
+                    show(_("Đang xác thực license GhostGuard online cho Serial máy..."), 5)
                 end)
             end
         elseif licensed and self.guard:isAutoProtectEnabled() and self.guard:profileApproved()
