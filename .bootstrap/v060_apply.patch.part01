@@ -1,0 +1,119 @@
+aunch_once_marker = "/mnt/us/.dcpro_ghostguard/LAUNCH_ONCE",
+     auto_protect_marker = "/mnt/us/.dcpro_ghostguard/AUTO_PROTECT",
+--- a/packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
++++ b/packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
+@@ -155,6 +155,9 @@
+ function GhostGuard:licenseStatusText()
+     return self.license:statusText()
+ end
++function GhostGuard:syncOnlineLicense()
++    return self.license:syncOnline()
++end
+ function GhostGuard:licenseHelpText()
+     return self.license:activationHelp()
+ end
+--- a/packages/ghostguard/source/payload/dcghostguardpro.koplugin/license_crypto.lua
++++ b/packages/ghostguard/source/payload/dcghostguardpro.koplugin/license_crypto.lua
+@@ -18,6 +18,7 @@
+ int EVP_DigestVerifyInit(EVP_MD_CTX *ctx, EVP_PKEY_CTX **pctx, const EVP_MD *type, ENGINE *e, EVP_PKEY *pkey);
+ int EVP_DigestVerifyUpdate(EVP_MD_CTX *ctx, const void *d, size_t cnt);
+ int EVP_DigestVerifyFinal(EVP_MD_CTX *ctx, const unsigned char *sig, size_t siglen);
++int EVP_Digest(const void *data, size_t count, unsigned char *md, unsigned int *size, const EVP_MD *type, ENGINE *impl);
+ ]]
+ 
+ local M = {}
+@@ -105,4 +106,18 @@
+     return ok, ok and "RSA_SHA256_VALID" or "SIGNATURE_MISMATCH"
+ end
+ 
++
++function M.sha256Hex(message)
++    local lib, err = load_crypto()
++    if not lib then return nil, err end
++    message = tostring(message or "")
++    local out = ffi.new("unsigned char[32]")
++    local outlen = ffi.new("unsigned int[1]")
++    local ok = lib.EVP_Digest(message, #message, out, outlen, lib.EVP_sha256(), nil) == 1
++    if not ok or tonumber(outlen[0]) ~= 32 then return nil, "SHA256_FAILED" end
++    local parts = {}
++    for i = 0, 31 do parts[#parts+1] = string.format("%02x", tonumber(out[i])) end
++    return table.concat(parts)
++end
++
+ return M
+--- a/packages/ghostguard/source/payload/dcghostguardpro.koplugin/license_manager.lua
++++ b/packages/ghostguard/source/payload/dcghostguardpro.koplugin/license_manager.lua
+@@ -1,200 +1,36 @@
+ local LicenseManager = {}
+ LicenseManager.__index = LicenseManager
+-
+-local REQUIRED = {
+-    "license_format", "serial", "customer", "issued_at", "expire", "features",
+-    "license_id", "key_id", "sig_alg", "sig",
+-}
+-
+-local function trim(s)
+-    return tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")
++local REQUIRED={"license_format","serial","customer","issued_at","expire","features","license_id","key_id","sig_alg","sig"}
++local function trim(s)return tostring(s or ""):gsub("^%s+",""):gsub("%s+$","")end
++local function normalize_serial(v)local s=tostring(v or ""):upper():gsub("[^A-Z0-9]","");if s==""then return nil end;return s end
++local function valid_date(s)if not tostring(s):match("^%d%d%d%d%-%d%d%-%d%d$")then return false end;local y,m,d=tonumber(s:sub(1,4)),tonumber(s:sub(6,7)),tonumber(s:sub(9,10));if not y or y<2020 or not m or m<1 or m>12 or not d or d<1 or d>31 then return false end;local md={31,28,31,30,31,30,31,31,30,31,30,31};if y%400==0 or(y%4==0 and y%100~=0)then md[2]=29 end;return d<=md[m] end
++local function date_num(s)return tonumber((s or ""):gsub("-",""))or 0 end
++local function parse_license(raw)local f,c={},{};raw=tostring(raw or ""):gsub("\r","");for line in(raw.."\n"):gmatch("([^\n]*)\n")do if line~=""and not line:match("^%s*#")then local k,v=line:match("^([a-z_]+)=(.*)$");if not k then return nil,"MALFORMED_LICENSE_LINE" end;c[k]=(c[k]or 0)+1;if c[k]>1 then return nil,"DUPLICATE_FIELD_"..k end;f[k]=v end end;for _,k in ipairs(REQUIRED)do if c[k]~=1 then return nil,"FIELD_"..k.."_MISSING" end end;return f end
++local function feature_allowed(features)local n=","..tostring(features or ""):lower():gsub("%s","")..",";return n:find(",ghostguard,",1,true)~=nil or n:find(",ultimate,",1,true)~=nil end
++local function canonical(f)return table.concat({"license_format="..f.license_format,"serial="..f.serial,"customer="..f.customer,"issued_at="..f.issued_at,"expire="..f.expire,"features="..f.features,"license_id="..f.license_id,"key_id="..f.key_id,"sig_alg="..f.sig_alg,""},"\n") end
++local function load_keyring(plugin_dir)local chunk,err=loadfile(plugin_dir.."keys/keyring.lua");if not chunk then return nil,"KEYRING_LOAD_FAILED:"..tostring(err)end;local ok,ring=pcall(chunk);if not ok or type(ring)~="table"then return nil,"KEYRING_INVALID"end;return ring end
++function LicenseManager:new(config,storage,plugin_dir,device_id)
++ local crypto_ok,crypto=pcall(dofile,plugin_dir.."license_crypto.lua");local online_ok,Online=pcall(dofile,plugin_dir.."online_license.lua");local o=setmetatable({config=config,crypto=crypto_ok and crypto or nil,crypto_error=crypto_ok and nil or tostring(crypto),storage=storage,plugin_dir=plugin_dir,device_id=device_id,license_path=plugin_dir.."license.key",state_path=config.data_dir.."/license_last_date",debug_path=config.data_dir.."/license_debug.log",last_ok=false,last_detail="NOT_CHECKED",last_checked_wall=0,online=nil,online_error=online_ok and nil or tostring(Online)},self);if online_ok and crypto_ok then o.online=Online:new(config,storage,plugin_dir,device_id,crypto) end;return o
++end
++function LicenseManager:writeDebug(detail,fields,source)local text=table.concat({"DCPRO_GHOSTGUARD_LICENSE_DEBUG_V41","TIME="..os.date("%Y-%m-%d %H:%M:%S"),"DEVICE_ID="..tostring(self.device_id),"SOURCE="..tostring(source or "UNKNOWN"),"LICENSE_PATH="..tostring(self.license_path),"FORMAT="..tostring(fields and fields.license_format or "UNKNOWN"),"KEY_ID="..tostring(fields and fields.key_id or "UNKNOWN"),"LICENSE_ID="..tostring(fields and fields.license_id or "UNKNOWN"),"RESULT="..tostring(detail or "UNKNOWN"),""},"\n");self.storage:writeAtomic(self.debug_path,text)end
++function LicenseManager:localCheck()
++ if not self.storage:fileExists(self.license_path)then return false,"MISSING_PLUGIN_LICENSE_KEY" end;local raw=self.storage:readFile(self.license_path);if not raw or raw==""then return false,"EMPTY_PLUGIN_LICENSE_KEY" end;local f,perr=parse_license(raw);if not f then return false,perr end
++ f.serial=normalize_serial(f.serial)or"";f.customer=trim(f.customer);f.issued_at=trim(f.issued_at);f.expire=trim(f.expire):lower();f.features=trim(f.features):lower():gsub("%s","");f.license_id=trim(f.license_id);f.key_id=trim(f.key_id);f.sig_alg=trim(f.sig_alg):upper();f.sig=trim(f.sig)
++ if f.license_format~="4"then return false,"UNSUPPORTED_LICENSE_FORMAT",f end;if f.sig_alg~="RSA-SHA256"then return false,"UNSUPPORTED_SIGNATURE_ALGORITHM",f end;if f.customer==""or f.customer:find("[\r\n]")then return false,"CUSTOMER_INVALID",f end;if f.license_id==""or not f.license_id:match("^[A-Za-z0-9_.-]+$")then return false,"LICENSE_ID_INVALID",f end;if f.key_id==""or not f.key_id:match("^[A-Za-z0-9_.-]+$")then return false,"KEY_ID_INVALID",f end
++ local input=normalize_serial(self.device_id);if not input then return false,"SERIAL_UNAVAILABLE",f end;if f.serial~=input then return false,"SERIAL_MISMATCH",f end;if not feature_allowed(f.features)then return false,"FEATURE_GHOSTGUARD_NOT_GRANTED",f end
++ local today=os.date("%Y-%m-%d");if not valid_date(today)then return false,"SYSTEM_DATE_INVALID",f end;if not valid_date(f.issued_at)then return false,"ISSUED_AT_INVALID",f end;if date_num(today)<date_num(f.issued_at)then return false,"CLOCK_BEFORE_ISSUE_DATE",f end;local last=trim(self.storage:readFile(self.state_path)or"");if last~=""and valid_date(last)and date_num(today)<date_num(last)then return false,"CLOCK_ROLLBACK_DETECTED",f end;if f.expire~="lifetime"then if not valid_date(f.expire)then return false,"EXPIRE_INVALID",f end;if date_num(today)>date_num(f.expire)then return false,"LICENSE_EXPIRED",f end end
++ local ring,rerr=load_keyring(self.plugin_dir);if not ring then return false,rerr,f end;local filename=ring[f.key_id];if type(filename)~="string"or not filename:match("^[A-Za-z0-9_.-]+%.pem$")then return false,"UNKNOWN_KEY_ID",f end;if not self.crypto then return false,"LICENSE_CRYPTO_LOAD_FAILED:"..tostring(self.crypto_error),f end;local call_ok,verified,verr=pcall(self.crypto.verify,self.plugin_dir.."keys/"..filename,canonical(f),f.sig);if not call_ok then return false,"LICENSE_CRYPTO_RUNTIME_FAILED:"..tostring(verified),f end;if not verified then return false,verr or"SIGNATURE_MISMATCH",f end;self.storage:writeAtomic(self.state_path,today.."\n");return true,"V4_RSA_VALID;LICENSE_ID="..f.license_id..";EXPIRE="..f.expire,f
+ end
+-
+-local function normalize_serial(value)
+-    local serial = tostring(value or ""):upper():gsub("[^A-Z0-9]", "")
+-    if serial == "" then return nil end
+-    return serial
+-end
+-
+-local function valid_date(s)
+-    if not tostring(s):match("^%d%d%d%d%-%d%d%-%d%d$") then return false end
+-    local y,m,d = tonumber(s:sub(1,4)), tonumber(s:sub(6,7)), tonumber(s:sub(9,10))
+-    if not y or y < 2020 or not m or m < 1 or m > 12 or not d or d < 1 or d > 31 then return false end
+-    local mdays = {31,28,31,30,31,30,31,31,30,31,30,31}
+-    if (y % 400 == 0) or (y % 4 == 0 and y % 100 ~= 0) then mdays[2] = 29 end
+-    return d <= mdays[m]
+-end
+-
+-local function date_num(s) return tonumber((s or ""):gsub("-", "")) or 0 end
+-
+-local function parse_license(raw)
+-    local fields, counts = {}, {}
+-    raw = tostring(raw or ""):gsub("\r", "")
+-    for line in (raw .. "\n"):gmatch("([^\n]*)\n") do
+-        if line ~= "" and not line:match("^%s*#") then
+-            local k,v = line:match("^([a-z_]+)=(.*)$")
+-            if not k then return nil, "MALFORMED_LICENSE_LINE" end
+-            counts[k] = (counts[k] or 0) + 1
+-            if counts[k] > 1 then return nil, "DUPLICATE_FIELD_" .. k end
+-            fields[k] = v
+-        end
+-    end
+-    for _,k in ipairs(REQUIRED) do
+-        if counts[k] ~= 1 then return nil, "FIELD_" .. k .. "_MISSING" end
+-    end
+-    return fields
+-end
+-
+-local function feature_allowed(features)
+-    local n = "," .. tostring(features or ""):lower():gsub("%s", "") .. ","
+-    return n:find(",ghostguard,", 1, true) ~= nil or n:find(",ultimate,", 1, true) ~= nil
+-end
+-
+-local 
