@@ -1,9 +1,9 @@
-name: Materialize GhostGuard KPM
+name: Build GhostGuard 0.6.0 License Sync RC
 
 on:
   push:
     paths:
-      - '.bootstrap/**'
+      - '.bootstrap/v060_apply.patch.part*'
       - '.github/workflows/materialize-kpkg.yml'
   workflow_dispatch:
 
@@ -16,40 +16,79 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Rebuild and validate KPM artifact
+      - name: Apply v0.6.0 source patch
         shell: bash
         run: |
           set -euo pipefail
-          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg'
+          cat .bootstrap/v060_apply.patch.part* > /tmp/v060.patch
+          if ! grep -q '"version": \[' packages/ghostguard/source/manifest.json || ! grep -A3 '"version": \[' packages/ghostguard/source/manifest.json | grep -q '6'; then
+            patch --dry-run -p1 < /tmp/v060.patch
+            patch -p1 < /tmp/v060.patch
+          else
+            echo 'Source already at v0.6.0; patch not reapplied.'
+          fi
+
+      - name: Validate source and signed registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd packages/ghostguard/source
+          sha256sum --check checksums.sha256
+          python3 - <<'PY'
+          import json, pathlib, re
+          manifest=json.loads(pathlib.Path('manifest.json').read_text())
+          assert manifest['version']==[0,6,0]
+          reg=json.loads(pathlib.Path('../../../licenses/licenses.json').read_text())
+          sig=json.loads(pathlib.Path('../../../licenses/licenses.sig').read_text())
+          assert reg['registry_format']==1
+          assert reg['key_id']==sig['key_id']=='ghostguard-rc-2026-08'
+          assert reg['sig_alg']==sig['sig_alg']=='RSA-SHA256'
+          for e in reg['entries']:
+              assert 'serial' not in e and 'customer' not in e
+              assert re.fullmatch(r'[0-9a-f]{64}', e['serial_hash'])
+          PY
+          cd ../../..
+          python3 - <<'PY'
+          import base64, hashlib, json, pathlib
+          raw=pathlib.Path('licenses/licenses.json').read_bytes()
+          s=json.loads(pathlib.Path('licenses/licenses.sig').read_text())
+          assert hashlib.sha256(raw).hexdigest()==s['content_sha256']
+          pathlib.Path('/tmp/licenses.sig.bin').write_bytes(base64.b64decode(s['sig'], validate=True))
+          PY
+          openssl dgst -sha256 \
+            -verify packages/ghostguard/source/payload/dcghostguardpro.koplugin/keys/ghostguard-rc-2026-08.pem \
+            -signature /tmp/licenses.sig.bin licenses/licenses.json
+          ! grep -R --line-number --fixed-strings 'BEGIN PRIVATE KEY' packages/ghostguard/source licenses
+          ! grep -R --line-number --fixed-strings 'BEGIN RSA PRIVATE KEY' packages/ghostguard/source licenses
+
+      - name: Build KPM artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.6.0_kindle5-kindlepw2-kindlehf.kpkg'
           mkdir -p packages/ghostguard/artifacts
-          cat .bootstrap/ghostguard_0.5.1.kpkg.b64.part* | base64 --decode > "$ARTIFACT"
-          echo "31067b54337d335efae575abcb3adbb54a1a796a16b18f7dc0a6406109b7947a  $ARTIFACT" | sha256sum --check --strict
+          tar --sort=name --mtime='UTC 1980-01-01' --owner=0 --group=0 --numeric-owner \
+            -C packages/ghostguard/source -cf - . | gzip -n > "$ARTIFACT"
           tar -tzf "$ARTIFACT" > /tmp/ghostguard-kpkg-files.txt
           grep -Eq '^\./manifest\.json$|^manifest\.json$' /tmp/ghostguard-kpkg-files.txt
+          tar -xOf "$ARTIFACT" ./manifest.json | python3 -c 'import json,sys; assert json.load(sys.stdin)["version"] == [0,6,0]'
+          SHA="$(sha256sum "$ARTIFACT" | awk '{print $1}')"
+          printf '%s  %s\n' "$SHA" "$ARTIFACT" > SHA256SUMS.txt
+          echo "KPKG_SHA256=$SHA"
 
-      - name: Materialize public source
-        shell: bash
-        run: |
-          set -euo pipefail
-          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.5.1_kindle5-kindlepw2-kindlehf.kpkg'
-          rm -rf packages/ghostguard/source
-          mkdir -p packages/ghostguard/source
-          tar -xzf "$ARTIFACT" -C packages/ghostguard/source
-          printf '%s  %s\n' \
-            '31067b54337d335efae575abcb3adbb54a1a796a16b18f7dc0a6406109b7947a' \
-            "$ARTIFACT" > SHA256SUMS.txt
-
-      - name: Commit artifact and source
+      - name: Commit v0.6.0 source and artifact
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add packages/ghostguard/artifacts packages/ghostguard/source SHA256SUMS.txt
+          git add packages/ghostguard/source packages/ghostguard/artifacts/ghostguard_0.6.0_kindle5-kindlepw2-kindlehf.kpkg SHA256SUMS.txt
           if git diff --cached --quiet; then
-            echo 'Artifact and source already current.'
+            echo 'v0.6.0 source/artifact already current.'
           else
-            git commit -m 'Materialize GhostGuard 0.5.1 artifact and public source'
+            git commit -m 'Materialize GhostGuard 0.6.0 License Sync RC'
             git push
           fi
