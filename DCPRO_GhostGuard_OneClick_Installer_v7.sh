@@ -97,6 +97,30 @@ install_koreader() {
     log "KOReader installation failed."
     return 1
 }
+patch_license_sync() {
+    DEST="$ROOT/koreader/plugins/dcghostguardpro.koplugin"
+    [ -d "$DEST" ] || return 0
+    log "Refreshing online license network layer (GitHub Raw -> jsDelivr)."
+    PATCH_TMP="$ROOT/.dcpro_ghostguard/license_sync_patch"
+    mkdir -p "$PATCH_TMP" 2>/dev/null || return 1
+    BASE_RAW="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/source/payload/dcghostguardpro.koplugin"
+    BASE_CDN="https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/source/payload/dcghostguardpro.koplugin"
+    for f in defaults.lua online_license.lua; do
+        rm -f "$PATCH_TMP/$f" 2>/dev/null || true
+        if ! download_file "$BASE_RAW/$f" "$PATCH_TMP/$f"; then
+            log "Raw download failed for $f; trying jsDelivr."
+            download_file "$BASE_CDN/$f" "$PATCH_TMP/$f" || { log "Network patch failed for $f."; return 1; }
+        fi
+        [ -s "$PATCH_TMP/$f" ] || { log "Downloaded $f is empty."; return 1; }
+    done
+    grep -q 'online_license_registry_mirror_url' "$PATCH_TMP/defaults.lua" || { log "defaults.lua mirror settings missing."; return 1; }
+    grep -q 'JSDELIVR' "$PATCH_TMP/online_license.lua" || { log "online_license.lua fallback logic missing."; return 1; }
+    cp "$PATCH_TMP/defaults.lua" "$DEST/defaults.lua" || return 1
+    cp "$PATCH_TMP/online_license.lua" "$DEST/online_license.lua" || return 1
+    rm -rf "$PATCH_TMP" 2>/dev/null || true
+    log "Online license fallback patch installed successfully."
+    return 0
+}
 install_simpleui() {
     if [ -f "$ROOT/koreader/plugins/simpleui.koplugin/main.lua" ]; then log "SimpleUI already installed."; return 0; fi
     log "SimpleUI not found; attempting automatic installation."
@@ -132,7 +156,6 @@ log "========================================"
 log "DCPRO GhostGuard OneClick v7"
 log "Date: $(date)"
 log "========================================"
-
 KPM=""; KPM_KIND=""
 find_kpm || fail "Khong tim thay KPM/KMC"
 log "KPM=$KPM ($KPM_KIND)"
@@ -143,15 +166,14 @@ case "$KPM_KIND" in
         ;;
 esac
 
-# IMPORTANT: this happens before any GhostGuard launch, so a Kindle with a
-# broken/touch-unusable UI can still bootstrap KOReader from the scriptlet.
+# This happens before any GhostGuard launch, so a Kindle with a broken/touch-unusable UI
+# can still bootstrap KOReader from the scriptlet.
 if [ ! -x "$ROOT/extensions/koreader/bin/koreader.sh" ] && [ ! -x "$ROOT/koreader/koreader.sh" ]; then
     install_koreader || fail "Khong tai/cai duoc KOReader"
 fi
 if [ ! -x "$ROOT/extensions/koreader/bin/koreader.sh" ] && [ ! -x "$ROOT/koreader/koreader.sh" ]; then
     fail "KOReader van chua san sang sau khi cai"
 fi
-
 if [ ! -f "$ROOT/koreader/plugins/zen_ui.koplugin/main.lua" ] && [ ! -f "$ROOT/koreader/plugins/simpleui.koplugin/main.lua" ]; then
     install_simpleui || log "SimpleUI auto-install skipped/failed; continuing with native UI."
 fi
@@ -175,6 +197,7 @@ if ! runlog "$KPM" -y install ghostguard; then
     runlog "$KPM" -y install ghostguard || fail "Cai GhostGuard that bai"
 fi
 line 6 "[4/6] GhostGuard... OK"
+patch_license_sync || log "License network fallback patch skipped; keeping installed package files."
 line 7 "[5/6] Chuan bi UI: $UI_NAME"
 log "GhostGuard selects UI bridge at KOReader runtime: ZenUI > SimpleUI > Native."
 line 7 "[5/6] UI... OK"
