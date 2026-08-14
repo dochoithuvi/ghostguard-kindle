@@ -7,14 +7,14 @@
     "ghostguard": {
       "name": "DCPRO GhostGuard",
       "author": "Do Choi Thu Vi",
-      "description": "KOReader GhostGuard v0.6.6 RC - Production RSA key support, Native/SimpleUI/ZenUI bridges, Library icon fix and RSA v4.1 online activation.",
+      "description": "KOReader GhostGuard v0.6.8 - Production RSA key, GitHub Raw/jsDelivr license fallback, verified cache grace, Native/SimpleUI/ZenUI bridges and online activation.",
       "artifacts": [
         {
-          "url": "https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/artifacts/ghostguard_0.6.6_kindle5-kindlepw2-kindlehf.kpkg",
+          "url": "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.8_kindle5-kindlepw2-kindlehf.kpkg",
           "version": [
             0,
             6,
-            6
+            8
           ],
           "dependencies": [],
           "supported_platforms": [
