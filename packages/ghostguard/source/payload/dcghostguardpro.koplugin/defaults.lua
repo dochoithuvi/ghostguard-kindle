@@ -1,5 +1,5 @@
 return {
-    version = "0.6.7-kindle-network-fallback",
+    version = "0.6.8-kindle-network-fallback",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
     protect_mode = "PROTECT_PROFILE",
@@ -25,9 +25,6 @@ return {
     allow_legacy_license_migration = false,
     legacy_license_paths = {},
 
-    -- License v4.1 online registry. Network I/O is never performed in the raw touch hot path.
-    -- The client tries GitHub Raw first, then jsDelivr. If both are unavailable,
-    -- a previously verified local cache may be used within the configured grace period.
     online_license_enabled = true,
     online_license_registry_url = "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/licenses/licenses.json",
     online_license_signature_url = "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/licenses/licenses.sig",
