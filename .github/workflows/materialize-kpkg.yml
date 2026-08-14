@@ -12,6 +12,7 @@ on:
 permissions:
   contents: write
 
+# 0.6.8 production build: registry/signature are validated from the current main branch.
 jobs:
   publish-artifact:
     runs-on: ubuntu-latest
