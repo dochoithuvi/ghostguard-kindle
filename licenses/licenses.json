@@ -1,7 +1,7 @@
 {
   "registry_format": 1,
   "product": "DCPRO GhostGuard",
-  "generated_at": "2026-08-14T06:13:16Z",
+  "generated_at": "2026-08-14T07:17:02Z",
   "key_id": "ghostguard-prod-2026-08",
   "sig_alg": "RSA-SHA256",
   "entries": [
@@ -165,6 +165,17 @@
       "expire": "2026-12-31",
       "features": [
         "ppw4",
+        "ultimate"
+      ],
+      "status": "active"
+    },
+    {
+      "serial_hash": "556fd0716a70bd98e3da5093d45479525a2c883a48b85552073683690a0e3af8",
+      "license_id": "DCPRO-20260814-5602JG",
+      "issued_at": "2026-08-14",
+      "expire": "2026-12-31",
+      "features": [
+        "ghostguard",
         "ultimate"
       ],
       "status": "active"
