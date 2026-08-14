@@ -1,0 +1,21 @@
+{
+  "manifest_version": 2,
+  "id": "dochoithuvi-ghostguard-mirror",
+  "name": "Do Choi Thu Vi GhostGuard Repository (jsDelivr mirror)",
+  "description": "Mirror manifest for Kindle devices that cannot resolve raw.githubusercontent.com.",
+  "packages": {
+    "ghostguard": {
+      "name": "DCPRO GhostGuard",
+      "author": "Do Choi Thu Vi",
+      "description": "KOReader GhostGuard with online license fallback.",
+      "artifacts": [
+        {
+          "url": "https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/artifacts/ghostguard_0.6.6_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [0, 6, 6],
+          "dependencies": [],
+          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
+        }
+      ]
+    }
+  }
+}
