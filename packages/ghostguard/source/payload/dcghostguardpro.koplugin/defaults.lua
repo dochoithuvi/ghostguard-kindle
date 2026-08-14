@@ -1,5 +1,5 @@
 return {
-    version = "0.5.1-kindle-hotfix3-exittrace",
+    version = "0.6.7-kindle-network-fallback",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
     protect_mode = "PROTECT_PROFILE",
@@ -16,24 +16,23 @@ return {
     cloud_max_bytes = 8388608,
     cloud_compress_threshold = 2000000,
 
-    -- KOReader termination and plugin-runtime diagnostics.
     exit_reason_detail_file = "/mnt/us/.dcpro_ghostguard/EXIT_REASON_DETAIL.txt",
     koreader_traceback_file = "/mnt/us/.dcpro_ghostguard/KOReader_EXIT_TRACEBACK.txt",
     exit_history_file = "/mnt/us/.dcpro_ghostguard/EXIT_HISTORY.log",
 
-    -- Final activation policy: calibration, observation and protection only run
-    -- when a valid v3 license.key exists inside the plugin directory.
     license_required = true,
     license_recheck_seconds = 30,
-    -- Strict final policy: no automatic import from old tools. Activation only
-    -- happens when license.key physically exists inside this plugin directory.
     allow_legacy_license_migration = false,
     legacy_license_paths = {},
 
     -- License v4.1 online registry. Network I/O is never performed in the raw touch hot path.
+    -- The client tries GitHub Raw first, then jsDelivr. If both are unavailable,
+    -- a previously verified local cache may be used within the configured grace period.
     online_license_enabled = true,
     online_license_registry_url = "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/licenses/licenses.json",
     online_license_signature_url = "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/licenses/licenses.sig",
+    online_license_registry_mirror_url = "https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/licenses/licenses.json",
+    online_license_signature_mirror_url = "https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/licenses/licenses.sig",
     online_license_cache_json = "/mnt/us/.dcpro_ghostguard/online_licenses.json",
     online_license_cache_sig = "/mnt/us/.dcpro_ghostguard/online_licenses.sig",
     online_license_sync_state = "/mnt/us/.dcpro_ghostguard/online_license_sync_state",
@@ -55,8 +54,6 @@ return {
     drive_root_folder_id = "1h26N0Gtb1PgV2SYCkzU_ue2iwFrtwnah",
     drive_root_folder_url = "https://drive.google.com/drive/folders/1h26N0Gtb1PgV2SYCkzU_ue2iwFrtwnah",
 
-    -- Customer deployment flow. A licensed machine with no approved profile
-    -- automatically learns in the background across normal reading sessions.
     customer_autolearn_default = true,
     customer_ready_notice_after_seconds = 180,
     customer_probation_sessions = 2,
@@ -67,9 +64,6 @@ return {
     max_protect_session_seconds = 21600,
     flush_every_frames = 128,
 
-    -- Keep a PASS_THROUGH wrapper active while learning, so Lua/input failures
-    -- are captured without blocking any gesture. PROTECT drops gestures only
-    -- after a valid approved profile explicitly enables protect_enabled.
     protect_wrapper_all_modes = true,
     engine_keep_alive_on_widget_close = true,
     resume_restart_delay_seconds = 4,
@@ -84,9 +78,6 @@ return {
         KindleBasic4 = true,
     },
 
-    -- Signals independent of location. Calibration may only learn contacts
-    -- that already look electrically weak/abnormal; coordinates alone are
-    -- never enough to become a profile sample or a blocked gesture.
     weak_low_touch_major = 20,
     weak_short_lifetime_us = 100000,
     weak_incomplete_lifetime_us = 250000,
