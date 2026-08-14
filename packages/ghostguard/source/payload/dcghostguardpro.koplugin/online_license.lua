@@ -38,7 +38,7 @@ local function https_get(url, block_timeout, total_timeout)
     if ok_su and socketutil then
         socketutil:set_timeout(block_timeout or 5,total_timeout or 12); sink=socketutil.table_sink(chunks)
     else sink=ltn12.sink.table(chunks) end
-    local ok,a,b,c=pcall(https.request,{url=url,method="GET",headers={["User-Agent"]="DCPRO-GhostGuard/0.6"},sink=sink})
+    local ok,a,b,c=pcall(https.request,{url=url,method="GET",headers={["User-Agent"]="DCPRO-GhostGuard/0.6.7"},sink=sink})
     if ok_su and socketutil then pcall(socketutil.reset_timeout,socketutil) end
     if not ok then return nil,"HTTPS_REQUEST_FAILED:"..tostring(a) end
     local code=tonumber(b) or tonumber(a)
@@ -65,6 +65,10 @@ function OnlineLicense:verifyPair(reg_raw,sig_raw)
     if tostring(reg.key_id)~=key_id then return nil,"REGISTRY_KEY_ID_MISMATCH" end
     if tostring(reg.sig_alg):upper()~="RSA-SHA256" then return nil,"REGISTRY_ALG_MISMATCH" end
     if type(reg.entries)~="table" then return nil,"REGISTRY_ENTRIES_INVALID" end
+    if sigobj.content_sha256 and self.crypto.sha256Hex then
+        local actual=self.crypto.sha256Hex(reg_raw)
+        if actual and tostring(actual):lower()~=tostring(sigobj.content_sha256):lower() then return nil,"REGISTRY_CONTENT_HASH_MISMATCH" end
+    end
     return reg,key_id
 end
 function OnlineLicense:lookup(reg)
@@ -97,14 +101,48 @@ function OnlineLicense:readCache()
 end
 function OnlineLicense:sync()
     if not self.config.online_license_enabled then return false,"ONLINE_DISABLED" end
-    local reg_raw,err=https_get(self.config.online_license_registry_url,self.config.online_license_connect_timeout,self.config.online_license_total_timeout); if not reg_raw then self.last_sync_detail=err; return false,err end
-    local sig_raw,serr=https_get(self.config.online_license_signature_url,self.config.online_license_connect_timeout,self.config.online_license_total_timeout); if not sig_raw then self.last_sync_detail=serr; return false,serr end
-    local reg,vdetail=self:verifyPair(reg_raw,sig_raw); if not reg then self.last_sync_detail=vdetail; return false,vdetail end
-    local ok1=self.storage:writeAtomic(self.config.online_license_cache_json,reg_raw); local ok2=self.storage:writeAtomic(self.config.online_license_cache_sig,sig_raw)
-    if not ok1 or not ok2 then self.last_sync_detail="ONLINE_CACHE_WRITE_FAILED"; return false,self.last_sync_detail end
-    self.storage:writeAtomic(self.config.online_license_sync_state,"SYNC_EPOCH="..tostring(os.time()).."\nSYNC_UTC="..os.date("!%Y-%m-%dT%H:%M:%SZ").."\n")
-    local entry=self:lookup(reg); local allowed,detail=self:evaluateEntry(entry)
-    self.last_sync_detail="SYNC_OK;"..tostring(detail); self.last_source="NETWORK"
-    return true,self.last_sync_detail,allowed,detail
+
+    local sources = {
+        {name="GITHUB_RAW", json=self.config.online_license_registry_url, sig=self.config.online_license_signature_url},
+        {name="JSDELIVR", json=self.config.online_license_registry_mirror_url, sig=self.config.online_license_signature_mirror_url},
+    }
+    local failures={}
+    for _,source in ipairs(sources) do
+        if source.json and source.sig then
+            local reg_raw,err=https_get(source.json,self.config.online_license_connect_timeout,self.config.online_license_total_timeout)
+            if reg_raw then
+                local sig_raw,serr=https_get(source.sig,self.config.online_license_connect_timeout,self.config.online_license_total_timeout)
+                if sig_raw then
+                    local reg,vdetail=self:verifyPair(reg_raw,sig_raw)
+                    if reg then
+                        local ok1=self.storage:writeAtomic(self.config.online_license_cache_json,reg_raw); local ok2=self.storage:writeAtomic(self.config.online_license_cache_sig,sig_raw)
+                        if not ok1 or not ok2 then self.last_sync_detail="ONLINE_CACHE_WRITE_FAILED"; return false,self.last_sync_detail end
+                        self.storage:writeAtomic(self.config.online_license_sync_state,"SYNC_EPOCH="..tostring(os.time()).."\nSYNC_UTC="..os.date("!%Y-%m-%dT%H:%M:%SZ").."\nSOURCE="..source.name.."\n")
+                        local entry=self:lookup(reg); local allowed,detail=self:evaluateEntry(entry)
+                        self.last_sync_detail="SYNC_OK;SOURCE="..source.name..";"..tostring(detail); self.last_source=source.name
+                        return true,self.last_sync_detail,allowed,detail
+                    end
+                    failures[#failures+1]=source.name..":"..tostring(vdetail)
+                else
+                    failures[#failures+1]=source.name..":SIG:"..tostring(serr)
+                end
+            else
+                failures[#failures+1]=source.name..":JSON:"..tostring(err)
+            end
+        end
+    end
+
+    local cached,cache_detail=self:readCache()
+    local grace=tonumber(self.config.online_license_grace_seconds) or 0
+    if cached and cached.age<=grace then
+        local allowed,detail=self:evaluateEntry(cached.entry)
+        self.last_source="CACHE"
+        self.last_sync_detail="SYNC_CACHE_FALLBACK;AGE="..tostring(cached.age)..";"..table.concat(failures,"|")..";"..tostring(detail)
+        return true,self.last_sync_detail,allowed,detail
+    end
+
+    self.last_source="NONE"
+    self.last_sync_detail="ONLINE_ALL_SOURCES_FAILED;"..table.concat(failures,"|")..";CACHE="..tostring(cache_detail)
+    return false,self.last_sync_detail
 end
 return OnlineLicense
