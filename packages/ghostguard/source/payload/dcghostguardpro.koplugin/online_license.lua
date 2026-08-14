@@ -38,7 +38,7 @@ local function https_get(url, block_timeout, total_timeout)
     if ok_su and socketutil then
         socketutil:set_timeout(block_timeout or 5,total_timeout or 12); sink=socketutil.table_sink(chunks)
     else sink=ltn12.sink.table(chunks) end
-    local ok,a,b,c=pcall(https.request,{url=url,method="GET",headers={["User-Agent"]="DCPRO-GhostGuard/0.6.7"},sink=sink})
+    local ok,a,b,c=pcall(https.request,{url=url,method="GET",headers={["User-Agent"]="DCPRO-GhostGuard/0.6.8"},sink=sink})
     if ok_su and socketutil then pcall(socketutil.reset_timeout,socketutil) end
     if not ok then return nil,"HTTPS_REQUEST_FAILED:"..tostring(a) end
     local code=tonumber(b) or tonumber(a)
@@ -101,7 +101,6 @@ function OnlineLicense:readCache()
 end
 function OnlineLicense:sync()
     if not self.config.online_license_enabled then return false,"ONLINE_DISABLED" end
-
     local sources = {
         {name="GITHUB_RAW", json=self.config.online_license_registry_url, sig=self.config.online_license_signature_url},
         {name="JSDELIVR", json=self.config.online_license_registry_mirror_url, sig=self.config.online_license_signature_mirror_url},
@@ -123,15 +122,10 @@ function OnlineLicense:sync()
                         return true,self.last_sync_detail,allowed,detail
                     end
                     failures[#failures+1]=source.name..":"..tostring(vdetail)
-                else
-                    failures[#failures+1]=source.name..":SIG:"..tostring(serr)
-                end
-            else
-                failures[#failures+1]=source.name..":JSON:"..tostring(err)
-            end
+                else failures[#failures+1]=source.name..":SIG:"..tostring(serr) end
+            else failures[#failures+1]=source.name..":JSON:"..tostring(err) end
         end
     end
-
     local cached,cache_detail=self:readCache()
     local grace=tonumber(self.config.online_license_grace_seconds) or 0
     if cached and cached.age<=grace then
@@ -140,7 +134,6 @@ function OnlineLicense:sync()
         self.last_sync_detail="SYNC_CACHE_FALLBACK;AGE="..tostring(cached.age)..";"..table.concat(failures,"|")..";"..tostring(detail)
         return true,self.last_sync_detail,allowed,detail
     end
-
     self.last_source="NONE"
     self.last_sync_detail="ONLINE_ALL_SOURCES_FAILED;"..table.concat(failures,"|")..";CACHE="..tostring(cache_detail)
     return false,self.last_sync_detail
