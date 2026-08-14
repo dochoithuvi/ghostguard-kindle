@@ -3,11 +3,11 @@
   "id": "ghostguard",
   "name": "DCPRO GhostGuard",
   "author": "Do Choi Thu Vi",
-  "description": "KOReader GhostGuard v0.6.6 RC - Production RSA key support, Native/SimpleUI/ZenUI bridges, Library icon fix and online activation.",
+  "description": "KOReader GhostGuard v0.6.7 - GitHub Raw/jsDelivr license fallback, cache grace, Production RSA key support, Native/SimpleUI/ZenUI bridges and online activation.",
   "version": [
     0,
     6,
-    6
+    7
   ],
   "dependencies": [],
   "supported_platforms": [
