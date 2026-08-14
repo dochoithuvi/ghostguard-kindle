@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "id": "dochoithuvi-ghostguard-mirror",
+  "id": "dochoithuvi-ghostguard",
   "name": "Do Choi Thu Vi GhostGuard Repository (jsDelivr mirror)",
   "description": "Mirror manifest for Kindle devices that cannot resolve raw.githubusercontent.com.",
   "packages": {
