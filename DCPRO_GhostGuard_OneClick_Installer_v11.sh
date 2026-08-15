@@ -23,7 +23,7 @@ FBINK="$(command -v fbink 2>/dev/null || true)"
 say(){ [ -n "$FBINK" ] && "$FBINK" -S "$FONT_SCALE" -x 1 -y "$1" -r "$2" >/dev/null 2>&1 || true; }
 run(){ log "> $*"; "$@" >> "$LOG" 2>&1; RC=$?; log "< rc=$RC"; return $RC; }
 kpm_list(){ "$KPM" -y list-repo 2>&1; }
-get(){ U="$1"; O="$2"; rm -f "$O" 2>/dev/null; if command -v curl >/dev/null 2>&1; then curl -L --fail --silent --show-error "$U" -o "$O"; else wget -q -O "$U" "$O"; fi; }
+get(){ U="$1"; O="$2"; rm -f "$O" 2>/dev/null; if command -v curl >/dev/null 2>&1; then curl -L --fail --silent --show-error "$U" -o "$O"; else wget -q -O "$O" "$U"; fi; }
 has_ko(){ [ -x "$ROOT/extensions/koreader/bin/koreader.sh" ] || [ -x "$ROOT/koreader/koreader.sh" ]; }
 ko_target(){ case "$KPM" in */kindlehf/bin/kpm) echo kindlehf;; */kindlepw2/bin/kpm) echo kindlepw2;; *) [ -d /var/local/kmc/kindle5 ] && echo kindle-legacy || echo kindle;; esac; }
 install_ko_direct(){
