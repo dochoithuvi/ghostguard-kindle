@@ -7,11 +7,11 @@
     "ghostguard": {
       "name": "DCPRO GhostGuard",
       "author": "Do Choi Thu Vi",
-      "description": "KOReader GhostGuard with online license fallback.",
+      "description": "KOReader GhostGuard v0.6.11 - SAFE diagnostic build: core/license/status only, no touch/input/UI bridges.",
       "artifacts": [
         {
-          "url": "https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/artifacts/ghostguard_0.6.6_kindle5-kindlepw2-kindlehf.kpkg",
-          "version": [0, 6, 6],
+          "url": "https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/artifacts/ghostguard_0.6.11_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [0, 6, 11],
           "dependencies": [],
           "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
         }
