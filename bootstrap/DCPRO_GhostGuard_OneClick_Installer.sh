@@ -1,11 +1,11 @@
 #!/bin/sh
 # Name: GhostGuard - Cai / Cap nhat
 # Author: Do Choi Thu Vi
-# Icon: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKQAAACkCAAAAAA83tqdAAAD+ElEQVR42u2d647cIAyFORHv/8qnP7ZVZyYh+PiSZFZEqlbqBvNhbHMJeMH2/GdrC3JBLsj7IfH3X+bT8xFba2ipkQ1MJ+S/nw/UJPb/wWdpcmiFfAzkqaPwEZBTX+bdkMZowxshhYDIeyDlkM3LIXFGglxMH+Q84qTGJA+kUU956tQhhbqzMEVIudoUTgnSVWMCph3S7wphJ7JCBvURK26DzOiygAgDZFoocQuaQqYOHk5hYKnJ50g8g0Q2oVfsELJyQaDKHkCijtBRQVdEJC5/qUxHDzUJHyGCBYalurnlcudhWtCqTpsmGVtFSMXp0mSQ8OctnkifCun1iNM9l2mvd78lQg06Z5in0twbVvAUccawnog4X4g5MXsO4m4py8EK3IXZ44ycWTWii+geZLTU+OEWOmUvR9xHGbnLtwAjlbreXkapJmHdsTjQ1qs2tS7vSYw4fvf9LTopu4+RxsD+MWq/KFOh7GFGzEvxSJkC5RZkhMUHcGgmKNAkjhAdw/b/Ljfr0q5JBhgPfc4ewQSbJAwjOIZzxM+gVOQ4fHOC2Qh+MmoT2spTi5MUh8fRqC0Oi95JL6z99sbp/CCzRRkN5k+6XC0KCdH8g5Sxj/K+qdpFmqRu/9Rnd1GbpO6jbO4dL++RG1Kuke5dua3eHgMlwpAXPgtyQS7IBbkgF+SCXJAL8kshcRkHfqcm77xIxOU4C/ILnsleEJhg99EINNAkH+XcyyYX5NdBXjPFwO+Nk0RIKe4QRk8wd/Zb8r3FrWUaJaLFLrBJFHnc1trt/o12oSZR1bht7ma4TpH8jSPOHbM1BmwS97rNGWT0ixflNjLk3YhpClHZW5VN8QUCVY7jikI8ZJwcZpvbV3II4se3d6T4HmyH3eMrVQaq2NLiRJDR7Th596woOZ3XJlHCiBbX5HV6jEAG5kIWRms7tufrcQrpVaWJ0dwQ15nedMag47jO2cuMTPRu3KJHAyRVydAZGYVUKW29qN1FMXQ3lfV/BaPJJmmfckOq3PrapspBO5lyYzezjDq24N0HlDjftGDLY7SGoB0lDny5itEcJz8oMej/EkZ7MH+nHPZ/BaPjFsmAspDRf2KfHPV/0j1m62pxEoIhxz3fpcdIKh6acwYMitdA7u7gQGCU0yZ4bZKzFpYwyl/d4RuHEVrRq95Nzy8RY9RDEPXZkpSxIidOUvsF0KKMnmBOibHFGfPS6LEM0Z+Q0FJ9EmJy1kRKL1wAOaFIRAxm8hySpCKGc6Iemx1SEROyy5pmiNF97W9IgZuwicpqxqS0zKhEzMvCXZrkDJXp3B6WhTs8+a52nAFVZutzz1qgADEd8kdgtlCsv0WyIBfkglyQp88fkJpONIe1gvUAAAAASUVORK5CYII=
+# Icon: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKQAAACkCAAAAAA83tqdAAAD+ElEQVR42u2d647cIAyFORHv/8qnP7ZVZyYh+PiSZFZEqlbqBvNhbHMJeMH2/GdrC3JBLsj7IfH3X+bT8xFba2ipkQ1MJ+S/nw/UJPb/wWdpcmiFfAzkqaPwEZBTX+bdkMZowxshhYDIeyDlkM3LIXFGglxMH+Q84qTGJA+kUU956tQhhbqzMEVIudoUTgnSVWMCph3S7wphJ7JCBvURK26DzOiygAgDZFoocQuaQqYOHk5hYKnJ50g8g0Q2oVfsELJyQaDKHkCijtBRQVdEJC5/qUxHDzUJHyGCBYalurnlcudhWtCqTpsmGVtFSMXp0mSQ8OctnkifCun1iNM9l2mvd78lQg06Z5in0twbVvAUccawnog4X4g5MXsO4m4py8EK3IXZ44ycWTWii+geZLTU+OEWOmUvR9xHGbnLtwAjlbreXkapJmHdsTjQ1qs2tS7vSYw4fvf9LTopu4+RxsD+MWq/KFOh7GFGzEvxSJkC5RZkhMUHcGgmKNAkjhAdw/b/Ljfr0q5JBhgPfc4ewQSbJAwjOIZzxM+gVOQ4fHOC2Qh+MmoT2spTi5MUh8fRqC0Oi95JL6z99sbp/CCzRRkN5k+6XC0KCdH8g5Sxj/K+qdpFmqRu/9Rnd1GbpO6jbO4dL++RG1Kuke5dua3eHgMlwpAXPgtyQS7IBbkgF+SCXJAL8kshcRkHfqcm77xIxOU4C/ILnsleEJhg99EINNAkH+XcyyYX5NdBXjPFwO+Nk0RIKe4QRk8wd/Zb8r3FrWUaJaLFLrBJFHnc1trt/o12oSZR1bht7ma4TpH8jSPOHbM1BmwS97rNGWT0ixflNjLk3YhpClHZW5VN8QUCVY7jikI8ZJwcZpvbV3II4se3d6T4HmyH3eMrVQaq2NLiRJDR7Th596woOZ3XJlHCiBbX5HV6jEAG5kIWRms7tufrcQrpVaWJ0dwQ15nedMag47jO2cuMTPRu3KJHAyRVydAZGYVUKW29qN1FMXQ3lfV/BaPJJmmfckOq3PrapspBO5lyYzezjDq24N0HlDjftGDLY7SGoB0lDny5itEcJz8oMej/EkZ7MH+nHPZ/BaPjFsmAspDRf2KfHPV/0j1m62pxEoIhxz3fpcdIKh6acwYMitdA7u7gQGCU0yZ4bZKzFpYwyl/d4RuHEVrRq95Nzy8RY9RDEPXZkpSxIidOUvsF0KKMnmBOibHFGfPS6LEM0Z+Q0F9EmJy1kRKL1wAOaFIRAxm8hySpCKGc6Iemx1SEROyy5pmiNF97W9IgZuwicpqxqS0zKhEzMvCXZrkDJXp3B6WhTs8+a52nAFVZutzz1qgADEd8kdgtlCsv0WyIBfkglyQp88fkJpONIe1gvUAAAAASUVORK5CYII=
 # DontUseFBInk
 # DCPRO GhostGuard OneClick v5
 # Requires KMC/KPM + KOReader + Wi-Fi.
-# Repairs legacy GhostGuard repo entries and preserves Native/SimpleUI/ZenUI independence.
+# Uses GitHub Raw for the GhostGuard KPM registry and repairs legacy jsDelivr/bit.ly entries.
 
 ROOT="/mnt/us"
 REPO_ID="dochoithuvi-ghostguard"
@@ -88,12 +88,12 @@ repair_repo() {
     printf '%s\n' "$REPOLIST" >>"$LOG" 2>/dev/null || true
 
     if printf '%s\n' "$REPOLIST" | grep -q "$REPO_ID"; then
-        if printf '%s\n' "$REPOLIST" | grep "$REPO_ID" | grep -q 'bit\.ly/ghostguard'; then
-            log "Legacy bit.ly repository detected; replacing with raw GitHub URL."
+        if printf '%s\n' "$REPOLIST" | grep "$REPO_ID" | grep -Eq 'bit\.ly/ghostguard|cdn\.jsdelivr\.net|jsdelivr'; then
+            log "Legacy GhostGuard repository detected; replacing with GitHub Raw URL."
             runlog "$KPM" -y remove-repo "$REPO_ID" || true
             runlog "$KPM" -y add-repo "$REPO" || return 1
         else
-            log "GhostGuard repository already registered."
+            log "GhostGuard repository already registered on the configured endpoint."
         fi
     else
         runlog "$KPM" -y add-repo "$REPO" || return 1
@@ -121,6 +121,7 @@ line 4 "[1/5] Kiem tra he thong..."
 log "========================================"
 log "DCPRO GhostGuard OneClick v5"
 log "Date: $(date)"
+log "Registry: $REPO"
 log "========================================"
 
 KPM=""
