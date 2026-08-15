@@ -458,9 +458,12 @@ function GhostGuard:start(mode, reason)
         return false, "Cần license.key hợp lệ trong thư mục plugin: " .. tostring(license_detail)
     end
 
-    local hook_ok, hook_err = self:ensureInputBridge()
-    if not hook_ok then return false, hook_err end
-    local protect = mode == self.config.protect_mode
+    -- 0.6.11 SAFE DIAGNOSTIC: do not attach to Device.input at all.
+    self.observer_enabled = false
+    self.hook_installed = false
+    self.input = nil
+    self.bridge = nil
+    local protect = mode == self.config.protect_mode    local protect = mode == self.config.protect_mode
     local calibrate = mode == self.config.calibration_mode
     if protect then
         if not self:protectSupported() then return false, "Protect limited to KindleBasic4/KT5; detected " .. self.model end

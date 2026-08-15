@@ -3,11 +3,11 @@
   "id": "ghostguard",
   "name": "DCPRO GhostGuard",
   "author": "Do Choi Thu Vi",
-  "description": "KOReader GhostGuard v0.6.10 - Adaptive touch profiles, GitHub Raw/jsDelivr license fallback, verified cache grace, Production RSA key support and Native/SimpleUI/ZenUI bridges.",
+  "description": "KOReader GhostGuard v0.6.11 - SAFE diagnostic: core/license/status only, GitHub Raw/jsDelivr license fallback, verified cache grace, Production RSA key support and Native/SimpleUI/ZenUI bridges.",
   "version": [
     0,
     6,
-    10
+    11
   ],
   "dependencies": [],
   "supported_platforms": [

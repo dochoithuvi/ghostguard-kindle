@@ -1,5 +1,5 @@
 return {
-    version = "0.6.10-ko-reader-stability",
+    version = "0.6.11-safe-diagnostic",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
     protect_mode = "PROTECT_PROFILE",

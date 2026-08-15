@@ -41,11 +41,7 @@ function DCPROGhostGuard:loadRuntime()
     if not ExitDiagnostics then return false, "exit_diagnostics.lua: " .. err end
     local GhostGuard; GhostGuard, err = load_local("ghostguard.lua")
     if not GhostGuard then return false, "ghostguard.lua: " .. err end
-    local SimpleUIBridge; SimpleUIBridge, err = load_local("simpleui_bridge.lua")
-    if not SimpleUIBridge then return false, "simpleui_bridge.lua: " .. err end
-    local ZenUIBridge; ZenUIBridge, err = load_local("zenui_bridge.lua")
-    if not ZenUIBridge then return false, "zenui_bridge.lua: " .. err end
-
+    -- 0.6.11 SAFE DIAGNOSTIC: SimpleUI/ZenUI bridges intentionally disabled.
     local ok, guard_or_err = pcall(GhostGuard.new, GhostGuard, config, Storage, TouchObserver,
         ProfileManager, LicenseManager, CloudManager, plugin_dir)
     if not ok then return false, "GhostGuard:new: " .. tostring(guard_or_err) end
@@ -59,9 +55,11 @@ function DCPROGhostGuard:loadRuntime()
                 .. _("\n\nMở Tools và chọn Hoàn tất thiết lập bảo vệ."), 14)
         end)
     end
-    self.simpleui = SimpleUIBridge:new(self, plugin_dir)
-    self.zenui = ZenUIBridge:new(self, plugin_dir)
+    -- 0.6.11 SAFE DIAGNOSTIC: no SimpleUI/ZenUI bridge instances.
+    self.simpleui = nil
+    self.zenui = nil
     return true
+end    return true
 end
 
 function DCPROGhostGuard:startMode(mode, reason)
