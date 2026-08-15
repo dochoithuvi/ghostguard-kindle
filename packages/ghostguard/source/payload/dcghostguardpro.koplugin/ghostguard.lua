@@ -56,8 +56,8 @@ end
 function GhostGuard:new(config, Storage, TouchObserver, ProfileManager, LicenseManager, CloudManager, plugin_dir)
     local existing_bridge = Device and Device.input and Device.input._dcpro_ghostguard_bridge
     local existing_owner = existing_bridge and existing_bridge.owner
-    if existing_owner and type(existing_owner.stop) == "function" then
-        pcall(existing_owner.stop, existing_owner, "plugin-reload")
+    if existing_owner then
+        return existing_owner
     end
 
     local storage = Storage:new(config)
@@ -216,8 +216,7 @@ function GhostGuard:ensureInputBridge()
         bridge = { owner = self, event_hook_installed = false, wrapper = nil, original_handle_touch = nil }
         input._dcpro_ghostguard_bridge = bridge
     elseif bridge.owner and bridge.owner ~= self then
-        pcall(bridge.owner.stop, bridge.owner, "replaced-by-new-instance")
-        bridge.owner = self
+        return false, "GhostGuard input bridge already owned by live runtime"
     else
         bridge.owner = self
     end
@@ -344,7 +343,7 @@ function GhostGuard:onRawEvent(event)
     if not self.last_license_check_wall
         or wall_now - self.last_license_check_wall >= (self.config.license_recheck_seconds or 30) then
         self.last_license_check_wall = wall_now
-        local licensed, detail = self:licenseValid(true)
+        local licensed, detail = self:licenseValid(false)
         if not licensed then
             self.last_error = "License failsafe: " .. tostring(detail)
             if self.session then

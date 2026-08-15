@@ -24,6 +24,7 @@ local function load_local(filename)
 end
 
 function DCPROGhostGuard:loadRuntime()
+    if self.guard then return true end
     local config, err = load_local("defaults.lua")
     if not config then return false, "defaults.lua: " .. err end
     local Storage; Storage, err = load_local("storage.lua")

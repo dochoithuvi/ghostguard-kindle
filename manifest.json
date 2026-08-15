@@ -7,14 +7,14 @@
     "ghostguard": {
       "name": "DCPRO GhostGuard",
       "author": "Do Choi Thu Vi",
-      "description": "KOReader GhostGuard v0.6.9 - Adaptive touch profiles, GitHub Raw/jsDelivr license fallback, verified cache grace, Production RSA activation and Native/SimpleUI/ZenUI bridges.",
+      "description": "KOReader GhostGuard v0.6.10 - Adaptive touch profiles, fail-safe singleton runtime, non-blocking license checks and Native/SimpleUI/ZenUI bridges.",
       "artifacts": [
         {
-          "url": "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.9_kindle5-kindlepw2-kindlehf.kpkg",
+          "url": "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.10_kindle5-kindlepw2-kindlehf.kpkg",
           "version": [
             0,
             6,
-            9
+            10
           ],
           "dependencies": [],
           "supported_platforms": [
