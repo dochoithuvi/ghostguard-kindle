@@ -1,0 +1,113 @@
+name: Publish GhostGuard 0.6.9 Adaptive
+
+on:
+  push:
+    paths:
+      - '.github/workflows/materialize-kpkg-v069.yml'
+      - 'packages/ghostguard/source/**'
+      - 'licenses/licenses.json'
+      - 'licenses/licenses.sig'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate adaptive source and signed registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, pathlib, re
+          root=pathlib.Path('.')
+          manifest=json.loads((root/'packages/ghostguard/source/manifest.json').read_text())
+          assert manifest['manifest_version']==2
+          assert manifest['version']==[0,6,9]
+          assert manifest['id']=='ghostguard'
+          assert manifest['dependencies']==[]
+          defaults=(root/'packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua').read_text()
+          assert 'version = "0.6.9-kindle-adaptive-profiles"' in defaults
+          assert 'adaptive_profiles_enabled = true' in defaults
+          adaptive=(root/'packages/ghostguard/source/payload/dcghostguardpro.koplugin/adaptive_bootstrap.lua').read_text()
+          assert 'DCPRO_GHOSTGUARD_ADAPTIVE_PROFILE_V1' in adaptive
+          assert 'CANDIDATE_LEVEL' in adaptive
+          install=(root/'packages/ghostguard/source/install.sh').read_text()
+          assert 'adaptive_bootstrap.lua' in install
+          reg=json.loads((root/'licenses/licenses.json').read_text())
+          sig=json.loads((root/'licenses/licenses.sig').read_text())
+          assert reg['registry_format']==1
+          assert reg['key_id']==sig['key_id']=='ghostguard-prod-2026-08'
+          assert reg['sig_alg']==sig['sig_alg']=='RSA-SHA256'
+          raw=(root/'licenses/licenses.json').read_bytes()
+          assert hashlib.sha256(raw).hexdigest()==sig['content_sha256']
+          pathlib.Path('/tmp/licenses.sig.bin').write_bytes(base64.b64decode(sig['sig'], validate=True))
+          for e in reg['entries']:
+              assert 'serial' not in e and 'customer' not in e
+              assert re.fullmatch(r'[0-9a-f]{64}', e['serial_hash'])
+          PY
+          openssl dgst -sha256 -verify packages/ghostguard/source/payload/dcghostguardpro.koplugin/keys/ghostguard-prod-2026-08.pem -signature /tmp/licenses.sig.bin licenses/licenses.json
+          ! grep -R --line-number --fixed-strings 'BEGIN PRIVATE KEY' packages/ghostguard/source licenses
+          ! grep -R --line-number --fixed-strings 'BEGIN RSA PRIVATE KEY' packages/ghostguard/source licenses
+
+      - name: Build KPM artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.6.9_kindle5-kindlepw2-kindlehf.kpkg'
+          mkdir -p packages/ghostguard/artifacts
+          python3 - <<'PY'
+          import pathlib, tarfile
+          src=pathlib.Path('packages/ghostguard/source')
+          out=pathlib.Path('packages/ghostguard/artifacts/ghostguard_0.6.9_kindle5-kindlepw2-kindlehf.kpkg')
+          names=sorted(p.name for p in src.iterdir())
+          names.remove('manifest.json')
+          names.insert(0,'manifest.json')
+          with tarfile.open(out,'w:gz',compresslevel=5) as tf:
+              for name in names:
+                  tf.add(src/name,arcname=name)
+          PY
+          tar -tzf "$ARTIFACT" > /tmp/ghostguard-files.txt
+          grep -qx 'manifest.json' /tmp/ghostguard-files.txt
+          ! grep -qx './manifest.json' /tmp/ghostguard-files.txt
+          ! grep -q 'main.lua.orig' /tmp/ghostguard-files.txt
+          tar -xOf "$ARTIFACT" manifest.json | python3 -c 'import json,sys; m=json.load(sys.stdin); assert m["version"]==[0,6,9] and m["dependencies"]==[]'
+          SHA="$(sha256sum "$ARTIFACT" | awk '{print $1}')"
+          printf '%s  %s\n' "$SHA" "$ARTIFACT" > SHA256SUMS.txt
+
+      - name: Promote KPM manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib
+          p=pathlib.Path('manifest.json')
+          m=json.loads(p.read_text())
+          a=m['packages']['ghostguard']['artifacts'][0]
+          m['packages']['ghostguard']['description']='KOReader GhostGuard v0.6.9 - Adaptive touch profiles, GitHub Raw/jsDelivr license fallback, verified cache grace, Production RSA activation and Native/SimpleUI/ZenUI bridges.'
+          a['url']='https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.9_kindle5-kindlepw2-kindlehf.kpkg'
+          a['version']=[0,6,9]
+          a['dependencies']=[]
+          p.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n')
+          PY
+
+      - name: Commit artifact and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/ghostguard/source packages/ghostguard/artifacts/ghostguard_0.6.9_kindle5-kindlepw2-kindlehf.kpkg manifest.json SHA256SUMS.txt
+          if git diff --cached --quiet; then
+            echo 'No changes to publish.'
+          else
+            git commit -m 'Publish GhostGuard 0.6.9 adaptive touch profiles'
+            git push
+          fi
