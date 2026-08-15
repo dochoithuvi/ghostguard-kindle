@@ -1,9 +1,8 @@
 #!/bin/sh
 # DCPRO GhostGuard OneClick v11
-# Touch-broken Kindle bootstrap: KOReader first, then SimpleUI, then GhostGuard 0.6.9 adaptive profiles.
-# KPM indexes use jsDelivr to avoid raw.githubusercontent.com DNS failures.
+# Touch-broken Kindle bootstrap: KOReader first, then SimpleUI, then GhostGuard.
+# GhostGuard KPM registry uses GitHub Raw to avoid jsDelivr manifest caching.
 # KOReader: KPM first; official release ZIP fallback if KPM cannot install it.
-# GhostGuard: refresh repo, install latest 0.6.9 artifact, then launch.
 ROOT=/mnt/us
 KPM=/var/local/kmc/bin/kpm
 [ -x "$KPM" ] || KPM=/var/local/kmc/kindlehf/bin/kpm
@@ -13,7 +12,7 @@ LOG="$ROOT/documents/GhostGuard_Installer.log"
 TMP="$ROOT/.dcpro_ghostguard"
 FONT_SCALE=3
 GG_REPO_ID=dochoithuvi-ghostguard
-GG_REPO=https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/manifest.json
+GG_REPO=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/manifest.json
 KMC_REPO_ID=kindlemodding
 KMC_REPO=https://cdn.jsdelivr.net/gh/KindleModding/repo@main/manifest.v2.json
 KO_VER=2026.07
@@ -57,23 +56,35 @@ install_simpleui(){
 }
 repair_gg(){
   R="$(kpm_list || true)"; printf '%s\n' "$R" >> "$LOG"
-  if ! printf '%s\n' "$R" | grep -q "$GG_REPO_ID"; then run "$KPM" -y add-repo "$GG_REPO" || return 1; fi
+  if printf '%s\n' "$R" | grep -q "$GG_REPO_ID"; then
+    CURRENT="$(printf '%s\n' "$R" | grep "$GG_REPO_ID" | head -n 1)"
+    case "$CURRENT" in
+      *cdn.jsdelivr.net*|*jsdelivr*|*bit.ly/ghostguard*)
+        log "Legacy GhostGuard repository detected; replacing with GitHub Raw URL."
+        run "$KPM" -y remove-repo "$GG_REPO_ID" || return 1
+        run "$KPM" -y add-repo "$GG_REPO" || return 1
+        ;;
+      *) log "GhostGuard repository already points to the configured endpoint." ;;
+    esac
+  else
+    run "$KPM" -y add-repo "$GG_REPO" || return 1
+  fi
   run "$KPM" -y update
 }
-log "========================================"; log "DCPRO GhostGuard OneClick v11"; log "Target: GhostGuard 0.6.9"; log "Date: $(date)"; log "KPM=$KPM"; log "========================================"
-say 1 "DCPRO GhostGuard Installer v11"; say 2 "GhostGuard 0.6.9"
+log "========================================"; log "DCPRO GhostGuard OneClick v11"; log "Target: current GitHub Raw registry"; log "Date: $(date)"; log "KPM=$KPM"; log "========================================"
+say 1 "DCPRO GhostGuard Installer v11"; say 2 "GitHub Raw registry"
 install_ko || { log "ERROR: KOReader install failed"; say 5 "LOI: Khong cai duoc KOReader"; exit 1; }
 say 4 "KOReader... OK"
 install_simpleui || log "SimpleUI skipped; native/ZenUI may be used."
 say 5 "Kiem tra GhostGuard..."
 repair_gg || { log "ERROR: GhostGuard repo setup failed"; say 6 "LOI: Khong them duoc repo"; exit 1; }
-say 7 "Tai GhostGuard 0.6.9..."
+say 7 "Tai GhostGuard..."
 if ! run "$KPM" -y install ghostguard; then
   log "First GhostGuard install failed; refreshing repo and retrying."
   repair_gg && run "$KPM" -y install ghostguard || { say 8 "LOI: Cai GhostGuard that bai"; exit 1; }
 fi
 say 9 "GhostGuard... OK"
-log "Bootstrap complete. Expected runtime: 0.6.9-kindle-adaptive-profiles."
+log "Bootstrap complete. Registry endpoint: $GG_REPO"
 run "$KPM" -y launch ghostguard || log "Launch returned non-zero; installation remains complete."
 say 10 "HOAN TAT!"
 exit 0
