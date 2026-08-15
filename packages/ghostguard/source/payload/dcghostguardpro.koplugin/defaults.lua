@@ -1,5 +1,5 @@
 return {
-    version = "0.6.8-kindle-network-fallback",
+    version = "0.6.9-kindle-adaptive-profiles",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
     protect_mode = "PROTECT_PROFILE",
@@ -99,4 +99,9 @@ return {
     protect_quarantine_seconds = 0,
     protect_max_blocks_per_minute = 24,
     protect_probation_max_blocks_per_minute = 8,
+
+    adaptive_profiles_enabled = true,
+    adaptive_candidate_min_suspects = 8,
+    adaptive_candidate_min_cluster = 3,
+    adaptive_learning_during_protect = true,
 }
