@@ -1,8 +1,7 @@
 #!/bin/sh
-# DCPRO GhostGuard OneClick v11
+# DCPRO GhostGuard OneClick v11.1
 # Touch-broken Kindle bootstrap: KOReader first, then SimpleUI, then GhostGuard.
-# GhostGuard KPM registry uses GitHub Raw to avoid jsDelivr manifest caching.
-# KOReader: KPM first; official release ZIP fallback if KPM cannot install it.
+# IMPORTANT: always re-register GhostGuard repo so KPM cannot keep a stale manifest/index.
 ROOT=/mnt/us
 KPM=/var/local/kmc/bin/kpm
 [ -x "$KPM" ] || KPM=/var/local/kmc/kindlehf/bin/kpm
@@ -22,9 +21,9 @@ log(){ printf '%s\n' "$*" >> "$LOG" 2>/dev/null; }
 FBINK="$(command -v fbink 2>/dev/null || true)"
 [ -n "$FBINK" ] || for x in /var/local/kmc/bin/fbink /var/local/kmc/kindlehf/bin/fbink /var/local/kmc/kindlepw2/bin/fbink; do [ -x "$x" ] && FBINK="$x" && break; done
 say(){ [ -n "$FBINK" ] && "$FBINK" -S "$FONT_SCALE" -x 1 -y "$1" -r "$2" >/dev/null 2>&1 || true; }
-run(){ "$@" >> "$LOG" 2>&1; return $?; }
+run(){ log "> $*"; "$@" >> "$LOG" 2>&1; RC=$?; log "< rc=$RC"; return $RC; }
 kpm_list(){ "$KPM" -y list-repo 2>&1; }
-get(){ U="$1"; O="$2"; rm -f "$O" 2>/dev/null; if command -v curl >/dev/null 2>&1; then curl -L --fail --silent --show-error "$U" -o "$O"; else wget -q -O "$O" "$U"; fi; }
+get(){ U="$1"; O="$2"; rm -f "$O" 2>/dev/null; if command -v curl >/dev/null 2>&1; then curl -L --fail --silent --show-error "$U" -o "$O"; else wget -q -O "$U" "$O"; fi; }
 has_ko(){ [ -x "$ROOT/extensions/koreader/bin/koreader.sh" ] || [ -x "$ROOT/koreader/koreader.sh" ]; }
 ko_target(){ case "$KPM" in */kindlehf/bin/kpm) echo kindlehf;; */kindlepw2/bin/kpm) echo kindlepw2;; *) [ -d /var/local/kmc/kindle5 ] && echo kindle-legacy || echo kindle;; esac; }
 install_ko_direct(){
@@ -55,30 +54,24 @@ install_simpleui(){
   [ -n "$S" ] || return 1; mkdir -p "$ROOT/koreader/plugins"; rm -rf "$ROOT/koreader/plugins/simpleui.koplugin"; cp -R "$S" "$ROOT/koreader/plugins/simpleui.koplugin"; rm -rf "$D" "$Z"; return 0
 }
 repair_gg(){
+  say 6 "Lam moi GhostGuard repo..."
+  log "Forcing GhostGuard repo refresh: $GG_REPO"
   R="$(kpm_list || true)"; printf '%s\n' "$R" >> "$LOG"
-  if printf '%s\n' "$R" | grep -q "$GG_REPO_ID"; then
-    CURRENT="$(printf '%s\n' "$R" | grep "$GG_REPO_ID" | head -n 1)"
-    case "$CURRENT" in
-      *cdn.jsdelivr.net*|*jsdelivr*|*bit.ly/ghostguard*)
-        log "Legacy GhostGuard repository detected; replacing with GitHub Raw URL."
-        run "$KPM" -y remove-repo "$GG_REPO_ID" || return 1
-        run "$KPM" -y add-repo "$GG_REPO" || return 1
-        ;;
-      *) log "GhostGuard repository already points to the configured endpoint." ;;
-    esac
-  else
-    run "$KPM" -y add-repo "$GG_REPO" || return 1
-  fi
-  run "$KPM" -y update
+  # Always remove/re-add this repo. This does NOT uninstall GhostGuard itself.
+  run "$KPM" -y remove-repo "$GG_REPO_ID" || log "remove-repo returned non-zero (repo may not exist)."
+  run "$KPM" -y add-repo "$GG_REPO" || return 1
+  run "$KPM" -y update || return 1
+  log "GhostGuard repo refresh complete."
+  run "$KPM" -y search ghostguard || true
 }
-log "========================================"; log "DCPRO GhostGuard OneClick v11"; log "Target: current GitHub Raw registry"; log "Date: $(date)"; log "KPM=$KPM"; log "========================================"
-say 1 "DCPRO GhostGuard Installer v11"; say 2 "GitHub Raw registry"
+log "========================================"; log "DCPRO GhostGuard OneClick v11.1"; log "Target: current GitHub Raw registry"; log "Date: $(date)"; log "KPM=$KPM"; log "========================================"
+say 1 "DCPRO GhostGuard Installer v11.1"; say 2 "GitHub Raw registry"
 install_ko || { log "ERROR: KOReader install failed"; say 5 "LOI: Khong cai duoc KOReader"; exit 1; }
 say 4 "KOReader... OK"
 install_simpleui || log "SimpleUI skipped; native/ZenUI may be used."
-say 5 "Kiem tra GhostGuard..."
-repair_gg || { log "ERROR: GhostGuard repo setup failed"; say 6 "LOI: Khong them duoc repo"; exit 1; }
-say 7 "Tai GhostGuard..."
+say 5 "Lam moi GhostGuard..."
+repair_gg || { log "ERROR: GhostGuard repo setup failed"; say 6 "LOI: Khong lam moi duoc repo"; exit 1; }
+say 7 "Tai GhostGuard 0.6.11..."
 if ! run "$KPM" -y install ghostguard; then
   log "First GhostGuard install failed; refreshing repo and retrying."
   repair_gg && run "$KPM" -y install ghostguard || { say 8 "LOI: Cai GhostGuard that bai"; exit 1; }
