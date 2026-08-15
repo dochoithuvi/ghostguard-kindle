@@ -4,33 +4,40 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 PLUGIN = ROOT / "packages/ghostguard/source/payload/dcghostguardpro.koplugin"
 
-def replace_once(path, pattern, replacement):
+def replace_between(path, start_marker, end_marker, replacement):
     text = path.read_text(encoding="utf-8")
-    new, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
-    if count != 1:
-        raise SystemExit(f"{path}: expected 1 regex match, found {count}")
-    path.write_text(new, encoding="utf-8")
+    start = text.find(start_marker)
+    end = text.find(end_marker, start)
+    if start < 0 or end < 0 or end <= start:
+        raise SystemExit(f"{path}: markers not found")
+    path.write_text(text[:start] + replacement + text[end:], encoding="utf-8")
 
-# 0.6.11 SAFE DIAGNOSTIC: isolate GhostGuard core/license/status from all
-# KOReader touch/input and external UI bridge integration.
+# Remove the external UI bridge loaders/constructors by marker boundaries.
 main = PLUGIN / "main.lua"
-replace_once(
+replace_between(
     main,
-    r'\s*local SimpleUIBridge; SimpleUIBridge, err = load_local\("simpleui_bridge\\.lua"\).*?local ZenUIBridge; ZenUIBridge, err = load_local\("zenui_bridge\\.lua"\)\s*if not ZenUIBridge then return false, "zenui_bridge\\.lua: " \.\. err end\s*',
-    '\n    -- SAFE DIAGNOSTIC: do not load SimpleUI/ZenUI bridges.\n',
+    '    local SimpleUIBridge; SimpleUIBridge, err = load_local("simpleui_bridge.lua")',
+    '    local ok, guard_or_err = pcall(GhostGuard.new',
+    '    -- 0.6.11 SAFE DIAGNOSTIC: SimpleUI/ZenUI bridges intentionally disabled.\n',
 )
-replace_once(
+replace_between(
     main,
-    r'\s*self\.simpleui = SimpleUIBridge:new\(self, plugin_dir\)\s*self\.zenui = ZenUIBridge:new\(self, plugin_dir\)\s*',
-    '\n    -- SAFE DIAGNOSTIC: no SimpleUI/ZenUI bridge instances.\n    self.simpleui = nil\n    self.zenui = nil\n',
+    '    self.simpleui = SimpleUIBridge:new(self, plugin_dir)',
+    '    return true\nend',
+    '    -- 0.6.11 SAFE DIAGNOSTIC: no SimpleUI/ZenUI bridge instances.\n    self.simpleui = nil\n    self.zenui = nil\n    return true\nend',
 )
 
 ghost = PLUGIN / "ghostguard.lua"
-# Works whether the previous stability hotfix is present or not.
-replace_once(
+replace_between(
     ghost,
-    r'\s*local hook_ok, hook_err = self:ensureInputBridge\(\)\s*if not hook_ok then return false, hook_err end\s*',
-    '\n    -- SAFE DIAGNOSTIC: do not attach to Device.input at all.\n    self.observer_enabled = false\n    self.hook_installed = false\n    self.input = nil\n    self.bridge = nil\n',
+    '    local hook_ok, hook_err = self:ensureInputBridge()',
+    '    local protect = mode == self.config.protect_mode',
+    '    -- 0.6.11 SAFE DIAGNOSTIC: do not attach to Device.input at all.\n'
+    '    self.observer_enabled = false\n'
+    '    self.hook_installed = false\n'
+    '    self.input = nil\n'
+    '    self.bridge = nil\n'
+    '    local protect = mode == self.config.protect_mode',
 )
 
 defaults = PLUGIN / "defaults.lua"
