@@ -1,4 +1,4 @@
-name: Publish GhostGuard 0.6.10 KOReader Stability
+name: Publish GhostGuard 0.6.11 SAFE Diagnostic
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
       - '.github/workflows/materialize-kpkg-v069.yml'
       - 'packages/ghostguard/source/**'
       - 'tools/apply_v0610_ko_reader_stability.py'
+      - 'tools/apply_v0611_safe_diagnostic.py'
       - 'licenses/licenses.json'
       - 'licenses/licenses.sig'
   workflow_dispatch:
@@ -22,14 +23,14 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Apply 0.6.10 KOReader stability hotfix
+      - name: Apply 0.6.11 SAFE diagnostic patch
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/apply_v0610_ko_reader_stability.py
+          python3 tools/apply_v0611_safe_diagnostic.py
           git diff -- packages/ghostguard/source
 
-      - name: Validate adaptive source and signed registry
+      - name: Validate SAFE diagnostic source and signed registry
         shell: bash
         run: |
           set -euo pipefail
@@ -38,23 +39,20 @@ jobs:
           root=pathlib.Path('.')
           manifest=json.loads((root/'packages/ghostguard/source/manifest.json').read_text())
           assert manifest['manifest_version']==2
-          assert manifest['version']==[0,6,10]
+          assert manifest['version']==[0,6,11]
           assert manifest['id']=='ghostguard'
           assert manifest['dependencies']==[]
           defaults=(root/'packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua').read_text()
-          assert 'version = "0.6.10-ko-reader-stability"' in defaults
-          assert 'adaptive_profiles_enabled = true' in defaults
+          assert 'version = "0.6.11-safe-diagnostic"' in defaults
           ghost=(root/'packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua').read_text()
-          assert 'return existing_owner' in ghost
-          assert 'self:licenseValid(false)' in ghost
-          assert 'replaced-by-new-instance' not in ghost
+          assert 'self.observer_enabled = false' in ghost
+          assert 'self:ensureInputBridge()' not in ghost
           main=(root/'packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua').read_text()
-          assert 'if self.guard then return true end' in main
+          assert 'self.simpleui = nil' in main and 'self.zenui = nil' in main
+          assert 'SimpleUIBridge:new' not in main
+          assert 'ZenUIBridge:new' not in main
           adaptive=(root/'packages/ghostguard/source/payload/dcghostguardpro.koplugin/adaptive_bootstrap.lua').read_text()
           assert 'DCPRO_GHOSTGUARD_ADAPTIVE_PROFILE_V1' in adaptive
-          assert 'CANDIDATE_LEVEL' in adaptive
-          install=(root/'packages/ghostguard/source/install.sh').read_text()
-          assert 'adaptive_bootstrap.lua' in install
           reg=json.loads((root/'licenses/licenses.json').read_text())
           sig=json.loads((root/'licenses/licenses.sig').read_text())
           assert reg['registry_format']==1
@@ -75,12 +73,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.6.10_kindle5-kindlepw2-kindlehf.kpkg'
+          ARTIFACT='packages/ghostguard/artifacts/ghostguard_0.6.11_kindle5-kindlepw2-kindlehf.kpkg'
           mkdir -p packages/ghostguard/artifacts
           python3 - <<'PY'
           import pathlib, tarfile
           src=pathlib.Path('packages/ghostguard/source')
-          out=pathlib.Path('packages/ghostguard/artifacts/ghostguard_0.6.10_kindle5-kindlepw2-kindlehf.kpkg')
+          out=pathlib.Path('packages/ghostguard/artifacts/ghostguard_0.6.11_kindle5-kindlepw2-kindlehf.kpkg')
           names=sorted(p.name for p in src.iterdir())
           names.remove('manifest.json')
           names.insert(0,'manifest.json')
@@ -92,7 +90,7 @@ jobs:
           grep -qx 'manifest.json' /tmp/ghostguard-files.txt
           ! grep -qx './manifest.json' /tmp/ghostguard-files.txt
           ! grep -q 'main.lua.orig' /tmp/ghostguard-files.txt
-          tar -xOf "$ARTIFACT" manifest.json | python3 -c 'import json,sys; m=json.load(sys.stdin); assert m["version"]==[0,6,10] and m["dependencies"]==[]'
+          tar -xOf "$ARTIFACT" manifest.json | python3 -c 'import json,sys; m=json.load(sys.stdin); assert m["version"]==[0,6,11] and m["dependencies"]==[]'
           SHA="$(sha256sum "$ARTIFACT" | awk '{print $1}')"
           printf '%s  %s\n' "$SHA" "$ARTIFACT" > SHA256SUMS.txt
 
@@ -105,9 +103,9 @@ jobs:
           p=pathlib.Path('manifest.json')
           m=json.loads(p.read_text())
           a=m['packages']['ghostguard']['artifacts'][0]
-          m['packages']['ghostguard']['description']='KOReader GhostGuard v0.6.10 - Adaptive touch profiles, fail-safe singleton runtime, non-blocking license checks and Native/SimpleUI/ZenUI bridges.'
-          a['url']='https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.10_kindle5-kindlepw2-kindlehf.kpkg'
-          a['version']=[0,6,10]
+          m['packages']['ghostguard']['description']='KOReader GhostGuard v0.6.11 - SAFE diagnostic build: core/license/status only, no touch/input/UI bridges.'
+          a['url']='https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.11_kindle5-kindlepw2-kindlehf.kpkg'
+          a['version']=[0,6,11]
           a['dependencies']=[]
           p.write_text(json.dumps(m,ensure_ascii=False,indent=2)+'\n')
           PY
@@ -118,10 +116,10 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add packages/ghostguard/source packages/ghostguard/artifacts/ghostguard_0.6.10_kindle5-kindlepw2-kindlehf.kpkg manifest.json SHA256SUMS.txt tools/apply_v0610_ko_reader_stability.py
+          git add packages/ghostguard/source packages/ghostguard/artifacts/ghostguard_0.6.11_kindle5-kindlepw2-kindlehf.kpkg manifest.json SHA256SUMS.txt tools/apply_v0611_safe_diagnostic.py
           if git diff --cached --quiet; then
             echo 'No changes to publish.'
           else
-            git commit -m 'Publish GhostGuard 0.6.10 KOReader stability hotfix'
+            git commit -m 'Publish GhostGuard 0.6.11 SAFE diagnostic build'
             git push
           fi
