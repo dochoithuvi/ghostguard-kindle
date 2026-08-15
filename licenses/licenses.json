@@ -1,7 +1,7 @@
 {
   "registry_format": 1,
   "product": "DCPRO GhostGuard",
-  "generated_at": "2026-08-14T15:54:56Z",
+  "generated_at": "2026-08-15T07:44:54Z",
   "key_id": "ghostguard-prod-2026-08",
   "sig_alg": "RSA-SHA256",
   "entries": [
@@ -339,6 +339,17 @@
       "expire": "2026-12-31",
       "features": [
         "kobo",
+        "ultimate"
+      ],
+      "status": "active"
+    },
+    {
+      "serial_hash": "bdf59266b7959a81e49ee6bc3228672c4bbf44b067fe429b9658481fc73e36f0",
+      "license_id": "DCPRO-20260815-5204M7",
+      "issued_at": "2026-08-15",
+      "expire": "2026-12-31",
+      "features": [
+        "ghostguard",
         "ultimate"
       ],
       "status": "active"
