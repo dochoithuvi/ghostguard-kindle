@@ -10,7 +10,7 @@
       "description": "KOReader GhostGuard v0.6.11 - SAFE diagnostic build: core/license/status only, no touch/input/UI bridges.",
       "artifacts": [
         {
-          "url": "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/ghostguard_0.6.11_kindle5-kindlepw2-kindlehf.kpkg",
+          "url": "packages/ghostguard/artifacts/ghostguard_0.6.11_kindle5-kindlepw2-kindlehf.kpkg",
           "version": [0, 6, 11],
           "dependencies": [],
           "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
