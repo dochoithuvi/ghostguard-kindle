@@ -1,0 +1,1 @@
+Build pipeline note: the previous workflow depended on the legacy v0.6.5 source patcher. The current GhostGuard source is already 0.6.11, so the artifact must be built directly from packages/ghostguard/source and validated before publication. Use scripts/build_artifact_v0612.sh for the payload packaging step.
