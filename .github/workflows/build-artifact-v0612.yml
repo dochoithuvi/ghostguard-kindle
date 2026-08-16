@@ -1,0 +1,30 @@
+name: Build GhostGuard artifact
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  build-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build current source artifact
+        run: |
+          chmod +x scripts/build_artifact_v0612.sh
+          scripts/build_artifact_v0612.sh
+      - name: Validate artifact contents
+        run: |
+          PKG=$(ls packages/ghostguard/artifacts/ghostguard_*.kpkg | tail -1)
+          test -s "$PKG"
+          mkdir -p /tmp/pkgcheck
+          tar -xzf "$PKG" -C /tmp/pkgcheck
+          for f in main.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua; do
+            test -f "/tmp/pkgcheck/payload/dcghostguardpro.koplugin/$f"
+          done
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghostguard-current-kpkg
+          path: packages/ghostguard/artifacts/ghostguard_*.kpkg
+          if-no-files-found: error
