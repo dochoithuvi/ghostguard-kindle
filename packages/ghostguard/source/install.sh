@@ -3,7 +3,6 @@ set -u
 ROOT="${GHOSTGUARD_US_ROOT:-/mnt/us}"
 
 # Resolve the actual KOReader root instead of assuming /mnt/us/koreader.
-# Different KOReader installs may live under /mnt/us/koreader or /mnt/us/extensions/koreader.
 KO_ROOT=""
 for candidate in "$ROOT/koreader" "$ROOT/extensions/koreader"; do
     if [ -d "$candidate/plugins" ]; then
@@ -29,21 +28,15 @@ rm -rf "$STAGING"
 cp -Rp "payload/dcghostguardpro.koplugin" "$STAGING" || fail "cannot stage plugin"
 
 # Keep an existing paid per-device key only for backward compatibility.
-# Online registry + verified cache is the normal activation path.
 if [ -s "$TARGET/license.key" ]; then
     cp -p "$TARGET/license.key" "$STAGING/license.key" || fail "cannot preserve legacy license.key"
 elif [ -s "$LICENSE_BACKUP" ]; then
     cp -p "$LICENSE_BACKUP" "$STAGING/license.key" || fail "cannot restore legacy license.key"
 fi
 
-# Install the adaptive runtime without replacing the large production main.lua.
-if ! grep -q 'adaptive_bootstrap.lua' "$STAGING/main.lua" 2>/dev/null; then
-    sed -i '/self.config, self.guard = config, guard_or_err/a\    pcall(function() dofile(plugin_dir .. "adaptive_bootstrap.lua")(self.guard, self.config) end)' "$STAGING/main.lua" 2>/dev/null \
-      || fail "cannot install adaptive bootstrap hook"
-fi
-
-after_patch="$(grep -c 'adaptive_bootstrap.lua' "$STAGING/main.lua" 2>/dev/null || echo 0)"
-[ "$after_patch" -ge 1 ] || fail "adaptive bootstrap hook verification failed"
+# IMPORTANT: never patch main.lua at install time. The published artifact must
+# contain exactly the tested plugin source. Runtime/adaptive bootstrap is loaded
+# by the plugin itself, not injected by KPM with sed.
 
 rm -rf "$BACKUP"
 if [ -d "$TARGET" ]; then mv "$TARGET" "$BACKUP" || fail "cannot backup previous plugin"; fi
@@ -52,8 +45,14 @@ if ! mv "$STAGING" "$TARGET"; then
     fail "cannot activate staged plugin"
 fi
 
-# Hard verification: KPM must not report success unless KOReader can actually see the plugin tree.
-[ -d "$TARGET" ] && [ -f "$TARGET/main.lua" ] && [ -f "$TARGET/license_manager.lua" ] && [ -f "$TARGET/keys/keyring.lua" ] && [ -f "$TARGET/adaptive_bootstrap.lua" ] || {
+# Hard verification: KPM must not report success unless the exact KOReader
+# plugin tree is active in the selected KOReader installation.
+[ -d "$TARGET" ] && \
+[ -f "$TARGET/main.lua" ] && \
+[ -f "$TARGET/_meta.lua" ] && \
+[ -f "$TARGET/license_manager.lua" ] && \
+[ -f "$TARGET/keys/keyring.lua" ] && \
+[ -f "$TARGET/adaptive_bootstrap.lua" ] || {
     rm -rf "$TARGET"
     [ -d "$BACKUP" ] && mv "$BACKUP" "$TARGET" 2>/dev/null || true
     fail "active KOReader plugin verification failed"
@@ -65,7 +64,7 @@ cp -p "scriptlets/DCPRO_GhostGuard.sh" "$LAUNCHER" || fail "cannot install launc
 chmod 755 "$LAUNCHER" 2>/dev/null || true
 find "$TARGET/bin" -type f -name '*.sh' -exec chmod 755 {} \; 2>/dev/null || true
 
-printf 'PACKAGE_ID=ghostguard\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nINSTALLED_UTC=%s\n' "$KO_ROOT" "$TARGET" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" > "$DATA/KPM_INSTALL_OK"
+printf 'PACKAGE_ID=ghostguard\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nINSTALL_MODE=ATOMIC_REPLACE\nINSTALLED_UTC=%s\n' "$KO_ROOT" "$TARGET" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" > "$DATA/KPM_INSTALL_OK"
 echo "GhostGuard installed. KOReader root: $KO_ROOT"
 echo "GhostGuard plugin: $TARGET"
 echo "GhostGuard installed. Restart KOReader before enabling GhostGuard."
