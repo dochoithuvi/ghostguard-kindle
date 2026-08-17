@@ -1,5 +1,5 @@
 local _ = require("gettext")
 return {
     fullname = _("DCPRO GhostGuard"),
-    description = _("GhostGuard v0.6.8: production RSA key support, RSA v4.1 online activation, GitHub/jsDelivr fallback, Native/SimpleUI/ZenUI bridges, KPM one-click workflow and verified-cache fallback."),
+    description = _("GhostGuard v0.6.12: safe diagnostic build with online license verification, adaptive profiles and fail-open touch protection."),
 }
