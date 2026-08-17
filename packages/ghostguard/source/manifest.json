@@ -3,8 +3,8 @@
   "id": "ghostguard",
   "name": "DCPRO GhostGuard",
   "author": "Do Choi Thu Vi",
-  "description": "KOReader GhostGuard v0.6.13 - optional input bridge: Observe/Calibration do not require the SimpleUI/KOReader touch wrapper.",
-  "version": [0, 6, 13],
+  "description": "KOReader GhostGuard v0.6.14 - optional input bridge: Observe/Calibration do not require the SimpleUI/KOReader touch wrapper.",
+  "version": [0, 6, 14],
   "dependencies": [],
   "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
 }
