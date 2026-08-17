@@ -10,6 +10,7 @@ rm -f "$PKG"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 mkdir -p "$TMP/payload" "$TMP/scriptlets" "$TMP/assets"
+cp "$SRC/manifest.json" "$TMP/manifest.json"
 cp -R "$SRC/payload/dcghostguardpro.koplugin" "$TMP/payload/"
 # Safety repair for the 0.6.11 main.lua typo that prevented KOReader from
 # loading the plugin at all. Keep this in the builder so every future artifact
@@ -33,9 +34,11 @@ chmod +x "$TMP/install.sh" "$TMP/launch.sh" "$TMP/scriptlets/DCPRO_GhostGuard.sh
 for f in main.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua; do
   test -f "$TMP/payload/dcghostguardpro.koplugin/$f"
 done
+test -f "$TMP/manifest.json"
 test -f "$TMP/scriptlets/DCPRO_GhostGuard.sh"
 test -f "$TMP/assets/ghostguard_library_600x960.jpg"
 # Fail the build if the known loader-breaking sequence somehow returns.
 ! grep -q 'end    return true' "$TMP/payload/dcghostguardpro.koplugin/main.lua"
-tar -C "$TMP" -czf "$PKG" payload install.sh launch.sh scriptlets assets
+# KPM v2 requires manifest.json at the archive root.
+tar -C "$TMP" -czf "$PKG" manifest.json payload install.sh launch.sh scriptlets assets
 printf '%s\n' "$PKG"
