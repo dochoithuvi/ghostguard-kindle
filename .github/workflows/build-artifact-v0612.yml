@@ -12,16 +12,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Repair known KOReader loader typo in source
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua')
-          s = p.read_text()
-          bad = '\nend    return true\nend\n'
-          if bad in s:
-              p.write_text(s.replace(bad, '\nend\n', 1))
-          PY
       - name: Build current source artifact
         run: |
           chmod +x scripts/build_artifact_v0612.sh
@@ -32,10 +22,15 @@ jobs:
           test -s "$PKG"
           mkdir -p /tmp/pkgcheck
           tar -xzf "$PKG" -C /tmp/pkgcheck
-          for f in main.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua; do
+          for f in main.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua simpleui_bridge.lua zenui_bridge.lua; do
             test -f "/tmp/pkgcheck/payload/dcghostguardpro.koplugin/$f"
           done
           ! grep -q 'end    return true' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua
+          grep -q 'SimpleUIBridge.new' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua
+          ! grep -q 'self.simpleui = nil' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua
+      - name: Sync patched runtime back to source tree
+        run: |
+          cp /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua
       - name: Publish source repair and package
         run: |
           git config user.name "github-actions[bot]"
