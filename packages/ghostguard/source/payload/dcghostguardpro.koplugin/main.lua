@@ -41,11 +41,35 @@ function DCPROGhostGuard:loadRuntime()
     if not ExitDiagnostics then return false, "exit_diagnostics.lua: " .. err end
     local GhostGuard; GhostGuard, err = load_local("ghostguard.lua")
     if not GhostGuard then return false, "ghostguard.lua: " .. err end
-    -- 0.6.11 SAFE DIAGNOSTIC: SimpleUI/ZenUI bridges intentionally disabled.
     local ok, guard_or_err = pcall(GhostGuard.new, GhostGuard, config, Storage, TouchObserver,
         ProfileManager, LicenseManager, CloudManager, plugin_dir)
     if not ok then return false, "GhostGuard:new: " .. tostring(guard_or_err) end
     self.config, self.guard = config, guard_or_err
+
+    -- SimpleUI and ZenUI integrations are optional UI bridges. Never fail
+    -- GhostGuard runtime if either host UI is absent or exposes an older API.
+    local SimpleUIBridge, bridge_err = load_local("simpleui_bridge.lua")
+    if SimpleUIBridge then
+        local bridge_ok, bridge_obj = pcall(SimpleUIBridge.new, SimpleUIBridge, self, plugin_dir)
+        if bridge_ok then
+            self.simpleui = bridge_obj
+        else
+            logger.warn("DCPRO GhostGuard SimpleUI bridge init failed:", bridge_obj)
+        end
+    else
+        logger.info("DCPRO GhostGuard SimpleUI bridge unavailable:", bridge_err)
+    end
+    local ZenUIBridge, zen_err = load_local("zenui_bridge.lua")
+    if ZenUIBridge then
+        local zen_ok, zen_obj = pcall(ZenUIBridge.new, ZenUIBridge, self, plugin_dir)
+        if zen_ok then
+            self.zenui = zen_obj
+        else
+            logger.warn("DCPRO GhostGuard ZenUI bridge init failed:", zen_obj)
+        end
+    else
+        logger.info("DCPRO GhostGuard ZenUI bridge unavailable:", zen_err)
+    end
     self.exit_diagnostics = ExitDiagnostics:new(config, self.guard.storage)
     self.guard.exit_diagnostics = self.exit_diagnostics
     self.exit_diagnostics:install(self)
@@ -55,9 +79,6 @@ function DCPROGhostGuard:loadRuntime()
                 .. _("\n\nMở Tools và chọn Hoàn tất thiết lập bảo vệ."), 14)
         end)
     end
-    -- 0.6.11 SAFE DIAGNOSTIC: no SimpleUI/ZenUI bridge instances.
-    self.simpleui = nil
-    self.zenui = nil
     return true
 end
 
