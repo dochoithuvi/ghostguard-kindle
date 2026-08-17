@@ -1,5 +1,5 @@
 return {
-    version = "0.6.11-safe-diagnostic",
+    version = "0.6.13",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
     protect_mode = "PROTECT_PROFILE",
@@ -61,7 +61,10 @@ return {
     max_protect_session_seconds = 21600,
     flush_every_frames = 128,
 
-    protect_wrapper_all_modes = true,
+    -- The optional touch wrapper is needed only for real PROTECT mode.
+    -- Observe/Calibration must work even when SimpleUI/KOReader does not
+    -- expose the touch wrapper API.
+    protect_wrapper_all_modes = false,
     engine_keep_alive_on_widget_close = true,
     resume_restart_delay_seconds = 4,
 
