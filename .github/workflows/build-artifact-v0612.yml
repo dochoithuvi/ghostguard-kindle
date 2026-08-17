@@ -28,7 +28,7 @@ jobs:
           scripts/build_artifact_v0612.sh
       - name: Validate artifact contents
         run: |
-          PKG=$(ls packages/ghostguard/artifacts/ghostguard_0.6.12_*.kpkg | tail -1)
+          PKG=$(ls packages/ghostguard/artifacts/ghostguard_0.6.13_*.kpkg | tail -1)
           test -s "$PKG"
           mkdir -p /tmp/pkgcheck
           tar -xzf "$PKG" -C /tmp/pkgcheck
@@ -40,13 +40,13 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/artifacts/ghostguard_0.6.12_*.kpkg
+          git add packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua packages/ghostguard/source/manifest.json packages/ghostguard/artifacts/ghostguard_0.6.13_*.kpkg
           git diff --cached --quiet && exit 0
-          git commit -m "build: publish GhostGuard 0.6.12 artifact [artifact-bot]"
+          git commit -m "build: publish GhostGuard 0.6.13 artifact [artifact-bot]"
           git push
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ghostguard-current-kpkg
-          path: packages/ghostguard/artifacts/ghostguard_0.6.12_*.kpkg
+          path: packages/ghostguard/artifacts/ghostguard_0.6.13_*.kpkg
           if-no-files-found: error
