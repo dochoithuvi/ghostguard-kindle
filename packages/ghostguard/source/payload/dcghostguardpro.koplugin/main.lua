@@ -59,7 +59,6 @@ function DCPROGhostGuard:loadRuntime()
     self.simpleui = nil
     self.zenui = nil
     return true
-end    return true
 end
 
 function DCPROGhostGuard:startMode(mode, reason)
