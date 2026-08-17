@@ -3,28 +3,50 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build-artifact:
+    if: ${{ !contains(github.event.head_commit.message, '[artifact-bot]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Repair known KOReader loader typo in source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua')
+          s = p.read_text()
+          bad = '\nend    return true\nend\n'
+          if bad in s:
+              p.write_text(s.replace(bad, '\nend\n', 1))
+          PY
       - name: Build current source artifact
         run: |
           chmod +x scripts/build_artifact_v0612.sh
           scripts/build_artifact_v0612.sh
       - name: Validate artifact contents
         run: |
-          PKG=$(ls packages/ghostguard/artifacts/ghostguard_*.kpkg | tail -1)
+          PKG=$(ls packages/ghostguard/artifacts/ghostguard_0.6.12_*.kpkg | tail -1)
           test -s "$PKG"
           mkdir -p /tmp/pkgcheck
           tar -xzf "$PKG" -C /tmp/pkgcheck
           for f in main.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua; do
             test -f "/tmp/pkgcheck/payload/dcghostguardpro.koplugin/$f"
           done
+          ! grep -q 'end    return true' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua
+      - name: Publish source repair and package
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/artifacts/ghostguard_0.6.12_*.kpkg
+          git diff --cached --quiet && exit 0
+          git commit -m "build: publish GhostGuard 0.6.12 artifact [artifact-bot]"
+          git push
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ghostguard-current-kpkg
-          path: packages/ghostguard/artifacts/ghostguard_*.kpkg
+          path: packages/ghostguard/artifacts/ghostguard_0.6.12_*.kpkg
           if-no-files-found: error
