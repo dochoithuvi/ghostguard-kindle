@@ -11,9 +11,38 @@
       "artifacts": [
         {
           "url": "packages/ghostguard/artifacts/ghostguard_0.6.14_kindle5-kindlepw2-kindlehf.kpkg",
-          "version": [0, 6, 14],
+          "version": [
+            0,
+            6,
+            14
+          ],
           "dependencies": [],
-          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
+          "supported_platforms": [
+            "kindle5",
+            "kindlepw2",
+            "kindlehf"
+          ]
+        }
+      ]
+    },
+    "kindleforge": {
+      "name": "KindleForge",
+      "author": "Penguins184 / KindleTweaks",
+      "description": "KindleForge 4.1.0 GUI package manager for Kindle, repackaged as an isolated KPM package.",
+      "artifacts": [
+        {
+          "url": "packages/kindleforge/artifacts/kindleforge_4.1.0_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [
+            4,
+            1,
+            0
+          ],
+          "dependencies": [],
+          "supported_platforms": [
+            "kindle5",
+            "kindlepw2",
+            "kindlehf"
+          ]
         }
       ]
     }
