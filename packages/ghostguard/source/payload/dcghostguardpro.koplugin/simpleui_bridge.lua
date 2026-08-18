@@ -30,6 +30,32 @@ local function copy_without(list, value)
     return out
 end
 
+local function resolve_module(current_name, legacy_name, validator)
+    local loaded = package.loaded[current_name] or package.loaded[legacy_name]
+    if loaded and validator(loaded) then
+        package.loaded[current_name] = loaded
+        package.loaded[legacy_name] = loaded
+        return loaded
+    end
+
+    local ok, result = pcall(require, current_name)
+    if not ok or not result or not validator(result) then
+        ok, result = pcall(require, legacy_name)
+    end
+
+    if ok and result and validator(result) then
+        -- Keep both names populated. This lets the rest of GhostGuard keep
+        -- working with older require() paths while supporting refactored
+        -- SimpleUI installations.
+        package.loaded[current_name] = result
+        package.loaded[legacy_name] = result
+        return result
+    end
+
+    return nil, ok and ("SimpleUI module API unavailable: " .. current_name)
+        or tostring(result)
+end
+
 function SimpleUIBridge:new(owner, plugin_dir)
     return setmetatable({
         owner = owner,
@@ -46,19 +72,36 @@ function SimpleUIBridge:new(owner, plugin_dir)
 end
 
 function SimpleUIBridge:resolveQA()
-    local qa = package.loaded["sui_quickactions"]
-    if qa and type(qa.register) == "function" then return qa end
-    local ok, loaded = pcall(require, "sui_quickactions")
-    if ok and loaded and type(loaded.register) == "function" then return loaded end
-    return nil, ok and "SimpleUI Quick Actions API unavailable" or tostring(loaded)
+    return resolve_module(
+        "features/sui_quickactions",
+        "sui_quickactions",
+        function(mod) return type(mod.register) == "function" end
+    )
 end
 
 function SimpleUIBridge:resolveConfig()
-    local cfg = package.loaded["sui_config"]
-    if cfg and type(cfg.loadTabConfig) == "function" then return cfg end
-    local ok, loaded = pcall(require, "sui_config")
-    if ok and loaded and type(loaded.loadTabConfig) == "function" then return loaded end
-    return nil, ok and "SimpleUI config API unavailable" or tostring(loaded)
+    return resolve_module(
+        "infra/sui_config",
+        "sui_config",
+        function(mod) return type(mod.loadTabConfig) == "function" end
+    )
+end
+
+function SimpleUIBridge:installWindowCompatibilityAlias()
+    if package.loaded["sui_window"] then return true end
+    local ok, window = pcall(require, "engines/sui_window")
+    if ok and window then
+        package.loaded["sui_window"] = window
+        return true
+    end
+
+    -- Older SimpleUI releases still expose the legacy path directly.
+    ok, window = pcall(require, "sui_window")
+    if ok and window then
+        package.loaded["engines/sui_window"] = window
+        return true
+    end
+    return false, tostring(window)
 end
 
 function SimpleUIBridge:resolveSimpleUIPlugin()
@@ -200,6 +243,15 @@ function SimpleUIBridge:register()
     if self.registered and self.tools_tab_ready then return true, "already-registered" end
     local qa, err = self:resolveQA()
     if not qa then self.last_error = err; return false, err end
+
+    -- main.lua still supports the legacy require("sui_window") path. Populate
+    -- that alias up front when running against refactored SimpleUI versions so
+    -- opening the Tools tab does not silently fall back to the status dialog.
+    local window_ok, window_err = self:installWindowCompatibilityAlias()
+    if not window_ok then
+        logger.warn("DCPRO GhostGuard SimpleUI window compatibility unavailable:", window_err)
+    end
+
     local owner = self.owner
     local icon = self.plugin_dir .. "assets/ghostguard.svg"
 
