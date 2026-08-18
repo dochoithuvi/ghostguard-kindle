@@ -29,7 +29,7 @@ jobs:
                ! git diff --quiet HEAD^ HEAD -- packages/ghostguard scripts/build_artifact_v0612.sh; then
               GH=true
             fi
-            if [ ! -f packages/kindleforge/artifacts/kindleforge_4.1.0_kindle5-kindlepw2-kindlehf.kpkg ] || \
+            if [ ! -f packages/kindleforge/artifacts/kindleforge_4.1.1_kindle5-kindlepw2-kindlehf.kpkg ] || \
                ! git diff --quiet HEAD^ HEAD -- packages/kindleforge scripts/build_kindleforge_artifact.sh; then
               KF=true
             fi
@@ -81,7 +81,7 @@ jobs:
       - name: Validate KindleForge artifact contents
         if: steps.detect.outputs.kindleforge == 'true'
         run: |
-          PKG=$(ls packages/kindleforge/artifacts/kindleforge_4.1.0_*.kpkg | tail -1)
+          PKG=$(ls packages/kindleforge/artifacts/kindleforge_4.1.1_*.kpkg | tail -1)
           test -s "$PKG"
           rm -rf /tmp/kfcheck
           mkdir -p /tmp/kfcheck
@@ -90,6 +90,8 @@ jobs:
           test -x /tmp/kfcheck/install.sh
           test -x /tmp/kfcheck/launch.sh
           test -x /tmp/kfcheck/uninstall.sh
+          test -x /tmp/kfcheck/runtime.sh
+          test -s /tmp/kfcheck/UPSTREAM_RELEASE_SHA256
           test -f /tmp/kfcheck/payload/KindleForge/config.xml
           test -f /tmp/kfcheck/payload/KindleForge/index.html
           test -f /tmp/kfcheck/payload/KindleForge/script.js
@@ -97,13 +99,17 @@ jobs:
           test -x /tmp/kfcheck/payload/KindleForge/binaries/UtildHF
           test -x /tmp/kfcheck/payload/KindleForge/binaries/UtildSF
           grep -q '"id": "kindleforge"' /tmp/kfcheck/manifest.json
+          grep -q '"version": \[4, 1, 1\]' /tmp/kfcheck/manifest.json
           grep -q 'Version 4.1.0 stable' /tmp/kfcheck/payload/KindleForge/index.html
           grep -q 'xyz.penguins184.kindleforge' /tmp/kfcheck/payload/KindleForge/config.xml
+          grep -q 'Update KForge' /tmp/kfcheck/payload/KindleForge/script.js
+          grep -q '/var/local/kmc' /tmp/kfcheck/install.sh
+          grep -q '/mnt/us/documents/KindleForge' /tmp/kfcheck/runtime.sh
 
       - name: Register KindleForge in repository manifest
         if: steps.detect.outputs.kindleforge == 'true'
         run: |
-          PKG=$(ls packages/kindleforge/artifacts/kindleforge_4.1.0_*.kpkg | tail -1)
+          PKG=$(ls packages/kindleforge/artifacts/kindleforge_4.1.1_*.kpkg | tail -1)
           python3 - "$PKG" <<'PY'
           import json
           import os
@@ -142,7 +148,7 @@ jobs:
           git add manifest.v2.json
           git add packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua packages/ghostguard/source/manifest.json packages/ghostguard/artifacts/ghostguard_0.6.14_*.kpkg
           if [ -d packages/kindleforge/artifacts ]; then
-            git add packages/kindleforge/artifacts/kindleforge_4.1.0_*.kpkg
+            git add packages/kindleforge/artifacts/kindleforge_4.1.1_*.kpkg
           fi
           git diff --cached --quiet && exit 0
           git commit -m "build: publish KPM artifacts [artifact-bot]"
@@ -160,8 +166,8 @@ jobs:
         if: steps.detect.outputs.kindleforge == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: kindleforge-4.1.0-kpkg
-          path: packages/kindleforge/artifacts/kindleforge_4.1.0_*.kpkg
+          name: kindleforge-4.1.1-kpkg
+          path: packages/kindleforge/artifacts/kindleforge_4.1.1_*.kpkg
           if-no-files-found: error
 
 # GhostGuard and KindleForge are built as independent KPM packages in the same repository.

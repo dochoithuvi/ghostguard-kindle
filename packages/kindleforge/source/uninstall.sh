@@ -1,13 +1,14 @@
 #!/bin/sh
 set -u
 
+DOCS="/mnt/us/documents/KindleForge"
+DOCS_SCRIPT="/mnt/us/documents/KindleForge.sh"
 TARGET="/var/local/mesquite/KindleForge"
+RUNTIME="/var/local/mesquite/KindleForge.kpm-launch.sh"
 DB="/var/local/appreg.db"
 APP_ID="xyz.penguins184.kindleforge"
 STATE_DIR="/mnt/us/.dcpro_kindleforge"
 
-# Best-effort close request. Failure is non-fatal because appmgr behavior varies
-# across Kindle firmware generations.
 if command -v lipc-set-prop >/dev/null 2>&1; then
     lipc-set-prop com.lab126.appmgrd stop "app://$APP_ID" >/dev/null 2>&1 || true
 fi
@@ -21,11 +22,14 @@ COMMIT;
 EOF
 fi
 
-rm -rf "$TARGET"
+rm -rf "$TARGET" "$DOCS"
+rm -f "$RUNTIME" "$DOCS_SCRIPT" 2>/dev/null || true
 rm -f "$STATE_DIR/KPM_INSTALL_OK" 2>/dev/null || true
 rmdir "$STATE_DIR" 2>/dev/null || true
 
-# Intentionally preserve /mnt/us/.KFPM. It belongs to KindleForge/KFPM package
-# state and may describe apps the customer installed separately.
-echo "KindleForge removed. /mnt/us/.KFPM was preserved."
+# Preserve /mnt/us/.KFPM because it may describe packages the customer installed
+# through KindleForge. Also preserve /var/local/kmc/UtildHF|UtildSF because the
+# messaging endpoint is shared by other Kindle apps and is not owned exclusively
+# by this KPM package.
+echo "KindleForge removed. Shared KFPM state and Utild binaries were preserved."
 exit 0
