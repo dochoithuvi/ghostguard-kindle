@@ -1,4 +1,4 @@
-name: Build GhostGuard artifact
+name: Build KPM artifacts
 on:
   push:
     branches: [main]
@@ -12,14 +12,45 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Build current source artifact
+        with:
+          fetch-depth: 2
+
+      - name: Detect package builds
+        id: detect
+        shell: bash
+        run: |
+          GH=false
+          KF=false
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            GH=true
+            KF=true
+          else
+            if [ ! -f packages/ghostguard/artifacts/ghostguard_0.6.14_kindle5-kindlepw2-kindlehf.kpkg ] || \
+               ! git diff --quiet HEAD^ HEAD -- packages/ghostguard scripts/build_artifact_v0612.sh; then
+              GH=true
+            fi
+            if [ ! -f packages/kindleforge/artifacts/kindleforge_4.1.0_kindle5-kindlepw2-kindlehf.kpkg ] || \
+               ! git diff --quiet HEAD^ HEAD -- packages/kindleforge scripts/build_kindleforge_artifact.sh; then
+              KF=true
+            fi
+          fi
+          echo "ghostguard=$GH" >> "$GITHUB_OUTPUT"
+          echo "kindleforge=$KF" >> "$GITHUB_OUTPUT"
+          echo "GhostGuard build: $GH"
+          echo "KindleForge build: $KF"
+
+      - name: Build GhostGuard artifact
+        if: steps.detect.outputs.ghostguard == 'true'
         run: |
           chmod +x scripts/build_artifact_v0612.sh
           scripts/build_artifact_v0612.sh
-      - name: Validate artifact contents
+
+      - name: Validate GhostGuard artifact contents
+        if: steps.detect.outputs.ghostguard == 'true'
         run: |
           PKG=$(ls packages/ghostguard/artifacts/ghostguard_0.6.14_*.kpkg | tail -1)
           test -s "$PKG"
+          rm -rf /tmp/pkgcheck
           mkdir -p /tmp/pkgcheck
           tar -xzf "$PKG" -C /tmp/pkgcheck
           for f in main.lua ghostguard.lua defaults.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua simpleui_bridge.lua zenui_bridge.lua; do
@@ -33,24 +64,104 @@ jobs:
           ! grep -q 'local protect = mode == self.config.protect_mode    local protect' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua
           grep -q 'version = "0.6.14"' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
           grep -q 'protect_wrapper_all_modes = false' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
-      - name: Sync patched runtime back to source tree
+
+      - name: Sync GhostGuard patched runtime back to source tree
+        if: steps.detect.outputs.ghostguard == 'true'
         run: |
           cp /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua
           cp /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
           cp /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
-      - name: Publish source repair and package
+
+      - name: Build KindleForge artifact
+        if: steps.detect.outputs.kindleforge == 'true'
+        run: |
+          chmod +x scripts/build_kindleforge_artifact.sh
+          scripts/build_kindleforge_artifact.sh
+
+      - name: Validate KindleForge artifact contents
+        if: steps.detect.outputs.kindleforge == 'true'
+        run: |
+          PKG=$(ls packages/kindleforge/artifacts/kindleforge_4.1.0_*.kpkg | tail -1)
+          test -s "$PKG"
+          rm -rf /tmp/kfcheck
+          mkdir -p /tmp/kfcheck
+          tar -xzf "$PKG" -C /tmp/kfcheck
+          test -f /tmp/kfcheck/manifest.json
+          test -x /tmp/kfcheck/install.sh
+          test -x /tmp/kfcheck/launch.sh
+          test -x /tmp/kfcheck/uninstall.sh
+          test -f /tmp/kfcheck/payload/KindleForge/config.xml
+          test -f /tmp/kfcheck/payload/KindleForge/index.html
+          test -f /tmp/kfcheck/payload/KindleForge/script.js
+          test -x /tmp/kfcheck/payload/KindleForge/binaries/KFPM
+          test -x /tmp/kfcheck/payload/KindleForge/binaries/UtildHF
+          test -x /tmp/kfcheck/payload/KindleForge/binaries/UtildSF
+          grep -q '"id": "kindleforge"' /tmp/kfcheck/manifest.json
+          grep -q 'Version 4.1.0 stable' /tmp/kfcheck/payload/KindleForge/index.html
+          grep -q 'xyz.penguins184.kindleforge' /tmp/kfcheck/payload/KindleForge/config.xml
+
+      - name: Register KindleForge in repository manifest
+        if: steps.detect.outputs.kindleforge == 'true'
+        run: |
+          PKG=$(ls packages/kindleforge/artifacts/kindleforge_4.1.0_*.kpkg | tail -1)
+          python3 - "$PKG" <<'PY'
+          import json
+          import os
+          import sys
+          import tarfile
+
+          pkg_path = sys.argv[1]
+          with tarfile.open(pkg_path, "r:gz") as tf:
+              with tf.extractfile("manifest.json") as fh:
+                  package = json.load(fh)
+
+          with open("manifest.v2.json", "r", encoding="utf-8") as fh:
+              repo = json.load(fh)
+
+          repo.setdefault("packages", {})[package["id"]] = {
+              "name": package["name"],
+              "author": package["author"],
+              "description": package["description"],
+              "artifacts": [{
+                  "url": os.path.relpath(pkg_path, ".").replace(os.sep, "/"),
+                  "version": package["version"],
+                  "dependencies": package["dependencies"],
+                  "supported_platforms": package["supported_platforms"],
+              }],
+          }
+
+          with open("manifest.v2.json", "w", encoding="utf-8") as fh:
+              json.dump(repo, fh, indent=2, ensure_ascii=False)
+              fh.write("\n")
+          PY
+
+      - name: Publish package artifacts
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.v2.json
           git add packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua packages/ghostguard/source/manifest.json packages/ghostguard/artifacts/ghostguard_0.6.14_*.kpkg
+          if [ -d packages/kindleforge/artifacts ]; then
+            git add packages/kindleforge/artifacts/kindleforge_4.1.0_*.kpkg
+          fi
           git diff --cached --quiet && exit 0
-          git commit -m "build: publish GhostGuard 0.6.14 artifact [artifact-bot]"
+          git commit -m "build: publish KPM artifacts [artifact-bot]"
           git push
-      - name: Upload artifact
+
+      - name: Upload GhostGuard artifact
+        if: steps.detect.outputs.ghostguard == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ghostguard-current-kpkg
           path: packages/ghostguard/artifacts/ghostguard_0.6.14_*.kpkg
           if-no-files-found: error
 
-# 0.6.14 bridge-safe build: Observe/Calibration must never require the optional input bridge.
+      - name: Upload KindleForge artifact
+        if: steps.detect.outputs.kindleforge == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kindleforge-4.1.0-kpkg
+          path: packages/kindleforge/artifacts/kindleforge_4.1.0_*.kpkg
+          if-no-files-found: error
+
+# GhostGuard and KindleForge are built as independent KPM packages in the same repository.

@@ -1,0 +1,10 @@
+{
+  "manifest_version": 2,
+  "id": "kindleforge",
+  "name": "KindleForge",
+  "author": "Penguins184 / KindleTweaks",
+  "description": "KindleForge 4.1.0 GUI package manager for Kindle, repackaged as an isolated KPM package.",
+  "version": [4, 1, 0],
+  "dependencies": [],
+  "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
+}
