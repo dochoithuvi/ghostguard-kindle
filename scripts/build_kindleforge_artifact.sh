@@ -20,6 +20,10 @@ RELEASE_DIR="$TMP/release"
 PAYLOAD="$TMP/payload/KindleForge"
 mkdir -p "$RELEASE_DIR" "$TMP/payload"
 
+for script in "$SRC/install.sh" "$SRC/launch.sh" "$SRC/uninstall.sh" "$SRC/runtime.sh"; do
+    sh -n "$script"
+done
+
 fetch() {
     url="$1"
     out="$2"
