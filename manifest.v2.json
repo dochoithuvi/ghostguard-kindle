@@ -2,16 +2,16 @@
   "manifest_version": 2,
   "id": "dochoithuvi-ghostguard",
   "name": "Do Choi Thu Vi GhostGuard Repository",
-  "description": "Public KPM repository for DCPRO GhostGuard on Kindle.",
+  "description": "Public KPM v2 repository for DCPRO GhostGuard on Kindle.",
   "packages": {
     "ghostguard": {
       "name": "DCPRO GhostGuard",
       "author": "Do Choi Thu Vi",
-      "description": "KOReader GhostGuard v0.6.12 - SAFE diagnostic build: core/license/status only, no touch/input/UI bridges.",
+      "description": "KOReader GhostGuard v0.6.14 - optional input bridge; Protect requires an available input bridge, while Observe/Calibration remain usable without SimpleUI.",
       "artifacts": [
         {
-          "url": "packages/ghostguard/artifacts/ghostguard_0.6.12_kindle5-kindlepw2-kindlehf.kpkg",
-          "version": [0, 6, 12],
+          "url": "packages/ghostguard/artifacts/ghostguard_0.6.14_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [0, 6, 14],
           "dependencies": [],
           "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
         }
