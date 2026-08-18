@@ -15,6 +15,14 @@ jobs:
         with:
           fetch-depth: 2
 
+      - name: Validate production OneClick installer
+        run: |
+          test -f DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          sh -n DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'manifest.v2.json' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'ghostguard_manifest.compact.json' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          ! grep -q 'DCPRO_GhostGuard_OneClick_Installer_v12.sh' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+
       - name: Detect package builds
         id: detect
         shell: bash
