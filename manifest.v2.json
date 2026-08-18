@@ -28,14 +28,14 @@
     "kindleforge": {
       "name": "KindleForge",
       "author": "Penguins184 / KindleTweaks",
-      "description": "KindleForge 4.1.0 GUI package manager for Kindle, repackaged as an isolated KPM package.",
+      "description": "KindleForge upstream 4.1.0 with KPM integration revision 4.1.1; installs the official release bundle and preserves in-app Update KForge compatibility.",
       "artifacts": [
         {
-          "url": "packages/kindleforge/artifacts/kindleforge_4.1.0_kindle5-kindlepw2-kindlehf.kpkg",
+          "url": "packages/kindleforge/artifacts/kindleforge_4.1.1_kindle5-kindlepw2-kindlehf.kpkg",
           "version": [
             4,
             1,
-            0
+            1
           ],
           "dependencies": [],
           "supported_platforms": [
