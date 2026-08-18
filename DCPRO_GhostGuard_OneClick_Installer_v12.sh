@@ -87,12 +87,14 @@ install_simpleui(){
   mkdir -p "$KO_ROOT/plugins"; rm -rf "$KO_ROOT/plugins/simpleui.koplugin"; cp -R "$S" "$KO_ROOT/plugins/simpleui.koplugin"; rm -rf "$D" "$Z"; return 0
 }
 manifest_check(){
-  M="$TMP/ghostguard_manifest.v2.json"; rm -f "$M"; log "Checking manifest: $GG_REPO"; get "$GG_REPO" "$M" || { log "ERROR: manifest download failed"; return 1; }
+  M="$TMP/ghostguard_manifest.v2.json"; MC="$TMP/ghostguard_manifest.compact.json"; rm -f "$M" "$MC"; log "Checking manifest: $GG_REPO"; get "$GG_REPO" "$M" || { log "ERROR: manifest download failed"; return 1; }
   grep -q '"manifest_version"[[:space:]]*:[[:space:]]*2' "$M" || { log "ERROR: manifest is not v2"; return 1; }
   grep -q '"id"[[:space:]]*:[[:space:]]*"'$GG_REPO_ID'"' "$M" || { log "ERROR: manifest repo id mismatch"; return 1; }
-  grep -q '"ghostguard"' "$M" || { log "ERROR: ghostguard package missing"; return 1; }
-  grep -q '"version"[[:space:]]*:[[:space:]]*\[0,[[:space:]]*6,[[:space:]]*14\]' "$M" || { log "ERROR: expected GhostGuard 0.6.14 not present"; return 1; }
-  log "Manifest validation: PASS (GhostGuard $GG_EXPECT)"; rm -f "$M"; return 0
+  tr -d '[:space:]' < "$M" > "$MC" || { log "ERROR: cannot normalize manifest"; return 1; }
+  grep -Fq '"ghostguard":{' "$MC" || { log "ERROR: ghostguard package missing"; return 1; }
+  grep -Fq '"url":"packages/ghostguard/artifacts/ghostguard_0.6.14_kindle5-kindlepw2-kindlehf.kpkg"' "$MC" || { log "ERROR: GhostGuard 0.6.14 artifact missing"; return 1; }
+  grep -Fq '"version":[0,6,14]' "$MC" || { log "ERROR: expected GhostGuard 0.6.14 not present"; return 1; }
+  log "Manifest validation: PASS (GhostGuard $GG_EXPECT)"; rm -f "$M" "$MC"; return 0
 }
 search_gg(){ "$KPM" -y search ghostguard 2>&1; }
 repo_ready(){
