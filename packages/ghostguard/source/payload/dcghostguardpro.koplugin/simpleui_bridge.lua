@@ -1,4 +1,7 @@
 local logger = require("logger")
+local UIManager = require("ui/uimanager")
+local ConfirmBox = require("ui/widget/confirmbox")
+local _ = require("gettext")
 
 local SimpleUIBridge = {}
 SimpleUIBridge.__index = SimpleUIBridge
@@ -67,6 +70,7 @@ function SimpleUIBridge:new(owner, plugin_dir)
         tools_tab_ready = false,
         tools_tab_detail = nil,
         last_error = nil,
+        profile_ready_popup_installed = false,
         plugin_key = (owner and owner.name) or DEFAULT_PLUGIN_KEY,
     }, self)
 end
@@ -122,6 +126,42 @@ function SimpleUIBridge:rebuildNavbars()
         return ok
     end
     return false
+end
+
+function SimpleUIBridge:installProfileReadyApprovalPopup()
+    if self.profile_ready_popup_installed then return true end
+    local owner = self.owner
+    local guard = owner and owner.guard
+    if not guard or type(owner.completeCustomerSetupAndProtect) ~= "function" then
+        return false, "GhostGuard owner is not ready for profile approval popup"
+    end
+
+    guard.on_profile_ready = function(_guard, progress)
+        UIManager:scheduleIn(0.1, function()
+            local live_guard = owner.guard
+            if not live_guard then return end
+            if type(live_guard.profileApproved) == "function" and live_guard:profileApproved() then return end
+            if type(live_guard.protectSupported) == "function" and not live_guard:protectSupported() then return end
+
+            UIManager:show(ConfirmBox:new{
+                text = _("GHOSTGUARD ĐÃ HỌC XONG\n\n") .. tostring(progress)
+                    .. _("\n\nProfile bảo vệ đã sẵn sàng. Kích hoạt bảo vệ tự động ngay bây giờ?"),
+                cancel_text = _("Để sau"),
+                ok_text = _("Kích hoạt"),
+                flush_events_on_show = true,
+                cancel_callback = function()
+                    logger.info("DCPRO GhostGuard customer deferred ready profile approval")
+                end,
+                ok_callback = function()
+                    owner:completeCustomerSetupAndProtect("customer-profile-ready-popup")
+                end,
+            })
+        end)
+    end
+
+    self.profile_ready_popup_installed = true
+    logger.info("DCPRO GhostGuard installed customer profile-ready approval popup")
+    return true
 end
 
 function SimpleUIBridge:findOrCreateToolsQA(config)
@@ -313,6 +353,12 @@ function SimpleUIBridge:register()
         self.last_error = tab_detail
         return false, tab_detail
     end
+
+    local popup_ok, popup_err = self:installProfileReadyApprovalPopup()
+    if not popup_ok then
+        logger.warn("DCPRO GhostGuard profile-ready popup unavailable:", popup_err)
+    end
+
     self.last_error = nil
     logger.info("DCPRO GhostGuard registered SimpleUI Quick Actions and Tools tab")
     return true, "registered"
@@ -341,7 +387,8 @@ function SimpleUIBridge:statusText()
     local qa_text = self.registered and "4 QUICK ACTIONS" or "QUICK ACTIONS CHƯA KẾT NỐI"
     local tab_text = self.tools_tab_ready and "TAB TOOLS ĐÃ GẮN CẠNH HOME"
         or ("TAB TOOLS CHƯA SẴN SÀNG" .. (self.tools_tab_detail and (" — " .. self.tools_tab_detail) or ""))
-    return qa_text .. " + " .. tab_text
+    local popup_text = self.profile_ready_popup_installed and " + PROFILE POPUP ĐÃ BẬT" or ""
+    return qa_text .. " + " .. tab_text .. popup_text
 end
 
 return SimpleUIBridge
