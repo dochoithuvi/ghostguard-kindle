@@ -31,6 +31,7 @@ jobs:
           grep -q 'local bridge_ok, bridge_err = self:ensureInputBridge()' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua
           ! grep -q 'local protect = mode == self.config.protect_mode    local protect' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua
           grep -q 'version = "0.6.14"' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'protect_wrapper_all_modes = false' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
       - name: Sync patched runtime back to source tree
         run: |
           cp /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua
@@ -53,3 +54,4 @@ jobs:
 
 # Force a fresh build after the 0.6.14 bridge fix so the public KPM artifact
 # cannot point at a manifest version whose .kpkg has not been materialized.
+# Build verification: Observe/Calibration must not require the optional input bridge.
