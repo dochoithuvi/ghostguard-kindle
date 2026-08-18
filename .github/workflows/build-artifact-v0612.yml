@@ -25,6 +25,7 @@ jobs:
           for f in main.lua ghostguard.lua defaults.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua simpleui_bridge.lua zenui_bridge.lua; do
             test -f "/tmp/pkgcheck/payload/dcghostguardpro.koplugin/$f"
           done
+          test -f /tmp/pkgcheck/manifest.json
           ! grep -q 'end    return true' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua
           grep -q 'SimpleUIBridge.new' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua
           ! grep -q 'self.simpleui = nil' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua
@@ -52,6 +53,4 @@ jobs:
           path: packages/ghostguard/artifacts/ghostguard_0.6.14_*.kpkg
           if-no-files-found: error
 
-# Force a fresh build after the 0.6.14 bridge fix so the public KPM artifact
-# cannot point at a manifest version whose .kpkg has not been materialized.
-# Build verification: Observe/Calibration must not require the optional input bridge.
+# 0.6.14 bridge-safe build: Observe/Calibration must never require the optional input bridge.
