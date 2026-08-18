@@ -1,100 +1,94 @@
-# DCPRO GhostGuard for Kindle
+# DCPRO Kindle Tools Repository
 
-Public KPM repository for **DCPRO GhostGuard**, a KOReader touch-protection plugin for jailbroken Kindle devices.
+Public KPM v2 repository for Kindle tools maintained by Do Choi Thu Vi.
 
-## Current release
+## Current packages
 
-**0.6.1 RC — License Sync + first-launch activation fix**
+### GhostGuard
 
-This release is based on the v0.5.1 HF3/ExitTrace runtime and adds the v4.1 hybrid licensing layer. It does **not** claim that the later Adaptive/TouchMap branch has been merged yet.
+- Package ID: `ghostguard`
+- Current version: `0.6.14`
+- KOReader touch-protection plugin.
+- Current artifact: `packages/ghostguard/artifacts/ghostguard_0.6.14_kindle5-kindlepw2-kindlehf.kpkg`
 
-v0.6.1 keeps a Library/bootstrap launch request pending while the first signed online-license check runs. If the serial is authorized, GhostGuard starts the requested mode automatically, so an online-only first install does not require a second tap.
+### KindleForge
 
-## Package ID
+- Package ID: `kindleforge`
+- KPM integration revision: `4.1.1`
+- Upstream KindleForge UI: `4.1.0 stable`
+- Current artifact: `packages/kindleforge/artifacts/kindleforge_4.1.1_kindle5-kindlepw2-kindlehf.kpkg`
+
+## Recommended GhostGuard OneClick
+
+Use only:
 
 ```text
-ghostguard
+DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
 ```
 
-## Install
+`v12.1` is self-contained. It:
 
-If this repository is already registered in KPM:
+1. Finds the installed KPM binary.
+2. Installs/checks KOReader.
+3. Attempts to install SimpleUI when missing.
+4. Validates the current multi-package repository manifest.
+5. Re-registers the repository only when the configured endpoint is missing/legacy.
+6. Runs `kpm update` and verifies package `ghostguard` is indexed.
+7. Installs GhostGuard `0.6.14`.
+8. Syncs the latest compatible `simpleui_bridge.lua`.
+9. Launches GhostGuard.
+
+Installer log:
 
 ```text
+/mnt/us/documents/GhostGuard_Installer.log
+```
+
+## KPM repository
+
+Current KPM v2 manifest:
+
+```text
+https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/manifest.v2.json
+```
+
+Once the repository has been registered, packages can be managed directly:
+
+```text
+;kpm update
 ;kpm install ghostguard
+;kpm install kindleforge
+;kpm upgrade
 ```
 
-First-time setup can use the short repository URL:
+## Backward compatibility
 
-```text
-;kpm add-repo https://bit.ly/ghostguard
-;kpm install ghostguard
-```
-
-The direct manifest URL remains:
-
-```text
-https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/manifest.json
-```
-
-## One-click Library bootstrap
-
-`bootstrap/DCPRO_GhostGuard_OneClick_Installer.sh` is a small bootstrap launcher intended for KMC shell integration.
-
-Prerequisites:
-- KOReader already installed.
-- KPM/KMC already installed.
-- Network access for first install/update.
-
-The bootstrap finds the KPM binary, registers `https://bit.ly/ghostguard`, installs/updates package `ghostguard`, writes a `LAUNCH_ONCE` request, and opens KOReader. v0.6.1 then holds that request until signed online authorization finishes and starts the requested mode when authorized.
-
-This bootstrap is still an RC path and requires physical Kindle testing before being treated as production.
-
-## License v4.1
-
-GhostGuard v4.1 supports two signed authorization paths:
-
-1. A local per-device RSA-signed `license.key`.
-2. A signed online registry at `licenses/licenses.json` + `licenses/licenses.sig`.
-
-Online registry properties:
-- Kindle serials are normalized and SHA-256 hashed before lookup.
-- The public registry contains no raw serial field and no customer-name field.
-- Registry bytes are signed with RSA-SHA256 and verified with the public key already shipped in GhostGuard.
-- Active signed registry cache can authorize offline for the configured grace period.
-- A valid local RSA v4 license remains an offline fallback.
-- Explicit signed `revoked`, `paused`, or expired online state can deny Protect.
-- Network failure or crypto/runtime error fails open: GhostGuard must not interfere with touch input.
-- STOP and SAFE_MODE remain available independently of license validity.
-
-The private signing key is **never** included in this repository, `.kpkg`, registry, or Kindle payload.
-
-## Public privacy boundary
-
-This repository may contain:
-- GhostGuard public runtime/source.
-- KPM artifacts.
-- RSA public verification key.
-- Hashed signed license registry.
-
-It must not contain:
-- Private RSA signing keys.
-- Customer license-manager HTML containing private material.
-- Raw customer database exports.
-- Customer `license.key` files.
-- Private Cloud tokens.
-
-## Package layout
+The following GhostGuard-only endpoints are intentionally retained for older devices/scripts and should not be used for new multi-package setup:
 
 ```text
 manifest.json
-licenses/licenses.json
-licenses/licenses.sig
+manifest.mirror.json
 bootstrap/DCPRO_GhostGuard_OneClick_Installer.sh
-packages/ghostguard/artifacts/ghostguard_0.6.1_kindle5-kindlepw2-kindlehf.kpkg
-packages/ghostguard/source/
 ```
 
-## RC warning
+Do not delete or repoint these compatibility endpoints without a migration plan for existing devices.
 
-The signing key currently referenced by this RC is the **test/RC key** `ghostguard-rc-2026-08`. Before a production customer rollout, generate and keep a production RSA private key offline, add only its public PEM/key ID to the package, and re-sign the registry with that production key.
+## Repository layout
+
+```text
+manifest.v2.json
+DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+packages/
+  ghostguard/
+    source/
+    artifacts/
+  kindleforge/
+    source/
+    artifacts/
+scripts/
+.github/workflows/
+```
+
+## Public privacy boundary
+
+This repository may contain public runtime/source, KPM artifacts, public verification keys, and hashed/signed license registries. It must not contain private signing keys, raw customer databases, customer license files, or private service tokens.
