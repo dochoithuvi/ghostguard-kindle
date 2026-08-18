@@ -1,8 +1,8 @@
 #!/bin/sh
-# DCPRO GhostGuard OneClick v11.4
+# DCPRO GhostGuard OneClick v11.5
 # Touch-broken Kindle bootstrap: KOReader first, then SimpleUI, then GhostGuard.
 # KPM v0.2.x: use the v2 repository manifest explicitly.
-# v11.4: GhostGuard 0.6.12; fixes KOReader plugin loader syntax issue and verifies the new package.
+# v11.5: GhostGuard 0.6.14; optional input bridge for Observe/Calibration and verified Protect bridge path.
 ROOT=/mnt/us
 KPM=/var/local/kmc/bin/kpm
 [ -x "$KPM" ] || KPM=/var/local/kmc/kindlehf/bin/kpm
@@ -13,7 +13,7 @@ TMP="$ROOT/.dcpro_ghostguard"
 FONT_SCALE=3
 GG_REPO_ID=dochoithuvi-ghostguard
 GG_REPO=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/manifest.v2.json
-GG_EXPECT=0.6.12
+GG_EXPECT=0.6.14
 KMC_REPO_ID=kindlemodding
 KMC_REPO=https://cdn.jsdelivr.net/gh/KindleModding/repo@main/manifest.v2.json
 KO_VER=2026.07
@@ -60,12 +60,12 @@ manifest_check(){
   grep -q '"manifest_version"[[:space:]]*:[[:space:]]*2' "$M" || { log "ERROR: manifest is not v2"; return 1; }
   grep -q '"id"[[:space:]]*:[[:space:]]*"'$GG_REPO_ID'"' "$M" || { log "ERROR: manifest repo id mismatch"; return 1; }
   grep -q '"ghostguard"' "$M" || { log "ERROR: ghostguard package missing"; return 1; }
-  grep -q '"version"[[:space:]]*:[[:space:]]*\[0,[[:space:]]*6,[[:space:]]*12\]' "$M" || { log "ERROR: expected GhostGuard 0.6.12 not present"; return 1; }
+  grep -q '"version"[[:space:]]*:[[:space:]]*\[0,[[:space:]]*6,[[:space:]]*14\]' "$M" || { log "ERROR: expected GhostGuard 0.6.14 not present"; return 1; }
   log "Manifest validation: PASS (GhostGuard $GG_EXPECT)"; rm -f "$M"; return 0
 }
 search_gg(){ "$KPM" -y search ghostguard 2>&1; }
 repo_ready(){
-  R="$(search_gg || true)"; printf '%s\n' "$R" >> "$LOG"; printf '%s\n' "$R" | grep -q '0\.6\.12'
+  R="$(search_gg || true)"; printf '%s\n' "$R" >> "$LOG"; printf '%s\n' "$R" | grep -q '0\.6\.14'
 }
 repair_gg(){
   say 6 "Lam moi GhostGuard repo..."
@@ -79,14 +79,14 @@ repair_gg(){
   repo_ready || { log "ERROR: GhostGuard $GG_EXPECT not visible after repo refresh"; return 1; }
   log "GhostGuard v2 repo refresh complete."
 }
-log "========================================"; log "DCPRO GhostGuard OneClick v11.4"; log "Target: GitHub Raw manifest.v2.json"; log "Expected: GhostGuard $GG_EXPECT"; log "Date: $(date)"; log "KPM=$KPM"; log "========================================"
-say 1 "DCPRO GhostGuard Installer v11.4"; say 2 "GitHub KPM v2 registry"
+log "========================================"; log "DCPRO GhostGuard OneClick v11.5"; log "Target: GitHub Raw manifest.v2.json"; log "Expected: GhostGuard $GG_EXPECT"; log "Date: $(date)"; log "KPM=$KPM"; log "========================================"
+say 1 "DCPRO GhostGuard Installer v11.5"; say 2 "GitHub KPM v2 registry"
 install_ko || { log "ERROR: KOReader install failed"; say 5 "LOI: Khong cai duoc KOReader"; exit 1; }
 say 4 "KOReader... OK"
 install_simpleui || log "SimpleUI skipped; native/ZenUI may be used."
-say 5 "Kiem tra GhostGuard 0.6.12..."
+say 5 "Kiem tra GhostGuard 0.6.14..."
 repair_gg || { log "ERROR: GhostGuard repo setup failed"; say 6 "LOI: Khong lam moi duoc repo"; exit 1; }
-say 7 "Cai GhostGuard 0.6.12..."
+say 7 "Cai GhostGuard 0.6.14..."
 if ! run "$KPM" -y install ghostguard; then
   log "First GhostGuard install failed; refreshing v2 repo and retrying once."
   run "$KPM" -y remove-repo "$GG_REPO_ID" || true
