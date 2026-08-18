@@ -31,9 +31,11 @@ start_utild() {
     if [ -e /lib/ld-linux-armhf.so.3 ]; then
         NAME="UtildHF"
         OTHER="UtildSF"
+        PATTERN='[U]tildHF'
     else
         NAME="UtildSF"
         OTHER="UtildHF"
+        PATTERN='[U]tildSF'
     fi
 
     SRC="$TARGET/binaries/$NAME"
@@ -43,7 +45,7 @@ start_utild() {
     cp -p "$SRC" "$DST" || return 1
     chmod 755 "$DST" 2>/dev/null || true
 
-    if ! ps 2>/dev/null | grep "[$(printf '%s' "$NAME" | cut -c1)]$(printf '%s' "$NAME" | cut -c2-)" >/dev/null 2>&1; then
+    if ! ps 2>/dev/null | grep "$PATTERN" >/dev/null 2>&1; then
         killall "$OTHER" >/dev/null 2>&1 || true
         "$DST" >/dev/null 2>&1 || true
         sleep 1
