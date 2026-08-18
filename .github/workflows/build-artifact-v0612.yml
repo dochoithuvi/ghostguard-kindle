@@ -50,3 +50,6 @@ jobs:
           name: ghostguard-current-kpkg
           path: packages/ghostguard/artifacts/ghostguard_0.6.14_*.kpkg
           if-no-files-found: error
+
+# Force a fresh build after the 0.6.14 bridge fix so the public KPM artifact
+# cannot point at a manifest version whose .kpkg has not been materialized.
