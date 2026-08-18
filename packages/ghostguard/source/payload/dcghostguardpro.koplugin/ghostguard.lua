@@ -458,18 +458,27 @@ function GhostGuard:start(mode, reason)
         return false, "Cần license.key hợp lệ trong thư mục plugin: " .. tostring(license_detail)
     end
 
-    -- 0.6.11 SAFE DIAGNOSTIC: do not attach to Device.input at all.
+    -- Observe/Calibration remain safe without a touch wrapper. Real Protect
+    -- mode, however, needs the raw-event bridge before installing the wrapper.
+    -- The old SAFE diagnostic cleared self.input/self.bridge and then called
+    -- ensureProtectWrapper(), which deterministically returned:
+    -- "PROTECT_WRAPPER: input bridge unavailable".
     self.observer_enabled = false
     self.hook_installed = false
     self.input = nil
     self.bridge = nil
-    local protect = mode == self.config.protect_mode    local protect = mode == self.config.protect_mode
+    local protect = mode == self.config.protect_mode
     local calibrate = mode == self.config.calibration_mode
     if protect then
         if not self:protectSupported() then return false, "Protect limited to KindleBasic4/KT5; detected " .. self.model end
         if not self.profiles:hasApproved() then return false, "Chưa có profile đã duyệt. Hãy Hiệu chuẩn trước." end
     end
     if protect or self.config.protect_wrapper_all_modes == true then
+        local bridge_ok, bridge_err = self:ensureInputBridge()
+        if not bridge_ok then
+            self.protect_enabled = false
+            return false, "PROTECT_WRAPPER: " .. tostring(bridge_err)
+        end
         self.protect_enabled = protect
         local wrapper_ok, wrapper_err = self:ensureProtectWrapper()
         if not wrapper_ok then
