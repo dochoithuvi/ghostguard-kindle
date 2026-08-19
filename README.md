@@ -30,13 +30,17 @@ DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
 
 1. Finds the installed KPM binary.
 2. Installs/checks KOReader.
-3. Attempts to install SimpleUI when missing.
-4. Validates the current multi-package repository manifest.
-5. Re-registers the repository only when the configured endpoint is missing/legacy.
-6. Runs `kpm update` and verifies package `ghostguard` is indexed.
-7. Installs GhostGuard `0.6.14`.
-8. Syncs the latest compatible `simpleui_bridge.lua`.
-9. Launches GhostGuard.
+3. Applies the tested KOReader `GestureGuard v1.1` fail-safe for malformed/out-of-order touch frames.
+4. Applies the tested KOReader `TouchMenuGuard v1` fail-safe for uninitialized menu page state.
+5. Attempts to install SimpleUI when missing.
+6. Validates the current multi-package repository manifest.
+7. Re-registers the repository only when the configured endpoint is missing/legacy.
+8. Runs `kpm update` and verifies package `ghostguard` is indexed.
+9. Installs GhostGuard `0.6.14`.
+10. Syncs the latest compatible `simpleui_bridge.lua`.
+11. Launches GhostGuard.
+
+The KOReader safety guards keep one-time backups beside the patched KOReader files and refuse to modify unknown code shapes. A real patch/compile failure is treated as an installer error; a future unknown KOReader code shape is skipped instead of being modified blindly.
 
 Installer log:
 
@@ -88,6 +92,8 @@ packages/
 scripts/
 .github/workflows/
 ```
+
+Standalone KOReader guard TEST/RESTORE launchers are intentionally not kept in the repository after production integration; their tested logic now lives directly in OneClick v12.1 and is validated by the main build workflow.
 
 ## Public privacy boundary
 
