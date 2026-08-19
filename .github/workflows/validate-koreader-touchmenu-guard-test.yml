@@ -49,7 +49,10 @@ jobs:
 
       - name: Apply guard to upstream fixture
         run: |
-          sudo sh DCPRO_KOReader_TouchMenuGuard_Test_v1.sh
+          if ! sudo sh DCPRO_KOReader_TouchMenuGuard_Test_v1.sh; then
+            sudo cat /mnt/us/documents/KOReader_TouchMenuGuard_Test.log || true
+            exit 1
+          fi
           TARGET=/mnt/us/koreader/frontend/ui/widget/touchmenu.lua
           sudo grep -q 'DCPRO_KOREADER_TOUCHMENU_PAGE_GUARD_V1' "$TARGET"
           sudo grep -q 'if self.page == nil or self.page_num == nil then' "$TARGET"
