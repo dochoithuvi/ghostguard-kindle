@@ -40,9 +40,6 @@ find_luajit() {
 validate_lua_syntax() {
     LUAJIT_BIN="$1"
     LUA_FILE="$2"
-    case "$LUA_FILE" in
-        *']]'") log "ERROR: unsafe Lua path for loadfile validation"; return 1 ;;
-    esac
     LUA_EXPR="local f,e=loadfile([[$LUA_FILE]]); if not f then io.stderr:write((e or 'syntax error') .. '\\n'); os.exit(1) end"
     if "$LUAJIT_BIN" -e "$LUA_EXPR" >> "$LOG" 2>&1; then
         log "LuaJIT loadfile syntax validation: PASS"
@@ -148,6 +145,7 @@ patch_one() {
             print "       not self.current_tev.timev or not self.initial_tev.timev then"
             print "        logger.warn(\"DCPRO Gesture nil-guard dropped incomplete swipe frame\")"
             print "        return"
+            print "    end"
             next
         }
 
