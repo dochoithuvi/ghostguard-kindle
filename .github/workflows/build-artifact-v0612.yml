@@ -203,8 +203,9 @@ jobs:
           luajit /tmp/test_profile_learning.lua | grep -q PROFILE_LEARNING_0615_PASS
           grep -q 'calibration_min_total_contacts = 40' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
           grep -q 'calibration_min_learning_seconds = 180' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
-          grep -q 'customer_ready_notice_after_seconds = 180' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
-          grep -q 'wall_now - self.session_started_wall >= (self.config.customer_ready_notice_after_seconds or 180)' packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
+          ! grep -q 'wall_now - self.session_started_wall >= (self.config.customer_ready_notice_after_seconds or 180)' packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
+          grep -q 'Readiness already includes the minimum cumulative learning time' packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
+          grep -q 'and self.profiles:isCalibrationReady() then' packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
 
       - name: Detect package builds
         id: detect
@@ -244,7 +245,7 @@ jobs:
           rm -rf /tmp/pkgcheck
           mkdir -p /tmp/pkgcheck
           tar -xzf "$PKG" -C /tmp/pkgcheck
-          for f in main.lua ghostguard.lua defaults.lua profile_manager.lua touch_observer.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua simpleui_bridge.lua zenui_bridge.lua; do
+          for f in _meta.lua main.lua ghostguard.lua defaults.lua profile_manager.lua touch_observer.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua simpleui_bridge.lua zenui_bridge.lua; do
             test -f "/tmp/pkgcheck/payload/dcghostguardpro.koplugin/$f"
           done
           test -f /tmp/pkgcheck/manifest.json
@@ -254,6 +255,7 @@ jobs:
           grep -q 'local bridge_ok, bridge_err = self:ensureInputBridge()' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua
           ! grep -q 'local protect = mode == self.config.protect_mode    local protect' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua
           grep -q 'version = "0.6.15"' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'GhostGuard v0.6.15' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/_meta.lua
           grep -q 'calibration_min_total_contacts = 40' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
           grep -q 'calibration_min_learning_seconds = 180' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
           grep -q 'PROFILE_KIND=' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/profile_manager.lua
