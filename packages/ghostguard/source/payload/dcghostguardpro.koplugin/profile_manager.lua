@@ -94,14 +94,23 @@ function ProfileManager:calibrationStatus()
             if count > strongest then strongest = count end
         end
     end
+    local total = source and (tonumber(source.total_contacts) or 0) or 0
     local suspects = source and (tonumber(source.suspect_contacts) or 0) or 0
-    local ready = suspects >= self.config.calibration_min_suspect_samples
+    local ghost_ready = suspects >= self.config.calibration_min_suspect_samples
         and strongest >= self.config.calibration_min_cluster_samples
+    local baseline_min = tonumber(self.config.calibration_min_total_contacts) or math.huge
+    local baseline_ready = total >= baseline_min
+    local ready = ghost_ready or baseline_ready
+    local profile_kind = ghost_ready and "GHOST_CLUSTER"
+        or (baseline_ready and "BASELINE" or "LEARNING")
     return {
-        total_contacts = source and (tonumber(source.total_contacts) or 0) or 0,
+        total_contacts = total,
         suspect_contacts = suspects,
         strongest_cluster = strongest,
         cluster_count = selected,
+        ghost_ready = ghost_ready,
+        baseline_ready = baseline_ready,
+        profile_kind = profile_kind,
         ready = ready,
     }
 end
@@ -112,13 +121,23 @@ end
 
 function ProfileManager:progressText()
     local status = self:calibrationStatus()
+    local min_total = tonumber(self.config.calibration_min_total_contacts) or 0
+    local need_total = math.max(0, min_total - status.total_contacts)
     local need_suspects = math.max(0, self.config.calibration_min_suspect_samples - status.suspect_contacts)
     local need_cluster = math.max(0, self.config.calibration_min_cluster_samples - status.strongest_cluster)
-    if status.ready then
-        return "ĐÃ ĐỦ DỮ LIỆU — chọn Hoàn tất thiết lập bảo vệ"
+    if status.ghost_ready then
+        return string.format(
+            "ĐÃ ĐỦ DỮ LIỆU — profile ghost rõ ràng. Thao tác=%d, mẫu nghi ghost=%d, cụm mạnh nhất=%d. Chọn Hoàn tất thiết lập bảo vệ.",
+            status.total_contacts, status.suspect_contacts, status.strongest_cluster)
+    end
+    if status.baseline_ready then
+        return string.format(
+            "ĐÃ ĐỦ DỮ LIỆU — Baseline an toàn. Đã quan sát %d thao tác, chưa có cụm ghost đủ tin cậy. Chọn Hoàn tất thiết lập bảo vệ.",
+            status.total_contacts)
     end
     return string.format(
-        "Đang học cách dùng máy: mẫu nghi ghost=%d/%d, cụm mạnh nhất=%d/%d, còn cần=%d mẫu/%d cụm",
+        "Đang học cách dùng máy: thao tác=%d/%d (còn %d), mẫu nghi ghost=%d/%d, cụm mạnh nhất=%d/%d (còn %d/%d)",
+        status.total_contacts, min_total, need_total,
         status.suspect_contacts, self.config.calibration_min_suspect_samples,
         status.strongest_cluster, self.config.calibration_min_cluster_samples,
         need_suspects, need_cluster)
@@ -163,6 +182,8 @@ end
 
 function ProfileManager:addContact(sample)
     if not self.calibration then return false, "calibration not active" end
+    -- Count every completed touch, not only faults. This is the healthy-device
+    -- baseline signal used to finish learning even when ghost events are rare.
     self.calibration.total_contacts = self.calibration.total_contacts + 1
     if not sample or not sample.learnable then return false, "not learnable" end
     if sample.x == nil and sample.y == nil then return false, "no coordinates" end
@@ -223,6 +244,7 @@ function ProfileManager:serialize(profile, status)
         "PROFILE_VERSION=1",
         "PLUGIN_VERSION=" .. tostring(self.config.version),
         "STATUS=" .. tostring(status or profile.status or "PENDING"),
+        "PROFILE_KIND=" .. tostring(profile.profile_kind or "LEARNING"),
         "DEVICE_ID=" .. tostring(self.device_id),
         "MODEL=" .. tostring(self.model),
         "SCREEN_WIDTH=" .. tostring(self.screen_width),
@@ -257,6 +279,7 @@ function ProfileManager:loadFile(path)
         local key, value = line:match("^([A-Z_]+)=(.*)$")
         if key then
             if key == "STATUS" then profile.status = value
+            elseif key == "PROFILE_KIND" then profile.profile_kind = value
             elseif key == "DEVICE_ID" then profile.device_id = value
             elseif key == "MODEL" then profile.model = value
             elseif key == "SCREEN_WIDTH" then profile.screen_width = tonumber(value) or 0
@@ -282,6 +305,16 @@ function ProfileManager:loadFile(path)
             }
         end
     end
+    -- Backward compatibility for profiles created by <= 0.6.14.
+    if not profile.profile_kind then
+        if profile.ready and #(profile.clusters or {}) == 0 then
+            profile.profile_kind = "BASELINE"
+        elseif #(profile.clusters or {}) > 0 then
+            profile.profile_kind = "GHOST_CLUSTER"
+        else
+            profile.profile_kind = "LEARNING"
+        end
+    end
     return profile
 end
 
@@ -298,13 +331,20 @@ function ProfileManager:finalize()
     while #selected > self.config.calibration_max_clusters do table.remove(selected) end
 
     local strongest = selected[1] and selected[1].count or 0
-    local ready = self.calibration.suspect_contacts >= self.config.calibration_min_suspect_samples
+    local total = tonumber(self.calibration.total_contacts) or 0
+    local suspects = tonumber(self.calibration.suspect_contacts) or 0
+    local ghost_ready = suspects >= self.config.calibration_min_suspect_samples
         and strongest >= self.config.calibration_min_cluster_samples
+    local baseline_ready = total >= (tonumber(self.config.calibration_min_total_contacts) or math.huge)
+    local ready = ghost_ready or baseline_ready
+    local profile_kind = ghost_ready and "GHOST_CLUSTER"
+        or (baseline_ready and "BASELINE" or "LEARNING")
     local profile = {
         status = "PENDING",
+        profile_kind = profile_kind,
         created_utc = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-        total_contacts = self.calibration.total_contacts,
-        suspect_contacts = self.calibration.suspect_contacts,
+        total_contacts = total,
+        suspect_contacts = suspects,
         clusters = selected,
         ready = ready,
     }
@@ -316,15 +356,15 @@ function ProfileManager:finalize()
 end
 
 function ProfileManager:hasPendingReady()
-    return self.pending and self.pending.ready == true and #(self.pending.clusters or {}) > 0
+    return self.pending and self.pending.ready == true
 end
 
 function ProfileManager:hasApproved()
-    return self.approved and self.approved.ready == true and #(self.approved.clusters or {}) > 0
+    return self.approved and self.approved.ready == true
 end
 
 function ProfileManager:approvePending()
-    if not self:hasPendingReady() then return false, "Profile chưa đủ mẫu tin cậy" end
+    if not self:hasPendingReady() then return false, "Profile chưa đủ dữ liệu để bảo vệ an toàn" end
     local approved = self.pending
     approved.status = "APPROVED"
     local ok, err = self.storage:writeAtomic(self.approved_path, self:serialize(approved, "APPROVED"))
@@ -347,8 +387,14 @@ end
 
 function ProfileManager:match(x, y)
     if not self:hasApproved() then return nil end
+    -- BASELINE means learning completed without a proven ghost location.
+    -- Keep all generic anomaly/burst protection, but never boost a coordinate
+    -- merely because a weak candidate cluster happened to be observed.
+    if self.approved.profile_kind == "BASELINE" or self.approved.profile_kind == "LEARNING" then
+        return nil
+    end
     x, y = tonumber(x), tonumber(y)
-    for index, cluster in ipairs(self.approved.clusters) do
+    for index, cluster in ipairs(self.approved.clusters or {}) do
         local x_match = false
         local y_match = false
         if x ~= nil and cluster.x_min ~= nil and cluster.x_max ~= nil then
@@ -382,14 +428,21 @@ function ProfileManager:summaryText()
     end
     local profile = self.approved or self.pending
     if not profile then return "Chưa có profile. GhostGuard sẽ tự học khi khách sử dụng KOReader." end
+    local kind = profile.profile_kind or "GHOST_CLUSTER"
+    local active_regions = kind == "GHOST_CLUSTER" and #(profile.clusters or {}) or 0
     local lines = {
         "Profile: " .. (self.approved and "ĐÃ DUYỆT" or "CHỜ DUYỆT"),
+        "Loại: " .. kind,
         "Thiết bị: " .. self.device_id .. " / " .. self.model,
         "Mẫu nghi ghost: " .. tostring(profile.suspect_contacts or 0),
         "Tổng contact: " .. tostring(profile.total_contacts or 0),
-        "Số vùng: " .. tostring(#(profile.clusters or {})),
-        "Đủ tin cậy: " .. (profile.ready and "CÓ" or "CHƯA"),
+        "Vùng học được: " .. tostring(#(profile.clusters or {})),
+        "Vùng đang dùng để tăng điểm chặn: " .. tostring(active_regions),
+        "Đủ dữ liệu: " .. (profile.ready and "CÓ" or "CHƯA"),
     }
+    if kind == "BASELINE" then
+        lines[#lines + 1] = "Baseline: không dùng tọa độ chưa đủ tin cậy để tăng điểm chặn."
+    end
     for index, cluster in ipairs(profile.clusters or {}) do
         lines[#lines + 1] = string.format(
             "Vùng %d: x=%s..%s, y=%s..%s, n=%d, tin cậy=%.2f",
