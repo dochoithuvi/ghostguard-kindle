@@ -120,44 +120,52 @@ jobs:
               }
           end
 
-          -- Healthy device: 39 contacts must not finish learning.
+          -- Healthy device: enough touches alone must not complete before 180s.
           local storage = Storage:new()
           local pm = ProfileManager:new(config, storage, { device_id = "TESTBASE", model = "KindleBasic4" })
           assert(pm:startCalibration())
-          for i = 1, 39 do pm:addContact(ordinary(300 + (i % 3), 500)) end
-          local s39 = pm:calibrationStatus()
-          assert(s39.total_contacts == 39 and not s39.ready and not s39.baseline_ready)
+          for i = 1, 40 do pm:addContact(ordinary(300 + (i % 3), 500)) end
+          local early = pm:calibrationStatus()
+          assert(early.total_contacts == 40 and not early.ready and not early.time_ready)
 
-          -- Contact 40 creates a BASELINE-ready profile without inventing a ghost region.
-          pm:addContact(ordinary(301, 500))
+          -- Once cumulative learning reaches 180s, contact 40 becomes safe BASELINE-ready.
+          pm.calibration.started_wall = os.time() - 180
           local s40 = pm:calibrationStatus()
           assert(s40.total_contacts == 40 and s40.ready and s40.baseline_ready and not s40.ghost_ready)
-          assert(s40.profile_kind == "BASELINE")
+          assert(s40.profile_kind == "BASELINE" and s40.learning_seconds >= 180)
           local ok, pending = pm:finalize()
           assert(ok and pending.ready and pending.profile_kind == "BASELINE")
-          assert(pm:hasPendingReady())
+          assert(pending.learning_seconds >= 180 and pm:hasPendingReady())
           local approved = pm:approvePending()
           assert(approved and pm:hasApproved())
           assert(pm.approved.profile_kind == "BASELINE")
           assert(pm:match(301, 500) == nil, "baseline must not boost weak coordinates")
 
-          -- Cumulative learning survives session boundaries.
+          -- Cumulative contacts AND time survive session boundaries.
           local storage2 = Storage:new()
           local pm2 = ProfileManager:new(config, storage2, { device_id = "TESTCUM", model = "KindleBasic4" })
           pm2:startCalibration()
+          pm2.calibration.started_wall = os.time() - 90
           for i = 1, 10 do pm2:addContact(ordinary()) end
           local ok10, p10 = pm2:finalize()
-          assert(ok10 and not p10.ready and p10.total_contacts == 10)
+          assert(ok10 and not p10.ready and p10.total_contacts == 10 and p10.learning_seconds >= 90)
           pm2:startCalibration()
-          assert(pm2:calibrationStatus().total_contacts == 10)
+          local resumed = pm2:calibrationStatus()
+          assert(resumed.total_contacts == 10 and resumed.learning_seconds >= 90)
+          pm2.calibration.started_wall = os.time() - 90
           for i = 1, 30 do pm2:addContact(ordinary()) end
-          assert(pm2:calibrationStatus().baseline_ready)
+          local resumed_ready = pm2:calibrationStatus()
+          assert(resumed_ready.baseline_ready and resumed_ready.learning_seconds >= 180)
 
-          -- Real repeated ghost evidence still wins and activates coordinate matching.
+          -- Real repeated ghost evidence still needs minimum learning time,
+          -- then wins and activates coordinate matching.
           local storage3 = Storage:new()
           local pm3 = ProfileManager:new(config, storage3, { device_id = "TESTGHOST", model = "KindleBasic4" })
           pm3:startCalibration()
           for i = 1, 12 do pm3:addContact(ghost(10 + (i % 2), 400)) end
+          local ghost_early = pm3:calibrationStatus()
+          assert(ghost_early.ghost_evidence_ready and not ghost_early.ghost_ready)
+          pm3.calibration.started_wall = os.time() - 180
           local sg = pm3:calibrationStatus()
           assert(sg.ghost_ready and sg.profile_kind == "GHOST_CLUSTER")
           local okg, pg = pm3:finalize()
@@ -165,7 +173,7 @@ jobs:
           assert(pm3:approvePending())
           assert(pm3:match(10, 400) ~= nil)
 
-          -- <=0.6.14 profile files without PROFILE_KIND remain compatible.
+          -- <=0.6.14 profile files without PROFILE_KIND/LEARNING_SECONDS remain compatible.
           local storage4 = Storage:new()
           local oldpath = config.profile_dir .. "/OLD.approved.profile"
           storage4.files[oldpath] = table.concat({
@@ -187,11 +195,14 @@ jobs:
           local old = ProfileManager:new(config, storage4, { device_id = "OLD", model = "KindleBasic4" })
           assert(old:hasApproved())
           assert(old.approved.profile_kind == "GHOST_CLUSTER")
+          assert(old.approved.learning_seconds >= 180)
           assert(old:match(15, 400) ~= nil)
 
           print("PROFILE_LEARNING_0615_PASS")
           LUA
           luajit /tmp/test_profile_learning.lua | grep -q PROFILE_LEARNING_0615_PASS
+          grep -q 'calibration_min_total_contacts = 40' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'calibration_min_learning_seconds = 180' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
           grep -q 'customer_ready_notice_after_seconds = 180' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
           grep -q 'wall_now - self.session_started_wall >= (self.config.customer_ready_notice_after_seconds or 180)' packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
 
@@ -244,7 +255,9 @@ jobs:
           ! grep -q 'local protect = mode == self.config.protect_mode    local protect' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua
           grep -q 'version = "0.6.15"' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
           grep -q 'calibration_min_total_contacts = 40' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'calibration_min_learning_seconds = 180' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
           grep -q 'PROFILE_KIND=' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/profile_manager.lua
+          grep -q 'LEARNING_SECONDS=' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/profile_manager.lua
           grep -q 'profile_kind == "BASELINE"' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/profile_manager.lua
           grep -q 'protect_wrapper_all_modes = false' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
 
