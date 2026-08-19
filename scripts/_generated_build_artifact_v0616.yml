@@ -31,7 +31,7 @@ jobs:
           sh -n DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
           grep -q 'GG_EXPECT=0.6.16' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
           grep -q 'ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
-          grep -q '"version": \[0, 6, 15\]' packages/ghostguard/source/manifest.json
+          grep -q '"version": \[0, 6, 16\]' packages/ghostguard/source/manifest.json
           grep -q 'version = "0.6.16"' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
           grep -q 'ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg' manifest.v2.json
           grep -q 'ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg' manifest.json
@@ -198,9 +198,9 @@ jobs:
           assert(old.approved.learning_seconds >= 180)
           assert(old:match(15, 400) ~= nil)
 
-          print("PROFILE_LEARNING_0615_PASS")
+          print("PROFILE_LEARNING_0616_PASS")
           LUA
-          luajit /tmp/test_profile_learning.lua | grep -q PROFILE_LEARNING_0615_PASS
+          luajit /tmp/test_profile_learning.lua | grep -q PROFILE_LEARNING_0616_PASS
           grep -q 'calibration_min_total_contacts = 40' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
           grep -q 'calibration_min_learning_seconds = 180' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
           ! grep -q 'wall_now - self.session_started_wall >= (self.config.customer_ready_notice_after_seconds or 180)' packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
