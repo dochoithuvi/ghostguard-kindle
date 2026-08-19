@@ -21,7 +21,61 @@ jobs:
           sh -n DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
           grep -q 'manifest.v2.json' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
           grep -q 'ghostguard_manifest.compact.json' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'DCPRO_KOREADER_GESTURE_NIL_GUARD_V1' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'DCPRO_KOREADER_TOUCHMENU_PAGE_GUARD_V1' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'apply_koreader_safety_patches' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'DCPRO_ONECLICK_LIB_ONLY' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
           ! grep -q 'DCPRO_GhostGuard_OneClick_Installer_v12.sh' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          test ! -e DCPRO_KOReader_GestureGuard_Test_v1.1.sh
+          test ! -e DCPRO_KOReader_GestureGuard_Restore_v1.1.sh
+          test ! -e DCPRO_KOReader_TouchMenuGuard_Test_v1.sh
+          test ! -e DCPRO_KOReader_TouchMenuGuard_Restore_v1.sh
+
+      - name: Validate integrated KOReader safety guards
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq luajit
+
+          export DCPRO_ONECLICK_LIB_ONLY=1
+          export DCPRO_ONECLICK_ROOT=/tmp/dcpro-lib
+          export DCPRO_ONECLICK_LOG=/tmp/dcpro-lib.log
+          export DCPRO_ONECLICK_TMP=/tmp/dcpro-lib-state
+          . ./DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+
+          for VER in 2026.07 2026.07.1; do
+            ROOT="/tmp/koreader-guard-$VER"
+            LOG="/tmp/koreader-guard-$VER.log"
+            TMP="/tmp/koreader-guard-$VER-state"
+            GG_GESTURE_STATE="$TMP/KOREADER_GESTURE_GUARD_V1"
+            GG_TOUCHMENU_STATE="$TMP/KOREADER_TOUCHMENU_GUARD_V1"
+            rm -rf "$ROOT" "$TMP" "$LOG"
+            mkdir -p "$ROOT/koreader/frontend/device" "$ROOT/koreader/frontend/ui/widget" "$TMP"
+
+            curl -fsSL "https://raw.githubusercontent.com/koreader/koreader/v${VER}/frontend/device/gesturedetector.lua" -o /tmp/gesturedetector.lua
+            curl -fsSL "https://raw.githubusercontent.com/koreader/koreader/v${VER}/frontend/ui/widget/touchmenu.lua" -o /tmp/touchmenu.lua
+            cp /tmp/gesturedetector.lua "$ROOT/koreader/frontend/device/gesturedetector.lua"
+            cp /tmp/touchmenu.lua "$ROOT/koreader/frontend/ui/widget/touchmenu.lua"
+
+            apply_koreader_safety_patches
+
+            G="$ROOT/koreader/frontend/device/gesturedetector.lua"
+            T="$ROOT/koreader/frontend/ui/widget/touchmenu.lua"
+            grep -q 'DCPRO_KOREADER_GESTURE_NIL_GUARD_V1' "$G"
+            grep -q 'normalizeTouchCoordinates(self.current_tev, self.initial_tev)' "$G"
+            grep -q 'sane_touch_frame = normalizeTouchCoordinates' "$G"
+            grep -q 'DCPRO_KOREADER_TOUCHMENU_PAGE_GUARD_V1' "$T"
+            grep -q 'if self.page == nil or self.page_num == nil then' "$T"
+            grep -q 'if nb == nil or self.page_num == nil then' "$T"
+            cmp -s /tmp/gesturedetector.lua "$G.dcpro-pre-gesture-guard-v1.bak"
+            cmp -s /tmp/touchmenu.lua "$T.dcpro-pre-touchmenu-guard-v1.bak"
+            grep -q 'KOReader safety guards: PASS' "$LOG"
+
+            sha256sum "$G" "$T" > /tmp/guards.before
+            apply_koreader_safety_patches
+            sha256sum "$G" "$T" > /tmp/guards.after
+            cmp -s /tmp/guards.before /tmp/guards.after
+          done
 
       - name: Detect package builds
         id: detect
