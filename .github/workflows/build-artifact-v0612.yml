@@ -7,6 +7,8 @@ on:
       - DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
       - .github/workflows/build-artifact-v0612.yml
       - manifest.v2.json
+      - manifest.json
+      - manifest.mirror.json
       - packages/ghostguard/**
       - packages/kindleforge/**
       - scripts/**
@@ -23,10 +25,17 @@ jobs:
         with:
           fetch-depth: 2
 
-      - name: Validate production OneClick installer
+      - name: Validate production version alignment
         run: |
           test -f DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
           sh -n DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'GG_EXPECT=0.6.15' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q '"version": \[0, 6, 15\]' packages/ghostguard/source/manifest.json
+          grep -q 'version = "0.6.15"' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg' manifest.v2.json
+          grep -q 'ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg' manifest.json
+          grep -q 'ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg' manifest.mirror.json
           grep -q 'manifest.v2.json' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
           grep -q 'ghostguard_manifest.compact.json' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
           grep -q 'DCPRO_KOREADER_GESTURE_NIL_GUARD_V1' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
@@ -85,6 +94,107 @@ jobs:
             cmp -s /tmp/guards.before /tmp/guards.after
           done
 
+      - name: Validate profile learning completion
+        shell: bash
+        run: |
+          cat > /tmp/test_profile_learning.lua <<'LUA'
+          local root = "packages/ghostguard/source/payload/dcghostguardpro.koplugin/"
+          local config = dofile(root .. "defaults.lua")
+          local ProfileManager = dofile(root .. "profile_manager.lua")
+
+          local Storage = {}
+          Storage.__index = Storage
+          function Storage:new() return setmetatable({ files = {} }, self) end
+          function Storage:readFile(path) return self.files[path] end
+          function Storage:writeAtomic(path, text) self.files[path] = text; return true end
+          function Storage:removeExact(path) self.files[path] = nil; return true end
+          function Storage:touch(path, text) self.files[path] = text or ""; return true end
+
+          local function ordinary(x, y)
+              return { x = x or 300, y = y or 500, learnable = false, base_score = 0 }
+          end
+          local function ghost(x, y)
+              return {
+                  x = x or 12, y = y or 400, learnable = true,
+                  base_score = 8, low_major = true, short = true, incomplete = false,
+              }
+          end
+
+          -- Healthy device: 39 contacts must not finish learning.
+          local storage = Storage:new()
+          local pm = ProfileManager:new(config, storage, { device_id = "TESTBASE", model = "KindleBasic4" })
+          assert(pm:startCalibration())
+          for i = 1, 39 do pm:addContact(ordinary(300 + (i % 3), 500)) end
+          local s39 = pm:calibrationStatus()
+          assert(s39.total_contacts == 39 and not s39.ready and not s39.baseline_ready)
+
+          -- Contact 40 creates a BASELINE-ready profile without inventing a ghost region.
+          pm:addContact(ordinary(301, 500))
+          local s40 = pm:calibrationStatus()
+          assert(s40.total_contacts == 40 and s40.ready and s40.baseline_ready and not s40.ghost_ready)
+          assert(s40.profile_kind == "BASELINE")
+          local ok, pending = pm:finalize()
+          assert(ok and pending.ready and pending.profile_kind == "BASELINE")
+          assert(pm:hasPendingReady())
+          local approved = pm:approvePending()
+          assert(approved and pm:hasApproved())
+          assert(pm.approved.profile_kind == "BASELINE")
+          assert(pm:match(301, 500) == nil, "baseline must not boost weak coordinates")
+
+          -- Cumulative learning survives session boundaries.
+          local storage2 = Storage:new()
+          local pm2 = ProfileManager:new(config, storage2, { device_id = "TESTCUM", model = "KindleBasic4" })
+          pm2:startCalibration()
+          for i = 1, 10 do pm2:addContact(ordinary()) end
+          local ok10, p10 = pm2:finalize()
+          assert(ok10 and not p10.ready and p10.total_contacts == 10)
+          pm2:startCalibration()
+          assert(pm2:calibrationStatus().total_contacts == 10)
+          for i = 1, 30 do pm2:addContact(ordinary()) end
+          assert(pm2:calibrationStatus().baseline_ready)
+
+          -- Real repeated ghost evidence still wins and activates coordinate matching.
+          local storage3 = Storage:new()
+          local pm3 = ProfileManager:new(config, storage3, { device_id = "TESTGHOST", model = "KindleBasic4" })
+          pm3:startCalibration()
+          for i = 1, 12 do pm3:addContact(ghost(10 + (i % 2), 400)) end
+          local sg = pm3:calibrationStatus()
+          assert(sg.ghost_ready and sg.profile_kind == "GHOST_CLUSTER")
+          local okg, pg = pm3:finalize()
+          assert(okg and pg.profile_kind == "GHOST_CLUSTER" and #pg.clusters > 0)
+          assert(pm3:approvePending())
+          assert(pm3:match(10, 400) ~= nil)
+
+          -- <=0.6.14 profile files without PROFILE_KIND remain compatible.
+          local storage4 = Storage:new()
+          local oldpath = config.profile_dir .. "/OLD.approved.profile"
+          storage4.files[oldpath] = table.concat({
+              "DCPRO_GHOST_PROFILE_V1",
+              "PROFILE_VERSION=1",
+              "PLUGIN_VERSION=0.6.14",
+              "STATUS=APPROVED",
+              "DEVICE_ID=OLD",
+              "MODEL=KindleBasic4",
+              "SCREEN_WIDTH=1072",
+              "SCREEN_HEIGHT=1448",
+              "TOTAL_CONTACTS=50",
+              "SUSPECT_CONTACTS=12",
+              "READY=YES",
+              "CLUSTER_COUNT=1",
+              "CLUSTER|1|10|20|390|410|12|0|0|12|12|0|0.900|96",
+              "",
+          }, "\n")
+          local old = ProfileManager:new(config, storage4, { device_id = "OLD", model = "KindleBasic4" })
+          assert(old:hasApproved())
+          assert(old.approved.profile_kind == "GHOST_CLUSTER")
+          assert(old:match(15, 400) ~= nil)
+
+          print("PROFILE_LEARNING_0615_PASS")
+          LUA
+          luajit /tmp/test_profile_learning.lua | grep -q PROFILE_LEARNING_0615_PASS
+          grep -q 'customer_ready_notice_after_seconds = 180' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'wall_now - self.session_started_wall >= (self.config.customer_ready_notice_after_seconds or 180)' packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
+
       - name: Detect package builds
         id: detect
         shell: bash
@@ -95,7 +205,7 @@ jobs:
             GH=true
             KF=true
           else
-            if [ ! -f packages/ghostguard/artifacts/ghostguard_0.6.14_kindle5-kindlepw2-kindlehf.kpkg ] || \
+            if [ ! -f packages/ghostguard/artifacts/ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg ] || \
                ! git diff --quiet HEAD^ HEAD -- packages/ghostguard scripts/build_artifact_v0612.sh; then
               GH=true
             fi
@@ -118,12 +228,12 @@ jobs:
       - name: Validate GhostGuard artifact contents
         if: steps.detect.outputs.ghostguard == 'true'
         run: |
-          PKG=$(ls packages/ghostguard/artifacts/ghostguard_0.6.14_*.kpkg | tail -1)
+          PKG=$(ls packages/ghostguard/artifacts/ghostguard_0.6.15_*.kpkg | tail -1)
           test -s "$PKG"
           rm -rf /tmp/pkgcheck
           mkdir -p /tmp/pkgcheck
           tar -xzf "$PKG" -C /tmp/pkgcheck
-          for f in main.lua ghostguard.lua defaults.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua simpleui_bridge.lua zenui_bridge.lua; do
+          for f in main.lua ghostguard.lua defaults.lua profile_manager.lua touch_observer.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua simpleui_bridge.lua zenui_bridge.lua; do
             test -f "/tmp/pkgcheck/payload/dcghostguardpro.koplugin/$f"
           done
           test -f /tmp/pkgcheck/manifest.json
@@ -132,7 +242,10 @@ jobs:
           ! grep -q 'self.simpleui = nil' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua
           grep -q 'local bridge_ok, bridge_err = self:ensureInputBridge()' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua
           ! grep -q 'local protect = mode == self.config.protect_mode    local protect' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua
-          grep -q 'version = "0.6.14"' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'version = "0.6.15"' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'calibration_min_total_contacts = 40' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'PROFILE_KIND=' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/profile_manager.lua
+          grep -q 'profile_kind == "BASELINE"' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/profile_manager.lua
           grep -q 'protect_wrapper_all_modes = false' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
 
       - name: Sync GhostGuard patched runtime back to source tree
@@ -216,8 +329,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add manifest.v2.json
-          git add packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua packages/ghostguard/source/manifest.json packages/ghostguard/artifacts/ghostguard_0.6.14_*.kpkg
+          git add manifest.v2.json manifest.json manifest.mirror.json
+          git add packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/profile_manager.lua packages/ghostguard/source/manifest.json packages/ghostguard/artifacts/ghostguard_0.6.15_*.kpkg
           if [ -d packages/kindleforge/artifacts ]; then
             git add packages/kindleforge/artifacts/kindleforge_4.1.1_*.kpkg
           fi
@@ -230,7 +343,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ghostguard-current-kpkg
-          path: packages/ghostguard/artifacts/ghostguard_0.6.14_*.kpkg
+          path: packages/ghostguard/artifacts/ghostguard_0.6.15_*.kpkg
           if-no-files-found: error
 
       - name: Upload KindleForge artifact
