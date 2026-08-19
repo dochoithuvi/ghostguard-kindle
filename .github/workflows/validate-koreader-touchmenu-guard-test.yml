@@ -1,0 +1,79 @@
+name: Validate KOReader TouchMenu Guard Test
+
+on:
+  pull_request:
+    paths:
+      - DCPRO_KOReader_TouchMenuGuard_Test_v1.sh
+      - DCPRO_KOReader_TouchMenuGuard_Restore_v1.sh
+      - .github/workflows/validate-koreader-touchmenu-guard-test.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate shell syntax
+        run: |
+          sh -n DCPRO_KOReader_TouchMenuGuard_Test_v1.sh
+          sh -n DCPRO_KOReader_TouchMenuGuard_Restore_v1.sh
+
+      - name: Prepare KOReader v2026.07.1 fixture
+        run: |
+          sudo rm -rf /mnt/us/koreader /mnt/us/.dcpro_ghostguard
+          sudo mkdir -p /mnt/us/koreader/frontend/ui/widget /mnt/us/documents
+          curl -fsSL \
+            https://raw.githubusercontent.com/koreader/koreader/v2026.07.1/frontend/ui/widget/touchmenu.lua \
+            -o /tmp/touchmenu.lua
+          sudo cp /tmp/touchmenu.lua /mnt/us/koreader/frontend/ui/widget/touchmenu.lua
+
+      - name: Prepare syntax validator
+        run: |
+          sudo tee /mnt/us/koreader/luajit >/dev/null <<'SH'
+          #!/bin/sh
+          if [ "$1" != "-e" ]; then
+            echo "unknown luaJIT command or jit.* modules not installed" >&2
+            exit 1
+          fi
+          expr="$2"
+          file=$(printf '%s' "$expr" | sed -n 's/.*loadfile(\[\[\(.*\)\]\]).*/\1/p')
+          [ -n "$file" ] || exit 1
+          lua -e "local f,e=loadfile([[$file]]); if not f then io.stderr:write((e or 'syntax error') .. '\\n'); os.exit(1) end"
+          SH
+          sudo chmod +x /mnt/us/koreader/luajit
+
+      - name: Apply guard to upstream fixture
+        run: |
+          sudo sh DCPRO_KOReader_TouchMenuGuard_Test_v1.sh
+          TARGET=/mnt/us/koreader/frontend/ui/widget/touchmenu.lua
+          sudo grep -q 'DCPRO_KOREADER_TOUCHMENU_PAGE_GUARD_V1' "$TARGET"
+          sudo grep -q 'if self.page == nil or self.page_num == nil then' "$TARGET"
+          sudo grep -q 'if nb == nil or self.page_num == nil then' "$TARGET"
+          sudo test -f "$TARGET.dcpro-pre-touchmenu-guard-v1.bak"
+          sudo cmp -s /tmp/touchmenu.lua "$TARGET.dcpro-pre-touchmenu-guard-v1.bak"
+
+      - name: Verify idempotence
+        run: |
+          TARGET=/mnt/us/koreader/frontend/ui/widget/touchmenu.lua
+          sudo sha256sum "$TARGET" | awk '{print $1}' > /tmp/hash.before
+          sudo sh DCPRO_KOReader_TouchMenuGuard_Test_v1.sh
+          sudo sha256sum "$TARGET" | awk '{print $1}' > /tmp/hash.after
+          cmp -s /tmp/hash.before /tmp/hash.after
+
+      - name: Verify diagnostic log
+        run: |
+          sudo grep -q 'SUCCESS: TouchMenu page guard installed' /mnt/us/documents/KOReader_TouchMenuGuard_Test.log
+          sudo grep -q 'Already patched' /mnt/us/documents/KOReader_TouchMenuGuard_Test.log
+
+      - name: Verify rollback restores upstream bytes
+        run: |
+          sudo sh DCPRO_KOReader_TouchMenuGuard_Restore_v1.sh
+          TARGET=/mnt/us/koreader/frontend/ui/widget/touchmenu.lua
+          sudo cmp -s /tmp/touchmenu.lua "$TARGET"
+          ! sudo grep -q 'DCPRO_KOREADER_TOUCHMENU_PAGE_GUARD_V1' "$TARGET"
+          sudo grep -q 'SUCCESS: restored' /mnt/us/documents/KOReader_TouchMenuGuard_Restore.log
