@@ -15,7 +15,9 @@ jobs:
         with:
           ref: agent/release-0616-calibration-flow
       - name: Apply release version
-        run: python3 scripts/_release_0616.py
+        run: |
+          python3 scripts/_release_0616.py
+          cp .github/workflows/build-artifact-v0612.yml scripts/_generated_build_artifact_v0616.yml
       - name: Validate shell and release alignment
         run: |
           sh -n DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
@@ -24,11 +26,13 @@ jobs:
           grep -q 'GG_RUNTIME_REVISION=calibration-flow-v2' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
           grep -q 'version = "0.6.16"' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
           grep -q 'runtime_revision = "calibration-flow-v2"' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
-      - name: Commit production release files except workflow
+          grep -q 'GG_EXPECT=0.6.16' scripts/_generated_build_artifact_v0616.yml
+          grep -q 'ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg' scripts/_generated_build_artifact_v0616.yml
+      - name: Commit release files and generated workflow copy
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add DCPRO_GhostGuard_OneClick_Installer_v12.1.sh README.md manifest.v2.json manifest.json manifest.mirror.json scripts/build_artifact_v0612.sh packages/ghostguard/source/manifest.json packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/_meta.lua
+          git add DCPRO_GhostGuard_OneClick_Installer_v12.1.sh README.md manifest.v2.json manifest.json manifest.mirror.json scripts/build_artifact_v0612.sh packages/ghostguard/source/manifest.json packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/_meta.lua scripts/_generated_build_artifact_v0616.yml
           git diff --cached --quiet && exit 0
           git commit -m "release: GhostGuard 0.6.16 calibration-flow-v2 [release-0616-bot]"
           git push origin HEAD:agent/release-0616-calibration-flow
