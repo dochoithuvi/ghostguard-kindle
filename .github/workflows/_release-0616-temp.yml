@@ -2,6 +2,8 @@ name: Prepare GhostGuard 0.6.16
 on:
   push:
     branches: [agent/release-0616-calibration-flow]
+  pull_request:
+    branches: [main]
 permissions:
   contents: write
 jobs:
