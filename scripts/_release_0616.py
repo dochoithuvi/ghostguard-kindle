@@ -21,6 +21,8 @@ for rel in [
     s = s.replace(old_s, version_s)
     s = s.replace('[0,6,15]', '[0,6,16]')
     s = s.replace('[0, 6, 15]', '[0, 6, 16]')
+    s = s.replace(r'\[0, 6, 15\]', r'\[0, 6, 16\]')
+    s = s.replace('PROFILE_LEARNING_0615_PASS', 'PROFILE_LEARNING_0616_PASS')
     p.write_text(s)
 
 # Build script should also be able to normalize an older 0.6.15 source tree.
@@ -46,7 +48,6 @@ for rel in ['manifest.v2.json', 'manifest.json', 'manifest.mirror.json']:
         pkg['artifacts'][0]['url'] = artifact
         pkg['artifacts'][0]['version'] = version
     else:
-        # Legacy single-package manifest shape.
         if data.get('id') == 'ghostguard':
             data['version'] = version
             data['description'] = data.get('description', '').replace(old_s, version_s)
@@ -67,6 +68,6 @@ need('DCPRO_GhostGuard_OneClick_Installer_v12.1.sh', 'GG_EXPECT=0.6.16')
 need('DCPRO_GhostGuard_OneClick_Installer_v12.1.sh', 'GG_RUNTIME_REVISION=calibration-flow-v2')
 need('DCPRO_GhostGuard_OneClick_Installer_v12.1.sh', 'ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg')
 need('.github/workflows/build-artifact-v0612.yml', 'ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg')
+need('.github/workflows/build-artifact-v0612.yml', r'"version": \[0, 6, 16\]')
 
 print('RELEASE_0616_PREPARED')
-# trigger: workflow already exists on this branch
