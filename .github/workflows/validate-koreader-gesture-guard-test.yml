@@ -46,7 +46,7 @@ jobs:
           SH
           sudo chmod +x /mnt/us/koreader/luajit
           ! sudo /mnt/us/koreader/luajit -b /tmp/gesturedetector.lua /tmp/out.luac
-          sudo /mnt/us/koreader/luajit -e 'assert(loadfile([[\/tmp\/gesturedetector.lua]]))'
+          sudo /mnt/us/koreader/luajit -e 'assert(loadfile([[/tmp/gesturedetector.lua]]))'
 
       - name: Apply guard to upstream fixture
         run: |
