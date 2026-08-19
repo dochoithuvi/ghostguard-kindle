@@ -1,0 +1,36 @@
+name: Publish calibration hotfix artifact
+on:
+  push:
+    branches: [agent/publish-calibration-hotfix-artifact]
+permissions:
+  contents: write
+jobs:
+  publish:
+    if: ${{ !contains(github.event.head_commit.message, '[calibration-artifact-bot]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/publish-calibration-hotfix-artifact
+      - name: Build and verify GhostGuard hotfix
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq luajit
+          chmod +x scripts/build_artifact_v0612.sh
+          scripts/build_artifact_v0612.sh
+          PKG=packages/ghostguard/artifacts/ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg
+          test -s "$PKG"
+          rm -rf /tmp/gg-hotfix-check && mkdir -p /tmp/gg-hotfix-check
+          tar -xzf "$PKG" -C /tmp/gg-hotfix-check
+          grep -q 'runtime_revision = "calibration-flow-v2"' /tmp/gg-hotfix-check/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'CALIBRATION_INPUT:' /tmp/gg-hotfix-check/payload/dcghostguardpro.koplugin/ghostguard.lua
+          grep -q '_resume_calibration_after_suspend' /tmp/gg-hotfix-check/payload/dcghostguardpro.koplugin/main.lua
+          grep -q 'function ProfileManager:checkpoint()' /tmp/gg-hotfix-check/payload/dcghostguardpro.koplugin/profile_manager.lua
+      - name: Commit artifact only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/ghostguard/artifacts/ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg
+          git diff --cached --quiet && exit 0
+          git commit -m "build: publish calibration-flow-v2 artifact [calibration-artifact-bot]"
+          git push origin HEAD:agent/publish-calibration-hotfix-artifact
