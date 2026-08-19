@@ -474,12 +474,16 @@ function GhostGuard:start(mode, reason)
         if not self:protectSupported() then return false, "Protect limited to KindleBasic4/KT5; detected " .. self.model end
         if not self.profiles:hasApproved() then return false, "Chưa có profile đã duyệt. Hãy Hiệu chuẩn trước." end
     end
+    -- Every mode that claims to observe input must own a raw-event hook.
+    -- Calibration previously skipped this bridge, so its wall clock advanced
+    -- while TouchObserver received zero events. The hook is observation-only;
+    -- handleTouchEv is replaced only below when Protect explicitly needs it.
+    local bridge_ok, bridge_err = self:ensureInputBridge()
+    if not bridge_ok then
+        self.protect_enabled = false
+        return false, (calibrate and "CALIBRATION_INPUT: " or "RAW_EVENT_BRIDGE: ") .. tostring(bridge_err)
+    end
     if protect or self.config.protect_wrapper_all_modes == true then
-        local bridge_ok, bridge_err = self:ensureInputBridge()
-        if not bridge_ok then
-            self.protect_enabled = false
-            return false, "PROTECT_WRAPPER: " .. tostring(bridge_err)
-        end
         self.protect_enabled = protect
         local wrapper_ok, wrapper_err = self:ensureProtectWrapper()
         if not wrapper_ok then
@@ -487,6 +491,9 @@ function GhostGuard:start(mode, reason)
             return false, "PROTECT_WRAPPER: " .. tostring(wrapper_err)
         end
         self.wrapper_mode = protect and "PROTECT" or "PASS_THROUGH"
+    else
+        self.protect_wrapper_installed = false
+        self.wrapper_mode = "NONE"
     end
     if calibrate then
         self.profiles:startCalibration()
@@ -542,6 +549,16 @@ function GhostGuard:start(mode, reason)
     if not marker_ok then self:stop("marker-failure"); return false, "cannot create RUNNING marker: " .. tostring(marker_err) end
     self.autostart_blocked = false
     return true, session_id
+end
+
+function GhostGuard:inputLearningStatus()
+    local stats = self.observer and self.observer:getStats() or {}
+    return {
+        hook_installed = self.hook_installed == true,
+        raw_events = tonumber(stats.raw_events) or 0,
+        frames = tonumber(stats.frames) or 0,
+        contact_ends = tonumber(stats.ends) or 0,
+    }
 end
 
 function GhostGuard:flush() if self.session then self.session:flush() end end
@@ -696,7 +713,7 @@ function GhostGuard:statusText()
         else state = "ĐANG QUAN SÁT" end
     end
     local lines = {
-        "DCPRO GhostGuard " .. self.config.version,
+        "DCPRO GhostGuard " .. self.config.version .. " / " .. tostring(self.config.runtime_revision or "legacy"),
         "Thiết bị: " .. self.device_id .. " / " .. self.model .. " — " .. self.screen_width .. "x" .. self.screen_height,
         "Chế độ: " .. tostring(self.mode),
         "Trạng thái: " .. state,

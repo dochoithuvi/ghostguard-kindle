@@ -69,9 +69,98 @@ grep -q 'SimpleUIBridge.new' "$TMP/payload/dcghostguardpro.koplugin/main.lua"
 grep -q 'local bridge_ok, bridge_err = self:ensureInputBridge()' "$TMP/payload/dcghostguardpro.koplugin/ghostguard.lua"
 ! grep -q 'local protect = mode == self.config.protect_mode    local protect' "$TMP/payload/dcghostguardpro.koplugin/ghostguard.lua"
 grep -q 'version = "0.6.15"' "$TMP/payload/dcghostguardpro.koplugin/defaults.lua"
+grep -q 'runtime_revision = "calibration-flow-v2"' "$TMP/payload/dcghostguardpro.koplugin/defaults.lua"
+grep -q 'CALIBRATION_INPUT:' "$TMP/payload/dcghostguardpro.koplugin/ghostguard.lua"
+grep -q '_resume_calibration_after_suspend' "$TMP/payload/dcghostguardpro.koplugin/main.lua"
+grep -q 'function ProfileManager:checkpoint()' "$TMP/payload/dcghostguardpro.koplugin/profile_manager.lua"
 grep -q 'calibration_min_total_contacts = 40' "$TMP/payload/dcghostguardpro.koplugin/defaults.lua"
 grep -q 'PROFILE_KIND=' "$TMP/payload/dcghostguardpro.koplugin/profile_manager.lua"
 grep -q 'profile_kind == "BASELINE"' "$TMP/payload/dcghostguardpro.koplugin/profile_manager.lua"
+# Regression: Calibration must receive real raw events without installing the Protect wrapper.
+cat > "$TMP/test_calibration_runtime.lua" <<'LUA'
+package.preload["device"] = function()
+    local input = {
+        handleTouchEv = function() return { "koreader-result" } end,
+        registerEventAdjustHook = function(self, fn) self._test_hook = fn end,
+    }
+    return {
+        model = "KindleBasic4",
+        getModel = function() return "KindleBasic4" end,
+        screen = { getWidth = function() return 1072 end, getHeight = function() return 1448 end },
+        input = input,
+    }
+end
+local root = os.getenv("GG_TEST_ROOT")
+local config = dofile(root .. "/defaults.lua")
+local TouchObserver = dofile(root .. "/touch_observer.lua")
+local ProfileManager = dofile(root .. "/profile_manager.lua")
+local GhostGuard = dofile(root .. "/ghostguard.lua")
+local Device = require("device")
+
+local Storage = {}; Storage.__index = Storage
+function Storage:new() return setmetatable({ files = {} }, self) end
+function Storage:ensureLayout() return true end
+function Storage:archiveStaleMarker() return false end
+function Storage:readFile(p) return self.files[p] end
+function Storage:writeAtomic(p,v) self.files[p]=v; return true end
+function Storage:removeExact(p) self.files[p]=nil; return true end
+function Storage:touch(p,v) self.files[p]=v or ""; return true end
+function Storage:fileExists(p) return self.files[p] ~= nil end
+function Storage:isSafeMode() return false end
+function Storage:openSession()
+    local s = {}
+    for _, n in ipairs({"writeCalibration","writeCandidate","writeEvent","writeContact","writeAction","flush"}) do s[n]=function() end end
+    s.close=function() end
+    return s
+end
+function Storage:prepareCloudOutbox() return false end
+function Storage:setSafeMode() return true end
+
+local License = {}; License.__index = License
+function License:new() return setmetatable({}, self) end
+function License:check() return true, "OK" end
+function License:statusText() return "OK" end
+function License:syncOnline() return true end
+function License:activationHelp() return "" end
+local Cloud = {}; Cloud.__index = Cloud
+function Cloud:new() return setmetatable({}, self) end
+function Cloud:statusText() return "OK" end
+function Cloud:start() return true end
+function Cloud:isBusy() return false end
+
+local g = GhostGuard:new(config, Storage, TouchObserver, ProfileManager, License, Cloud, root)
+local original_handle = Device.input.handleTouchEv
+assert(g:start(config.calibration_mode, "ci-calibration"))
+assert(g.hook_installed == true, "calibration did not install raw-event hook")
+assert(type(Device.input._test_hook) == "function", "raw hook callback missing")
+assert(Device.input.handleTouchEv == original_handle, "calibration must not replace handleTouchEv")
+assert(g.protect_wrapper_installed == false, "calibration installed protect wrapper")
+
+local hook = Device.input._test_hook
+local t = os.time()
+local function ev(tp, code, value, offset) hook(Device.input, { type=tp, code=code, value=value, time=t + offset }) end
+for i=1,40 do
+    local base = i * 0.01
+    ev(3,47,0,base)
+    ev(3,57,i,base+0.001)
+    ev(3,53,300+(i%5),base+0.002)
+    ev(3,54,500,base+0.003)
+    ev(0,0,0,base+0.004)
+    ev(3,57,-1,base+0.005)
+    ev(0,0,0,base+0.006)
+end
+local st = g.profiles:calibrationStatus()
+assert(st.total_contacts == 40, "completed touches were not counted: " .. tostring(st.total_contacts))
+g.profiles.calibration.started_wall = os.time() - 180
+st = g.profiles:calibrationStatus()
+assert(st.baseline_ready == true, "baseline did not become ready")
+local inputst = g:inputLearningStatus()
+assert(inputst.raw_events > 0 and inputst.contact_ends == 40, "observer stats did not move")
+assert(g:stop("ci-stop"))
+assert(g.profiles.pending and g.profiles.pending.total_contacts == 40, "finalized progress missing")
+print("CALIBRATION_RUNTIME_FLOW_PASS")
+LUA
+GG_TEST_ROOT="$TMP/payload/dcghostguardpro.koplugin" luajit "$TMP/test_calibration_runtime.lua" | grep -q CALIBRATION_RUNTIME_FLOW_PASS
 tar -C "$TMP" -czf "$PKG" manifest.json payload install.sh launch.sh scriptlets assets
 # Sync patched runtime/config back into the source tree for reproducibility.
 cp "$TMP/payload/dcghostguardpro.koplugin/ghostguard.lua" "$SRC/payload/dcghostguardpro.koplugin/ghostguard.lua"
