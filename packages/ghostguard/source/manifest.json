@@ -4,11 +4,7 @@
   "name": "DCPRO GhostGuard",
   "author": "Do Choi Thu Vi",
   "description": "KOReader GhostGuard v0.6.16 - safe baseline learning completion plus profile-based protection.",
-  "version": [
-    0,
-    6,
-    16
-  ],
+  "version": [0, 6, 16],
   "dependencies": [],
   "supported_platforms": [
     "kindle5",
