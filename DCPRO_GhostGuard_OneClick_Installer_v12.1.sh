@@ -23,6 +23,7 @@ GG_REPO_ID=dochoithuvi-ghostguard
 GG_REPO=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/manifest.v2.json
 GG_REPO_MIRROR=https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/manifest.mirror.json
 GG_EXPECT=0.6.15
+GG_RUNTIME_REVISION=calibration-flow-v2
 GG_ARTIFACT=packages/ghostguard/artifacts/ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg
 GG_ARTIFACT_NAME=ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg
 GG_BRIDGE_URL=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/source/payload/dcghostguardpro.koplugin/simpleui_bridge.lua
@@ -77,7 +78,7 @@ gg_plugin_target(){
   return 1
 }
 has_gg(){ T="$(gg_plugin_target 2>/dev/null || true)"; [ -n "$T" ] && [ -f "$T/simpleui_bridge.lua" ]; }
-has_gg_expected(){ T="$(gg_plugin_target 2>/dev/null || true)"; [ -n "$T" ] && grep -Fq "version = \"$GG_EXPECT\"" "$T/defaults.lua" 2>/dev/null; }
+has_gg_expected(){ T="$(gg_plugin_target 2>/dev/null || true)"; [ -n "$T" ] && grep -Fq "version = \"$GG_EXPECT\"" "$T/defaults.lua" 2>/dev/null && grep -Fq "runtime_revision = \"$GG_RUNTIME_REVISION\"" "$T/defaults.lua" 2>/dev/null; }
 
 sync_simpleui_bridge(){
   T="$(gg_plugin_target 2>/dev/null || true)"
@@ -587,7 +588,7 @@ main(){
   log "========================================"
   log "DCPRO GhostGuard OneClick v12.1"
   log "Target: GitHub Raw manifest.v2.json"
-  log "Expected: GhostGuard $GG_EXPECT + KOReader safety guards + latest SimpleUI Tools bridge"
+  log "Expected: GhostGuard $GG_EXPECT/$GG_RUNTIME_REVISION + KOReader safety guards + latest SimpleUI Tools bridge"
   log "Date: $(date)"
   log "KPM=$KPM"
   log "========================================"

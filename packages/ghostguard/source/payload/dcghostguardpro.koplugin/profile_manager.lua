@@ -202,13 +202,46 @@ function ProfileManager:findCluster(sample)
     return best
 end
 
+function ProfileManager:checkpoint()
+    if not self.calibration then return false, "calibration not active" end
+    local status = self:calibrationStatus()
+    local clusters = {}
+    for _, cluster in ipairs(self.calibration.clusters or {}) do
+        local copied = copy_cluster(cluster)
+        copied.confidence = self:confidence(copied)
+        clusters[#clusters + 1] = copied
+    end
+    local profile = {
+        status = "PENDING",
+        profile_kind = status.profile_kind,
+        created_utc = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+        learning_seconds = status.learning_seconds,
+        total_contacts = status.total_contacts,
+        suspect_contacts = status.suspect_contacts,
+        clusters = clusters,
+        ready = status.ready,
+    }
+    local ok, err = self.storage:writeAtomic(self.pending_path, self:serialize(profile, "PENDING"))
+    if not ok then return false, err end
+    self.pending = profile
+    return true, profile
+end
+
 function ProfileManager:addContact(sample)
     if not self.calibration then return false, "calibration not active" end
     -- Count every completed touch, not only faults. This is the healthy-device
     -- baseline signal used to finish learning even when ghost events are rare.
     self.calibration.total_contacts = self.calibration.total_contacts + 1
-    if not sample or not sample.learnable then return false, "not learnable" end
-    if sample.x == nil and sample.y == nil then return false, "no coordinates" end
+    local checkpoint_every = math.max(1, tonumber(self.config.calibration_checkpoint_contacts) or 5)
+    local should_checkpoint = (self.calibration.total_contacts % checkpoint_every) == 0
+    if not sample or not sample.learnable then
+        if should_checkpoint then self:checkpoint() end
+        return false, "not learnable"
+    end
+    if sample.x == nil and sample.y == nil then
+        if should_checkpoint then self:checkpoint() end
+        return false, "no coordinates"
+    end
 
     self.calibration.suspect_contacts = self.calibration.suspect_contacts + 1
     local cluster = self:findCluster(sample)
@@ -246,6 +279,7 @@ function ProfileManager:addContact(sample)
     if sample.short then cluster.short = cluster.short + 1 end
     if sample.incomplete then cluster.incomplete = cluster.incomplete + 1 end
     cluster.base_score_sum = cluster.base_score_sum + (tonumber(sample.base_score) or 0)
+    if should_checkpoint then self:checkpoint() end
     return true, cluster
 end
 
@@ -350,42 +384,13 @@ end
 
 function ProfileManager:finalize()
     if not self.calibration then return false, "calibration not active" end
-    local selected = {}
-    for _, cluster in ipairs(self.calibration.clusters) do
-        if cluster.count >= self.config.calibration_keep_cluster_samples then
-            cluster.confidence = self:confidence(cluster)
-            selected[#selected + 1] = cluster
-        end
-    end
-    table.sort(selected, function(a, b) return (a.count or 0) > (b.count or 0) end)
-    while #selected > self.config.calibration_max_clusters do table.remove(selected) end
-
-    local strongest = selected[1] and selected[1].count or 0
-    local total = tonumber(self.calibration.total_contacts) or 0
-    local suspects = tonumber(self.calibration.suspect_contacts) or 0
-    local learned_seconds = learning_seconds(self.calibration)
-    local time_ready = learned_seconds >= (tonumber(self.config.calibration_min_learning_seconds) or 0)
-    local ghost_evidence_ready = suspects >= self.config.calibration_min_suspect_samples
-        and strongest >= self.config.calibration_min_cluster_samples
-    local ghost_ready = ghost_evidence_ready and time_ready
-    local baseline_ready = total >= (tonumber(self.config.calibration_min_total_contacts) or math.huge)
-        and time_ready
-    local ready = ghost_ready or baseline_ready
-    local profile_kind = ghost_ready and "GHOST_CLUSTER"
-        or (baseline_ready and "BASELINE" or "LEARNING")
-    local profile = {
-        status = "PENDING",
-        profile_kind = profile_kind,
-        created_utc = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-        learning_seconds = learned_seconds,
-        total_contacts = total,
-        suspect_contacts = suspects,
-        clusters = selected,
-        ready = ready,
-    }
-    local ok, err = self.storage:writeAtomic(self.pending_path, self:serialize(profile, "PENDING"))
+    -- Finalizing a learning session must preserve ALL candidate clusters so a
+    -- suspend/resume cycle cannot erase a 1-3 sample cluster before it grows.
+    -- Trust filtering happens only when a READY profile is approved.
+    local ok, profile_or_err = self:checkpoint()
+    local profile = ok and profile_or_err or nil
     self.calibration = nil
-    if not ok then return false, err end
+    if not ok then return false, profile_or_err end
     self.pending = profile
     return true, profile
 end
@@ -400,8 +405,28 @@ end
 
 function ProfileManager:approvePending()
     if not self:hasPendingReady() then return false, "Profile chưa đủ dữ liệu để bảo vệ an toàn" end
-    local approved = self.pending
-    approved.status = "APPROVED"
+    local approved = {
+        status = "APPROVED",
+        profile_kind = self.pending.profile_kind,
+        created_utc = self.pending.created_utc,
+        learning_seconds = self.pending.learning_seconds,
+        total_contacts = self.pending.total_contacts,
+        suspect_contacts = self.pending.suspect_contacts,
+        ready = true,
+        clusters = {},
+    }
+    if approved.profile_kind == "GHOST_CLUSTER" then
+        for _, cluster in ipairs(self.pending.clusters or {}) do
+            if (tonumber(cluster.count) or 0) >= self.config.calibration_keep_cluster_samples then
+                local copied = copy_cluster(cluster)
+                copied.confidence = self:confidence(copied)
+                approved.clusters[#approved.clusters + 1] = copied
+            end
+        end
+        table.sort(approved.clusters, function(a, b) return (a.count or 0) > (b.count or 0) end)
+        while #approved.clusters > self.config.calibration_max_clusters do table.remove(approved.clusters) end
+        if #approved.clusters == 0 then return false, "Không còn cluster đủ tin cậy để duyệt" end
+    end
     local ok, err = self.storage:writeAtomic(self.approved_path, self:serialize(approved, "APPROVED"))
     if not ok then return false, err end
     self.approved = approved

@@ -87,6 +87,16 @@ function DCPROGhostGuard:startMode(mode, reason)
     if not ok then show(_("Không thể bắt đầu GhostGuard:\n") .. tostring(result), 8); return false end
     if mode == self.config.calibration_mode then
         show(_("Đang học cách khách sử dụng máy.\nHãy đọc và thao tác bình thường; GhostGuard chưa chặn cảm ứng.\nPhiên: ") .. tostring(result), 8)
+        UIManager:scheduleIn(self.config.calibration_input_watchdog_seconds or 30, function()
+            if not self.guard or not self.guard:isCalibrating() then return end
+            local st = self.guard:inputLearningStatus()
+            if not st.hook_installed then
+                self.guard:stop("calibration-input-missing")
+                show(_("GhostGuard đã dừng học vì không gắn được bộ nghe cảm ứng. Không có tiến độ giả được lưu."), 12)
+            elseif st.raw_events == 0 then
+                show(_("GhostGuard đang học nhưng chưa nhận sự kiện cảm ứng nào. Hãy chạm/lật vài trang; nếu bộ đếm vẫn không tăng, mở Trạng thái GhostGuard để kiểm tra."), 10)
+            end
+        end)
     elseif mode == self.config.protect_mode then
         show(_("Đã bật bảo vệ theo profile và license.key hợp lệ.\nPhiên: ") .. tostring(result), 7)
     else
@@ -140,6 +150,7 @@ function DCPROGhostGuard:simpleUIPrimaryLabel()
     if self.guard:isRunning() then return "GhostGuard: Đang quan sát" end
     if self.guard:profileApproved() then return "GhostGuard: Bật bảo vệ" end
     if self.guard:profileLiveReady() then return "GhostGuard: Hoàn tất thiết lập" end
+    if self.guard.profiles and self.guard.profiles.pending then return "GhostGuard: Tiếp tục học profile" end
     return "GhostGuard: Bắt đầu học profile"
 end
 
@@ -380,21 +391,35 @@ end
 
 function DCPROGhostGuard:onSuspend()
     if not self.guard then return end
+    self._resume_calibration_after_suspend = self.guard:isCalibrating()
     self._resume_protect_after_suspend = self.guard:isProtecting() or (self.guard:isAutoProtectEnabled() and self.guard:profileApproved())
     self.guard:stop("suspend-fail-open")
 end
 
 function DCPROGhostGuard:onResume()
     if not self.guard then return end
-    local should_resume = self._resume_protect_after_suspend == true
+    local resume_calibration = self._resume_calibration_after_suspend == true
+    local resume_protect = self._resume_protect_after_suspend == true
+    self._resume_calibration_after_suspend = false
     self._resume_protect_after_suspend = false
-    if not should_resume then return end
-    UIManager:scheduleIn(4, function()
+    if not resume_calibration and not resume_protect then return end
+    UIManager:scheduleIn(self.config.resume_restart_delay_seconds or 4, function()
         if not self.guard or self.guard:isRunning() or self.guard:isSafeMode() then return end
         local licensed = self.guard:licenseValid(true)
-        if not licensed or not self.guard:profileApproved() or not self.guard:protectSupported() then return end
-        local ok, result = self.guard:start(self.config.protect_mode, "resume-auto-protect")
-        if not ok then logger.warn("DCPRO GhostGuard resume Protect skipped:", result) end
+        if not licensed then return end
+        if resume_calibration and not self.guard:profileApproved() then
+            if self.guard:profileLiveReady() then
+                show(_("GhostGuard đã học đủ dữ liệu trong phiên trước. Mở Tools và chọn Hoàn tất thiết lập bảo vệ."), 10)
+                return
+            end
+            local ok, result = self.guard:start(self.config.calibration_mode, "resume-customer-learning")
+            if not ok then logger.warn("DCPRO GhostGuard resume Calibration skipped:", result) end
+            return
+        end
+        if resume_protect and self.guard:profileApproved() and self.guard:protectSupported() then
+            local ok, result = self.guard:start(self.config.protect_mode, "resume-auto-protect")
+            if not ok then logger.warn("DCPRO GhostGuard resume Protect skipped:", result) end
+        end
     end)
 end
 

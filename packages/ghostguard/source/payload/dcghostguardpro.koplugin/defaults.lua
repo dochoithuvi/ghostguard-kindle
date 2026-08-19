@@ -1,5 +1,6 @@
 return {
     version = "0.6.15",
+    runtime_revision = "calibration-flow-v2",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
     protect_mode = "PROTECT_PROFILE",
@@ -61,9 +62,9 @@ return {
     max_protect_session_seconds = 21600,
     flush_every_frames = 128,
 
-    -- IMPORTANT: SimpleUI/KOReader input bridge is required only for real
-    -- PROTECT mode. Observe/Calibration must never fail merely because the
-    -- device lacks the optional touch wrapper API.
+    -- Raw-event observation is required in Observe/Calibration/Protect.
+    -- Only the touch suppression wrapper is Protect-only. Learning therefore
+    -- listens to input without ever replacing or blocking KOReader gestures.
     protect_wrapper_all_modes = false,
     engine_keep_alive_on_widget_close = true,
     resume_restart_delay_seconds = 4,
@@ -98,6 +99,8 @@ return {
     -- completed touches and enough cumulative learning time across sessions.
     calibration_min_total_contacts = 40,
     calibration_min_learning_seconds = 180,
+    calibration_checkpoint_contacts = 5,
+    calibration_input_watchdog_seconds = 30,
 
     protect_min_base_score = 4,
     protect_suspect_score = 5,
