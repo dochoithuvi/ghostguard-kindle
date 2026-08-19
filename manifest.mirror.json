@@ -7,11 +7,11 @@
     "ghostguard": {
       "name": "DCPRO GhostGuard",
       "author": "Do Choi Thu Vi",
-      "description": "KOReader GhostGuard v0.6.14 - optional input bridge: Observe/Calibration do not require the SimpleUI/KOReader touch wrapper.",
+      "description": "KOReader GhostGuard v0.6.15 - safe baseline learning completion plus profile-based protection.",
       "artifacts": [
         {
-          "url": "https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/artifacts/ghostguard_0.6.14_kindle5-kindlepw2-kindlehf.kpkg",
-          "version": [0, 6, 14],
+          "url": "https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/artifacts/ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [0, 6, 15],
           "dependencies": [],
           "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
         }
