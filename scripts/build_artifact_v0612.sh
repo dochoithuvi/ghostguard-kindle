@@ -46,7 +46,7 @@ python3 - "$TMP/payload/dcghostguardpro.koplugin/defaults.lua" <<'PY'
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
-for old in ('0.6.13', '0.6.14', '0.6.15'):
+for old in ('0.6.13', '0.6.14', '0.6.16'):
     s = s.replace('version = "' + old + '"', 'version = "0.6.16"', 1)
 open(p, "w", encoding="utf-8").write(s)
 PY
