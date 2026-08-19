@@ -23,11 +23,18 @@ Public KPM v2 repository for Kindle tools maintained by Do Choi Thu Vi.
 
 ## GhostGuard learning flow
 
-GhostGuard `0.6.15` keeps the existing ghost-signature thresholds (`12` suspect contacts with a strongest cluster of at least `5`) and adds a healthy-device completion path. Calibration counts every completed contact, and after `40` completed contacts the profile may become `BASELINE`-ready. The existing customer-ready notice gate still requires at least `180` seconds in the current learning session before the completion prompt is shown.
+GhostGuard `0.6.15` keeps the existing ghost-signature thresholds (`12` suspect contacts with a strongest cluster of at least `5`) and adds a healthy-device completion path. Calibration counts every completed contact and stores both the contact count and learning time cumulatively across clean learning sessions.
+
+A profile becomes ready only after at least `180` seconds of cumulative learning time. At that point it completes as:
+
+- `GHOST_CLUSTER` when the repeated ghost evidence reaches `12` suspect contacts and the strongest cluster reaches `5` samples; or
+- `BASELINE` when at least `40` completed contacts have been observed without a sufficiently trustworthy ghost cluster.
+
+Because readiness time and contact progress are stored in the pending profile, ending or restarting a clean learning session does not reset the learning progress. The ready popup follows this cumulative readiness directly and does not impose another per-session `180` second wait.
 
 A `BASELINE` profile can be approved and used for Protect, but `ProfileManager:match()` deliberately returns no coordinate match for Baseline profiles. Generic abnormality, incomplete-position, extreme-edge, burst scoring, probation limits, fail-open behavior, and circuit breaker protection remain unchanged.
 
-Pending learning data stays cumulative across clean session boundaries. Profiles written by GhostGuard `<=0.6.14` without `PROFILE_KIND` remain readable; approved legacy profiles with clusters are treated as `GHOST_CLUSTER` profiles.
+Profiles written by GhostGuard `<=0.6.14` without `PROFILE_KIND` or `LEARNING_SECONDS` remain readable. Existing READY legacy profiles keep their readiness, and approved legacy profiles with clusters are treated as `GHOST_CLUSTER` profiles.
 
 ## Recommended GhostGuard OneClick
 
