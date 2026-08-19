@@ -7,13 +7,21 @@
     "ghostguard": {
       "name": "DCPRO GhostGuard",
       "author": "Do Choi Thu Vi",
-      "description": "KOReader GhostGuard v0.6.15 - safe baseline learning completion plus profile-based protection.",
+      "description": "KOReader GhostGuard v0.6.16 - safe baseline learning completion plus profile-based protection.",
       "artifacts": [
         {
-          "url": "https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/artifacts/ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg",
-          "version": [0, 6, 15],
+          "url": "packages/ghostguard/artifacts/ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [
+            0,
+            6,
+            16
+          ],
           "dependencies": [],
-          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
+          "supported_platforms": [
+            "kindle5",
+            "kindlepw2",
+            "kindlehf"
+          ]
         }
       ]
     }

@@ -3,7 +3,7 @@
 # Self-contained production bootstrap for KPM v0.2.x.
 # Installs/checks KOReader, applies tested KOReader GestureGuard + TouchMenuGuard
 # fail-safes, optionally installs SimpleUI, refreshes the current multi-package
-# KPM repository, installs GhostGuard 0.6.15, syncs the latest SimpleUI Tools
+# KPM repository, installs GhostGuard 0.6.16, syncs the latest SimpleUI Tools
 # bridge, then launches GhostGuard.
 
 LIB_ONLY=${DCPRO_ONECLICK_LIB_ONLY:-0}
@@ -22,10 +22,10 @@ fi
 GG_REPO_ID=dochoithuvi-ghostguard
 GG_REPO=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/manifest.v2.json
 GG_REPO_MIRROR=https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/manifest.mirror.json
-GG_EXPECT=0.6.15
+GG_EXPECT=0.6.16
 GG_RUNTIME_REVISION=calibration-flow-v2
-GG_ARTIFACT=packages/ghostguard/artifacts/ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg
-GG_ARTIFACT_NAME=ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg
+GG_ARTIFACT=packages/ghostguard/artifacts/ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg
+GG_ARTIFACT_NAME=ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg
 GG_BRIDGE_URL=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/source/payload/dcghostguardpro.koplugin/simpleui_bridge.lua
 GG_BRIDGE_MIRROR_URL=https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/source/payload/dcghostguardpro.koplugin/simpleui_bridge.lua
 
@@ -500,7 +500,7 @@ manifest_check_url(){
   tr -d '[:space:]' < "$M" > "$MC" || { log "WARN: cannot normalize manifest: $URL"; return 1; }
   grep -Fq '"ghostguard":{' "$MC" || { log "WARN: ghostguard package missing: $URL"; return 1; }
   grep -Fq "$GG_ARTIFACT_NAME" "$MC" || { log "WARN: GhostGuard $GG_EXPECT artifact missing: $URL"; return 1; }
-  grep -Fq '"version":[0,6,15]' "$MC" || { log "WARN: expected GhostGuard $GG_EXPECT not present: $URL"; return 1; }
+  grep -Fq '"version":[0,6,16]' "$MC" || { log "WARN: expected GhostGuard $GG_EXPECT not present: $URL"; return 1; }
   log "Manifest validation: PASS (GhostGuard $GG_EXPECT via $URL)"
   rm -f "$M" "$MC"
   return 0
@@ -618,10 +618,10 @@ main(){
   esac
 
   install_simpleui || log "SimpleUI skipped; native/ZenUI may be used."
-  say 7 "Kiem tra GhostGuard 0.6.15..."
+  say 7 "Kiem tra GhostGuard 0.6.16..."
 
   repair_gg || { log "ERROR: GhostGuard repo setup failed"; say 8 "LOI: Khong lam moi duoc repo"; exit 1; }
-  say 8 "Cai/cap nhat GhostGuard 0.6.15..."
+  say 8 "Cai/cap nhat GhostGuard 0.6.16..."
 
   INSTALL_OK=0
   if run "$KPM" -y install ghostguard && has_gg_expected; then

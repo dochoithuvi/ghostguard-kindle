@@ -4,7 +4,7 @@ ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 SRC="$ROOT/packages/ghostguard/source"
 OUT="$ROOT/packages/ghostguard/artifacts"
 VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' "$SRC/manifest.json" | head -1 | tr -d ' ' | tr ',' '.')
-[ -n "$VERSION" ] || VERSION=0.6.15
+[ -n "$VERSION" ] || VERSION=0.6.16
 PKG="$OUT/ghostguard_${VERSION}_kindle5-kindlepw2-kindlehf.kpkg"
 rm -f "$PKG"
 TMP=$(mktemp -d)
@@ -46,8 +46,8 @@ python3 - "$TMP/payload/dcghostguardpro.koplugin/defaults.lua" <<'PY'
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
-for old in ('0.6.13', '0.6.14'):
-    s = s.replace('version = "' + old + '"', 'version = "0.6.15"', 1)
+for old in ('0.6.13', '0.6.14', '0.6.15'):
+    s = s.replace('version = "' + old + '"', 'version = "0.6.16"', 1)
 open(p, "w", encoding="utf-8").write(s)
 PY
 cp "$SRC/install.sh" "$TMP/install.sh"
@@ -68,7 +68,7 @@ grep -q 'SimpleUIBridge.new' "$TMP/payload/dcghostguardpro.koplugin/main.lua"
 ! grep -q 'self.simpleui = nil' "$TMP/payload/dcghostguardpro.koplugin/main.lua"
 grep -q 'local bridge_ok, bridge_err = self:ensureInputBridge()' "$TMP/payload/dcghostguardpro.koplugin/ghostguard.lua"
 ! grep -q 'local protect = mode == self.config.protect_mode    local protect' "$TMP/payload/dcghostguardpro.koplugin/ghostguard.lua"
-grep -q 'version = "0.6.15"' "$TMP/payload/dcghostguardpro.koplugin/defaults.lua"
+grep -q 'version = "0.6.16"' "$TMP/payload/dcghostguardpro.koplugin/defaults.lua"
 grep -q 'runtime_revision = "calibration-flow-v2"' "$TMP/payload/dcghostguardpro.koplugin/defaults.lua"
 grep -q 'CALIBRATION_INPUT:' "$TMP/payload/dcghostguardpro.koplugin/ghostguard.lua"
 grep -q '_resume_calibration_after_suspend' "$TMP/payload/dcghostguardpro.koplugin/main.lua"
