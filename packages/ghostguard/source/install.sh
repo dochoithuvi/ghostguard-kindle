@@ -19,6 +19,7 @@ DATA="$ROOT/.dcpro_ghostguard"
 LICENSE_BACKUP="$DATA/license.key.kpm-backup"
 LAUNCHER="$ROOT/documents/DCPRO_GhostGuard.sh"
 ASSET_DIR="$ROOT/dcpro/ghostguard/assets"
+LIBRARY_COVER="$ASSET_DIR/ghostguard_library_600x960.jpg"
 
 fail() { echo "GhostGuard install: $1" >&2; rm -rf "$STAGING" 2>/dev/null || true; exit 1; }
 [ -f "payload/dcghostguardpro.koplugin/main.lua" ] || fail "package payload incomplete"
@@ -59,13 +60,30 @@ fi
 }
 rm -rf "$BACKUP"
 
-cp -p "scriptlets/DCPRO_GhostGuard.sh" "$LAUNCHER" || fail "cannot install launcher"
-[ ! -f "assets/ghostguard_library_600x960.jpg" ] || { mkdir -p "$ASSET_DIR" && cp -p "assets/ghostguard_library_600x960.jpg" "$ASSET_DIR/ghostguard_library_600x960.jpg"; } || true
-chmod 755 "$LAUNCHER" 2>/dev/null || true
+# SH_Integration reads the launcher header as soon as the .sh document is
+# indexed. Put the cover in its final location first, then rewrite/touch the
+# launcher so both fresh installs and reinstalls are indexed with a valid
+# thumbnail instead of caching a blank Library tile.
+[ -f "assets/ghostguard_library_600x960.jpg" ] || fail "library cover missing from package"
+mkdir -p "$ASSET_DIR" || fail "cannot create library cover directory"
+cp -p "assets/ghostguard_library_600x960.jpg" "$LIBRARY_COVER" || fail "cannot install library cover"
+chmod 644 "$LIBRARY_COVER" 2>/dev/null || true
+sync 2>/dev/null || true
+
+LAUNCHER_TMP="$ROOT/documents/.DCPRO_GhostGuard.sh.kpm-new.$$"
+rm -f "$LAUNCHER_TMP" 2>/dev/null || true
+cp -p "scriptlets/DCPRO_GhostGuard.sh" "$LAUNCHER_TMP" || fail "cannot stage launcher"
+chmod 755 "$LAUNCHER_TMP" 2>/dev/null || true
+mv -f "$LAUNCHER_TMP" "$LAUNCHER" || fail "cannot install launcher"
+touch "$LAUNCHER" 2>/dev/null || true
+sync 2>/dev/null || true
+
 find "$TARGET/bin" -type f -name '*.sh' -exec chmod 755 {} \; 2>/dev/null || true
 
-printf 'PACKAGE_ID=ghostguard\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nINSTALL_MODE=ATOMIC_REPLACE\nINSTALLED_UTC=%s\n' "$KO_ROOT" "$TARGET" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" > "$DATA/KPM_INSTALL_OK"
+printf 'PACKAGE_ID=ghostguard\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nLIBRARY_LAUNCHER=%s\nLIBRARY_COVER=%s\nINSTALL_MODE=ATOMIC_REPLACE\nINSTALLED_UTC=%s\n' "$KO_ROOT" "$TARGET" "$LAUNCHER" "$LIBRARY_COVER" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" > "$DATA/KPM_INSTALL_OK"
 echo "GhostGuard installed. KOReader root: $KO_ROOT"
 echo "GhostGuard plugin: $TARGET"
+echo "GhostGuard Library launcher: $LAUNCHER"
+echo "GhostGuard Library cover: $LIBRARY_COVER"
 echo "GhostGuard installed. Restart KOReader before enabling GhostGuard."
 exit 0
