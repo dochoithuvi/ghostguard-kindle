@@ -2,12 +2,20 @@ name: Build KPM artifacts
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+      - .github/workflows/build-artifact-v0612.yml
+      - manifest.v2.json
+      - packages/ghostguard/**
+      - packages/kindleforge/**
+      - scripts/**
   workflow_dispatch:
 permissions:
   contents: write
 jobs:
   build-artifact:
-    if: ${{ !contains(github.event.head_commit.message, '[artifact-bot]') }}
+    if: ${{ github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[artifact-bot]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -204,6 +212,7 @@ jobs:
           PY
 
       - name: Publish package artifacts
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
