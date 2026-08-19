@@ -1,0 +1,372 @@
+name: Build KPM artifacts
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+      - .github/workflows/build-artifact-v0612.yml
+      - manifest.v2.json
+      - manifest.json
+      - manifest.mirror.json
+      - packages/ghostguard/**
+      - packages/kindleforge/**
+      - scripts/**
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-artifact:
+    if: ${{ github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[artifact-bot]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Validate production version alignment
+        run: |
+          test -f DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          sh -n DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'GG_EXPECT=0.6.16' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q '"version": \[0, 6, 15\]' packages/ghostguard/source/manifest.json
+          grep -q 'version = "0.6.16"' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg' manifest.v2.json
+          grep -q 'ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg' manifest.json
+          grep -q 'ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg' manifest.mirror.json
+          grep -q 'manifest.v2.json' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'ghostguard_manifest.compact.json' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'DCPRO_KOREADER_GESTURE_NIL_GUARD_V1' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'DCPRO_KOREADER_TOUCHMENU_PAGE_GUARD_V1' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'apply_koreader_safety_patches' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          grep -q 'DCPRO_ONECLICK_LIB_ONLY' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          ! grep -q 'DCPRO_GhostGuard_OneClick_Installer_v12.sh' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          test ! -e DCPRO_KOReader_GestureGuard_Test_v1.1.sh
+          test ! -e DCPRO_KOReader_GestureGuard_Restore_v1.1.sh
+          test ! -e DCPRO_KOReader_TouchMenuGuard_Test_v1.sh
+          test ! -e DCPRO_KOReader_TouchMenuGuard_Restore_v1.sh
+
+      - name: Validate integrated KOReader safety guards
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq luajit
+
+          export DCPRO_ONECLICK_LIB_ONLY=1
+          export DCPRO_ONECLICK_ROOT=/tmp/dcpro-lib
+          export DCPRO_ONECLICK_LOG=/tmp/dcpro-lib.log
+          export DCPRO_ONECLICK_TMP=/tmp/dcpro-lib-state
+          . ./DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+
+          for VER in 2026.07 2026.07.1; do
+            ROOT="/tmp/koreader-guard-$VER"
+            LOG="/tmp/koreader-guard-$VER.log"
+            TMP="/tmp/koreader-guard-$VER-state"
+            GG_GESTURE_STATE="$TMP/KOREADER_GESTURE_GUARD_V1"
+            GG_TOUCHMENU_STATE="$TMP/KOREADER_TOUCHMENU_GUARD_V1"
+            rm -rf "$ROOT" "$TMP" "$LOG"
+            mkdir -p "$ROOT/koreader/frontend/device" "$ROOT/koreader/frontend/ui/widget" "$TMP"
+
+            curl -fsSL "https://raw.githubusercontent.com/koreader/koreader/v${VER}/frontend/device/gesturedetector.lua" -o /tmp/gesturedetector.lua
+            curl -fsSL "https://raw.githubusercontent.com/koreader/koreader/v${VER}/frontend/ui/widget/touchmenu.lua" -o /tmp/touchmenu.lua
+            cp /tmp/gesturedetector.lua "$ROOT/koreader/frontend/device/gesturedetector.lua"
+            cp /tmp/touchmenu.lua "$ROOT/koreader/frontend/ui/widget/touchmenu.lua"
+
+            apply_koreader_safety_patches
+
+            G="$ROOT/koreader/frontend/device/gesturedetector.lua"
+            T="$ROOT/koreader/frontend/ui/widget/touchmenu.lua"
+            grep -q 'DCPRO_KOREADER_GESTURE_NIL_GUARD_V1' "$G"
+            grep -q 'normalizeTouchCoordinates(self.current_tev, self.initial_tev)' "$G"
+            grep -q 'sane_touch_frame = normalizeTouchCoordinates' "$G"
+            grep -q 'DCPRO_KOREADER_TOUCHMENU_PAGE_GUARD_V1' "$T"
+            grep -q 'if self.page == nil or self.page_num == nil then' "$T"
+            grep -q 'if nb == nil or self.page_num == nil then' "$T"
+            cmp -s /tmp/gesturedetector.lua "$G.dcpro-pre-gesture-guard-v1.bak"
+            cmp -s /tmp/touchmenu.lua "$T.dcpro-pre-touchmenu-guard-v1.bak"
+            grep -q 'KOReader safety guards: PASS' "$LOG"
+
+            sha256sum "$G" "$T" > /tmp/guards.before
+            apply_koreader_safety_patches
+            sha256sum "$G" "$T" > /tmp/guards.after
+            cmp -s /tmp/guards.before /tmp/guards.after
+          done
+
+      - name: Validate profile learning completion
+        shell: bash
+        run: |
+          cat > /tmp/test_profile_learning.lua <<'LUA'
+          local root = "packages/ghostguard/source/payload/dcghostguardpro.koplugin/"
+          local config = dofile(root .. "defaults.lua")
+          local ProfileManager = dofile(root .. "profile_manager.lua")
+
+          local Storage = {}
+          Storage.__index = Storage
+          function Storage:new() return setmetatable({ files = {} }, self) end
+          function Storage:readFile(path) return self.files[path] end
+          function Storage:writeAtomic(path, text) self.files[path] = text; return true end
+          function Storage:removeExact(path) self.files[path] = nil; return true end
+          function Storage:touch(path, text) self.files[path] = text or ""; return true end
+
+          local function ordinary(x, y)
+              return { x = x or 300, y = y or 500, learnable = false, base_score = 0 }
+          end
+          local function ghost(x, y)
+              return {
+                  x = x or 12, y = y or 400, learnable = true,
+                  base_score = 8, low_major = true, short = true, incomplete = false,
+              }
+          end
+
+          -- Healthy device: enough touches alone must not complete before 180s.
+          local storage = Storage:new()
+          local pm = ProfileManager:new(config, storage, { device_id = "TESTBASE", model = "KindleBasic4" })
+          assert(pm:startCalibration())
+          for i = 1, 40 do pm:addContact(ordinary(300 + (i % 3), 500)) end
+          local early = pm:calibrationStatus()
+          assert(early.total_contacts == 40 and not early.ready and not early.time_ready)
+
+          -- Once cumulative learning reaches 180s, contact 40 becomes safe BASELINE-ready.
+          pm.calibration.started_wall = os.time() - 180
+          local s40 = pm:calibrationStatus()
+          assert(s40.total_contacts == 40 and s40.ready and s40.baseline_ready and not s40.ghost_ready)
+          assert(s40.profile_kind == "BASELINE" and s40.learning_seconds >= 180)
+          local ok, pending = pm:finalize()
+          assert(ok and pending.ready and pending.profile_kind == "BASELINE")
+          assert(pending.learning_seconds >= 180 and pm:hasPendingReady())
+          local approved = pm:approvePending()
+          assert(approved and pm:hasApproved())
+          assert(pm.approved.profile_kind == "BASELINE")
+          assert(pm:match(301, 500) == nil, "baseline must not boost weak coordinates")
+
+          -- Cumulative contacts AND time survive session boundaries.
+          local storage2 = Storage:new()
+          local pm2 = ProfileManager:new(config, storage2, { device_id = "TESTCUM", model = "KindleBasic4" })
+          pm2:startCalibration()
+          pm2.calibration.started_wall = os.time() - 90
+          for i = 1, 10 do pm2:addContact(ordinary()) end
+          local ok10, p10 = pm2:finalize()
+          assert(ok10 and not p10.ready and p10.total_contacts == 10 and p10.learning_seconds >= 90)
+          pm2:startCalibration()
+          local resumed = pm2:calibrationStatus()
+          assert(resumed.total_contacts == 10 and resumed.learning_seconds >= 90)
+          pm2.calibration.started_wall = os.time() - 90
+          for i = 1, 30 do pm2:addContact(ordinary()) end
+          local resumed_ready = pm2:calibrationStatus()
+          assert(resumed_ready.baseline_ready and resumed_ready.learning_seconds >= 180)
+
+          -- Real repeated ghost evidence still needs minimum learning time,
+          -- then wins and activates coordinate matching.
+          local storage3 = Storage:new()
+          local pm3 = ProfileManager:new(config, storage3, { device_id = "TESTGHOST", model = "KindleBasic4" })
+          pm3:startCalibration()
+          for i = 1, 12 do pm3:addContact(ghost(10 + (i % 2), 400)) end
+          local ghost_early = pm3:calibrationStatus()
+          assert(ghost_early.ghost_evidence_ready and not ghost_early.ghost_ready)
+          pm3.calibration.started_wall = os.time() - 180
+          local sg = pm3:calibrationStatus()
+          assert(sg.ghost_ready and sg.profile_kind == "GHOST_CLUSTER")
+          local okg, pg = pm3:finalize()
+          assert(okg and pg.profile_kind == "GHOST_CLUSTER" and #pg.clusters > 0)
+          assert(pm3:approvePending())
+          assert(pm3:match(10, 400) ~= nil)
+
+          -- <=0.6.14 profile files without PROFILE_KIND/LEARNING_SECONDS remain compatible.
+          local storage4 = Storage:new()
+          local oldpath = config.profile_dir .. "/OLD.approved.profile"
+          storage4.files[oldpath] = table.concat({
+              "DCPRO_GHOST_PROFILE_V1",
+              "PROFILE_VERSION=1",
+              "PLUGIN_VERSION=0.6.14",
+              "STATUS=APPROVED",
+              "DEVICE_ID=OLD",
+              "MODEL=KindleBasic4",
+              "SCREEN_WIDTH=1072",
+              "SCREEN_HEIGHT=1448",
+              "TOTAL_CONTACTS=50",
+              "SUSPECT_CONTACTS=12",
+              "READY=YES",
+              "CLUSTER_COUNT=1",
+              "CLUSTER|1|10|20|390|410|12|0|0|12|12|0|0.900|96",
+              "",
+          }, "\n")
+          local old = ProfileManager:new(config, storage4, { device_id = "OLD", model = "KindleBasic4" })
+          assert(old:hasApproved())
+          assert(old.approved.profile_kind == "GHOST_CLUSTER")
+          assert(old.approved.learning_seconds >= 180)
+          assert(old:match(15, 400) ~= nil)
+
+          print("PROFILE_LEARNING_0615_PASS")
+          LUA
+          luajit /tmp/test_profile_learning.lua | grep -q PROFILE_LEARNING_0615_PASS
+          grep -q 'calibration_min_total_contacts = 40' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'calibration_min_learning_seconds = 180' packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
+          ! grep -q 'wall_now - self.session_started_wall >= (self.config.customer_ready_notice_after_seconds or 180)' packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
+          grep -q 'Readiness already includes the minimum cumulative learning time' packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
+          grep -q 'and self.profiles:isCalibrationReady() then' packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
+
+      - name: Detect package builds
+        id: detect
+        shell: bash
+        run: |
+          GH=false
+          KF=false
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            GH=true
+            KF=true
+          else
+            if [ ! -f packages/ghostguard/artifacts/ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg ] || \
+               ! git diff --quiet HEAD^ HEAD -- packages/ghostguard scripts/build_artifact_v0612.sh; then
+              GH=true
+            fi
+            if [ ! -f packages/kindleforge/artifacts/kindleforge_4.1.1_kindle5-kindlepw2-kindlehf.kpkg ] || \
+               ! git diff --quiet HEAD^ HEAD -- packages/kindleforge scripts/build_kindleforge_artifact.sh; then
+              KF=true
+            fi
+          fi
+          echo "ghostguard=$GH" >> "$GITHUB_OUTPUT"
+          echo "kindleforge=$KF" >> "$GITHUB_OUTPUT"
+          echo "GhostGuard build: $GH"
+          echo "KindleForge build: $KF"
+
+      - name: Build GhostGuard artifact
+        if: steps.detect.outputs.ghostguard == 'true'
+        run: |
+          chmod +x scripts/build_artifact_v0612.sh
+          scripts/build_artifact_v0612.sh
+
+      - name: Validate GhostGuard artifact contents
+        if: steps.detect.outputs.ghostguard == 'true'
+        run: |
+          PKG=$(ls packages/ghostguard/artifacts/ghostguard_0.6.16_*.kpkg | tail -1)
+          test -s "$PKG"
+          rm -rf /tmp/pkgcheck
+          mkdir -p /tmp/pkgcheck
+          tar -xzf "$PKG" -C /tmp/pkgcheck
+          for f in _meta.lua main.lua ghostguard.lua defaults.lua profile_manager.lua touch_observer.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua simpleui_bridge.lua zenui_bridge.lua; do
+            test -f "/tmp/pkgcheck/payload/dcghostguardpro.koplugin/$f"
+          done
+          test -f /tmp/pkgcheck/manifest.json
+          ! grep -q 'end    return true' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua
+          grep -q 'SimpleUIBridge.new' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua
+          ! grep -q 'self.simpleui = nil' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua
+          grep -q 'local bridge_ok, bridge_err = self:ensureInputBridge()' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua
+          ! grep -q 'local protect = mode == self.config.protect_mode    local protect' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua
+          grep -q 'version = "0.6.16"' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'GhostGuard v0.6.16' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/_meta.lua
+          grep -q 'calibration_min_total_contacts = 40' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'calibration_min_learning_seconds = 180' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -q 'PROFILE_KIND=' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/profile_manager.lua
+          grep -q 'LEARNING_SECONDS=' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/profile_manager.lua
+          grep -q 'profile_kind == "BASELINE"' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/profile_manager.lua
+          grep -q 'protect_wrapper_all_modes = false' /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua
+
+      - name: Sync GhostGuard patched runtime back to source tree
+        if: steps.detect.outputs.ghostguard == 'true'
+        run: |
+          cp /tmp/pkgcheck/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua
+          cp /tmp/pkgcheck/payload/dcghostguardpro.koplugin/ghostguard.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua
+          cp /tmp/pkgcheck/payload/dcghostguardpro.koplugin/defaults.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
+
+      - name: Build KindleForge artifact
+        if: steps.detect.outputs.kindleforge == 'true'
+        run: |
+          chmod +x scripts/build_kindleforge_artifact.sh
+          scripts/build_kindleforge_artifact.sh
+
+      - name: Validate KindleForge artifact contents
+        if: steps.detect.outputs.kindleforge == 'true'
+        run: |
+          PKG=$(ls packages/kindleforge/artifacts/kindleforge_4.1.1_*.kpkg | tail -1)
+          test -s "$PKG"
+          rm -rf /tmp/kfcheck
+          mkdir -p /tmp/kfcheck
+          tar -xzf "$PKG" -C /tmp/kfcheck
+          test -f /tmp/kfcheck/manifest.json
+          test -x /tmp/kfcheck/install.sh
+          test -x /tmp/kfcheck/launch.sh
+          test -x /tmp/kfcheck/uninstall.sh
+          test -x /tmp/kfcheck/runtime.sh
+          test -s /tmp/kfcheck/UPSTREAM_RELEASE_SHA256
+          test -f /tmp/kfcheck/payload/KindleForge/config.xml
+          test -f /tmp/kfcheck/payload/KindleForge/index.html
+          test -f /tmp/kfcheck/payload/KindleForge/script.js
+          test -x /tmp/kfcheck/payload/KindleForge/binaries/KFPM
+          test -x /tmp/kfcheck/payload/KindleForge/binaries/UtildHF
+          test -x /tmp/kfcheck/payload/KindleForge/binaries/UtildSF
+          grep -q '"id": "kindleforge"' /tmp/kfcheck/manifest.json
+          grep -q '"version": \[4, 1, 1\]' /tmp/kfcheck/manifest.json
+          grep -q 'Version 4.1.0 stable' /tmp/kfcheck/payload/KindleForge/index.html
+          grep -q 'xyz.penguins184.kindleforge' /tmp/kfcheck/payload/KindleForge/config.xml
+          grep -q 'Update KForge' /tmp/kfcheck/payload/KindleForge/script.js
+          grep -q '/var/local/kmc' /tmp/kfcheck/install.sh
+          grep -q '/mnt/us/documents/KindleForge' /tmp/kfcheck/runtime.sh
+
+      - name: Register KindleForge in repository manifest
+        if: steps.detect.outputs.kindleforge == 'true'
+        run: |
+          PKG=$(ls packages/kindleforge/artifacts/kindleforge_4.1.1_*.kpkg | tail -1)
+          python3 - "$PKG" <<'PY'
+          import json
+          import os
+          import sys
+          import tarfile
+
+          pkg_path = sys.argv[1]
+          with tarfile.open(pkg_path, "r:gz") as tf:
+              with tf.extractfile("manifest.json") as fh:
+                  package = json.load(fh)
+
+          with open("manifest.v2.json", "r", encoding="utf-8") as fh:
+              repo = json.load(fh)
+
+          repo.setdefault("packages", {})[package["id"]] = {
+              "name": package["name"],
+              "author": package["author"],
+              "description": package["description"],
+              "artifacts": [{
+                  "url": os.path.relpath(pkg_path, ".").replace(os.sep, "/"),
+                  "version": package["version"],
+                  "dependencies": package["dependencies"],
+                  "supported_platforms": package["supported_platforms"],
+              }],
+          }
+
+          with open("manifest.v2.json", "w", encoding="utf-8") as fh:
+              json.dump(repo, fh, indent=2, ensure_ascii=False)
+              fh.write("\n")
+          PY
+
+      - name: Publish package artifacts
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.v2.json manifest.json manifest.mirror.json
+          git add packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua packages/ghostguard/source/payload/dcghostguardpro.koplugin/profile_manager.lua packages/ghostguard/source/manifest.json packages/ghostguard/artifacts/ghostguard_0.6.16_*.kpkg
+          if [ -d packages/kindleforge/artifacts ]; then
+            git add packages/kindleforge/artifacts/kindleforge_4.1.1_*.kpkg
+          fi
+          git diff --cached --quiet && exit 0
+          git commit -m "build: publish KPM artifacts [artifact-bot]"
+          git push
+
+      - name: Upload GhostGuard artifact
+        if: steps.detect.outputs.ghostguard == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghostguard-current-kpkg
+          path: packages/ghostguard/artifacts/ghostguard_0.6.16_*.kpkg
+          if-no-files-found: error
+
+      - name: Upload KindleForge artifact
+        if: steps.detect.outputs.kindleforge == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kindleforge-4.1.1-kpkg
+          path: packages/kindleforge/artifacts/kindleforge_4.1.1_*.kpkg
+          if-no-files-found: error
+
+# GhostGuard and KindleForge are built as independent KPM packages in the same repository.
