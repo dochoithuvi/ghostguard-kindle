@@ -1,0 +1,23 @@
+name: Apply KPM repo fix on PR
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: ${{ github.head_ref == 'agent/fix-kpm-repo-refresh' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-kpm-repo-refresh
+      - run: python3 scripts/_apply_kpm_repo_fix.py
+      - run: sh -n DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+      - name: Commit generated fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: make KPM repo refresh resilient [repo-fix-bot]"
+          git push origin HEAD:agent/fix-kpm-repo-refresh
