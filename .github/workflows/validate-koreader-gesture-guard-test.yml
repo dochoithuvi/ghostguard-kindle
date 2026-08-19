@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - DCPRO_KOReader_GestureGuard_Test_v1.sh
+      - DCPRO_KOReader_GestureGuard_Restore_v1.sh
       - .github/workflows/validate-koreader-gesture-guard-test.yml
   workflow_dispatch:
 
@@ -18,7 +19,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validate shell syntax
-        run: sh -n DCPRO_KOReader_GestureGuard_Test_v1.sh
+        run: |
+          sh -n DCPRO_KOReader_GestureGuard_Test_v1.sh
+          sh -n DCPRO_KOReader_GestureGuard_Restore_v1.sh
 
       - name: Prepare KOReader v2026.07.1 fixture
         run: |
@@ -52,3 +55,11 @@ jobs:
         run: |
           sudo grep -q 'SUCCESS: gesture nil-guard installed' /mnt/us/documents/KOReader_GestureGuard_Test.log
           sudo grep -q 'Already patched' /mnt/us/documents/KOReader_GestureGuard_Test.log
+
+      - name: Verify rollback restores upstream bytes
+        run: |
+          sudo sh DCPRO_KOReader_GestureGuard_Restore_v1.sh
+          TARGET=/mnt/us/koreader/frontend/device/gesturedetector.lua
+          sudo cmp -s /tmp/gesturedetector.lua "$TARGET"
+          ! sudo grep -q 'DCPRO_KOREADER_GESTURE_NIL_GUARD_V1' "$TARGET"
+          sudo grep -q 'SUCCESS: restored' /mnt/us/documents/KOReader_GestureGuard_Restore.log
