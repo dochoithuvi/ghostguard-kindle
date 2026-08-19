@@ -1,0 +1,71 @@
+name: Apply KPM repo refresh fix
+on:
+  push:
+    branches: [agent/fix-kpm-repo-refresh]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[repo-fix-bot]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-kpm-repo-refresh
+      - name: Patch OneClick and validation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('DCPRO_GhostGuard_OneClick_Installer_v12.1.sh')
+          s = p.read_text()
+          s = s.replace(
+              'GG_REPO=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/manifest.v2.json\nGG_EXPECT=0.6.15\nGG_ARTIFACT=packages/ghostguard/artifacts/ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg\nGG_BRIDGE_URL=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/source/payload/dcghostguardpro.koplugin/simpleui_bridge.lua\n',
+              'GG_REPO=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/manifest.v2.json\nGG_REPO_MIRROR=https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/manifest.mirror.json\nGG_EXPECT=0.6.15\nGG_ARTIFACT=packages/ghostguard/artifacts/ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg\nGG_ARTIFACT_NAME=ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg\nGG_BRIDGE_URL=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/source/payload/dcghostguardpro.koplugin/simpleui_bridge.lua\nGG_BRIDGE_MIRROR_URL=https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/source/payload/dcghostguardpro.koplugin/simpleui_bridge.lua\n', 1)
+
+          old_sync = '''  B="$TMP/simpleui_bridge.lua"\n  log "Syncing latest SimpleUI bridge: $GG_BRIDGE_URL"\n  get "$GG_BRIDGE_URL" "$B" || { log "ERROR: SimpleUI bridge download failed"; return 1; }\n'''
+          new_sync = '''  B="$TMP/simpleui_bridge.lua"\n  log "Syncing latest SimpleUI bridge: $GG_BRIDGE_URL"\n  if ! get "$GG_BRIDGE_URL" "$B"; then\n    log "WARN: primary SimpleUI bridge download failed; trying jsDelivr mirror"\n    get "$GG_BRIDGE_MIRROR_URL" "$B" || { log "ERROR: SimpleUI bridge download failed on primary and mirror"; return 1; }\n  fi\n'''
+          if old_sync not in s:
+              raise SystemExit('sync_simpleui_bridge anchor not found')
+          s = s.replace(old_sync, new_sync, 1)
+
+          old = '''manifest_check(){\n  M="$TMP/ghostguard_manifest.v2.json"\n  MC="$TMP/ghostguard_manifest.compact.json"\n  rm -f "$M" "$MC"\n  log "Checking manifest: $GG_REPO"\n  get "$GG_REPO" "$M" || { log "ERROR: manifest download failed"; return 1; }\n  grep -q '\"manifest_version\"[[:space:]]*:[[:space:]]*2' "$M" || { log "ERROR: manifest is not v2"; return 1; }\n  grep -q '\"id\"[[:space:]]*:[[:space:]]*\"'$GG_REPO_ID'\"' "$M" || { log "ERROR: manifest repo id mismatch"; return 1; }\n  tr -d '[:space:]' < "$M" > "$MC" || { log "ERROR: cannot normalize manifest"; return 1; }\n  grep -Fq '\"ghostguard\":{' "$MC" || { log "ERROR: ghostguard package missing"; return 1; }\n  grep -Fq '\"url\":\"'$GG_ARTIFACT'\"' "$MC" || { log "ERROR: GhostGuard 0.6.15 artifact missing"; return 1; }\n  grep -Fq '\"version\":[0,6,15]' "$MC" || { log "ERROR: expected GhostGuard 0.6.15 not present"; return 1; }\n  log "Manifest validation: PASS (GhostGuard $GG_EXPECT)"\n  rm -f "$M" "$MC"\n  return 0\n}\n\nsearch_gg(){ "$KPM" -y search ghostguard 2>&1; }\nrepo_ready(){\n  R="$(search_gg || true)"\n  printf '%s\\n' "$R" >> "$LOG"\n  printf '%s\\n' "$R" | grep -q -- '- ghostguard ('\n}\nrepo_registered_current(){\n  R="$1"\n  printf '%s\\n' "$R" | grep -Fq "$GG_REPO"\n}\n\nrepair_gg(){\n  say 6 "Lam moi GhostGuard repo..."\n  manifest_check || return 1\n\n  R="$(kpm_list || true)"\n  printf '%s\\n' "$R" >> "$LOG"\n  if ! repo_registered_current "$R"; then\n    log "GhostGuard repo is missing or points to a legacy endpoint; re-registering current v2 manifest."\n    run "$KPM" -y remove-repo "$GG_REPO_ID" || log "remove-repo returned non-zero (repo may not exist)."\n    run "$KPM" -y add-repo "$GG_REPO" || return 1\n  fi\n\n  run "$KPM" -y update || return 1\n  if repo_ready; then\n    log "GhostGuard repository exposes package ghostguard after refresh."\n    return 0\n  fi\n\n  log "GhostGuard package still not visible; re-registering repository once."\n  run "$KPM" -y remove-repo "$GG_REPO_ID" || true\n  run "$KPM" -y add-repo "$GG_REPO" || return 1\n  run "$KPM" -y update || return 1\n  repo_ready || { log "ERROR: GhostGuard package not visible after repo refresh"; return 1; }\n  log "GhostGuard v2 repo refresh complete."\n  return 0\n}\n'''
+          new = '''manifest_check_url(){\n  URL="$1"\n  M="$TMP/ghostguard_manifest.v2.json"\n  MC="$TMP/ghostguard_manifest.compact.json"\n  rm -f "$M" "$MC"\n  log "Checking manifest: $URL"\n  get "$URL" "$M" || { log "WARN: manifest download failed: $URL"; return 1; }\n  grep -q '\"manifest_version\"[[:space:]]*:[[:space:]]*2' "$M" || { log "WARN: manifest is not v2: $URL"; return 1; }\n  grep -q '\"id\"[[:space:]]*:[[:space:]]*\"'$GG_REPO_ID'\"' "$M" || { log "WARN: manifest repo id mismatch: $URL"; return 1; }\n  tr -d '[:space:]' < "$M" > "$MC" || { log "WARN: cannot normalize manifest: $URL"; return 1; }\n  grep -Fq '\"ghostguard\":{' "$MC" || { log "WARN: ghostguard package missing: $URL"; return 1; }\n  grep -Fq "$GG_ARTIFACT_NAME" "$MC" || { log "WARN: GhostGuard $GG_EXPECT artifact missing: $URL"; return 1; }\n  grep -Fq '\"version\":[0,6,15]' "$MC" || { log "WARN: expected GhostGuard $GG_EXPECT not present: $URL"; return 1; }\n  log "Manifest validation: PASS (GhostGuard $GG_EXPECT via $URL)"\n  rm -f "$M" "$MC"\n  return 0\n}\n\nmanifest_check(){\n  GG_ACTIVE_REPO=""\n  if manifest_check_url "$GG_REPO"; then\n    GG_ACTIVE_REPO="$GG_REPO"\n    return 0\n  fi\n  log "WARN: primary GhostGuard manifest unavailable; trying jsDelivr mirror"\n  if manifest_check_url "$GG_REPO_MIRROR"; then\n    GG_ACTIVE_REPO="$GG_REPO_MIRROR"\n    return 0\n  fi\n  log "ERROR: GhostGuard manifest unavailable on primary and mirror"\n  return 1\n}\n\nsearch_gg(){ "$KPM" -y search ghostguard 2>&1; }\nrepo_ready(){\n  R="$(search_gg || true)"\n  printf '%s\\n' "$R" >> "$LOG"\n  printf '%s\\n' "$R" | grep -q -- '- ghostguard ('\n}\nregistered_gg_endpoint(){\n  R="$1"\n  if printf '%s\\n' "$R" | grep -Fq "$GG_REPO"; then\n    printf '%s\\n' "$GG_REPO"\n    return 0\n  fi\n  if printf '%s\\n' "$R" | grep -Fq "$GG_REPO_MIRROR"; then\n    printf '%s\\n' "$GG_REPO_MIRROR"\n    return 0\n  fi\n  return 1\n}\nrepo_registered_current(){\n  registered_gg_endpoint "$1" >/dev/null 2>&1\n}\nregister_gg_repo(){\n  URL="$1"\n  log "Registering GhostGuard repository endpoint: $URL"\n  run "$KPM" -y remove-repo "$GG_REPO_ID" || log "remove-repo returned non-zero (repo may not exist)."\n  run "$KPM" -y add-repo "$URL" || return 1\n  return 0\n}\nrefresh_gg_index(){\n  UPDATE_RC=0\n  run "$KPM" -y update || UPDATE_RC=$?\n  if repo_ready; then\n    if [ "$UPDATE_RC" -ne 0 ]; then\n      log "WARN: kpm update returned rc=$UPDATE_RC because another repository may have failed, but ghostguard is indexed; continuing."\n    fi\n    return 0\n  fi\n  [ "$UPDATE_RC" -eq 0 ] || log "WARN: kpm update returned rc=$UPDATE_RC and ghostguard is not visible yet."\n  return 1\n}\n\nrepair_gg(){\n  say 6 "Lam moi GhostGuard repo..."\n  manifest_check || return 1\n\n  R="$(kpm_list || true)"\n  printf '%s\\n' "$R" >> "$LOG"\n  CURRENT="$(registered_gg_endpoint "$R" 2>/dev/null || true)"\n  if [ -z "$CURRENT" ]; then\n    CURRENT="$GG_ACTIVE_REPO"\n    log "GhostGuard repo is missing or legacy; registering validated endpoint."\n    register_gg_repo "$CURRENT" || return 1\n  fi\n\n  if refresh_gg_index; then\n    GG_ACTIVE_REPO="$CURRENT"\n    log "GhostGuard repository exposes package ghostguard after refresh ($CURRENT)."\n    return 0\n  fi\n\n  if [ "$CURRENT" = "$GG_REPO_MIRROR" ]; then\n    FALLBACK="$GG_REPO"\n  else\n    FALLBACK="$GG_REPO_MIRROR"\n  fi\n  log "GhostGuard package not visible via current endpoint; trying fallback: $FALLBACK"\n  manifest_check_url "$FALLBACK" || { log "ERROR: fallback GhostGuard manifest validation failed"; return 1; }\n  register_gg_repo "$FALLBACK" || return 1\n  refresh_gg_index || { log "ERROR: GhostGuard package not visible on primary or mirror"; return 1; }\n  GG_ACTIVE_REPO="$FALLBACK"\n  log "GhostGuard v2 repo refresh complete via fallback endpoint."\n  return 0\n}\n'''
+          if old not in s:
+              raise SystemExit('manifest/repair block anchor not found')
+          s = s.replace(old, new, 1)
+
+          s = s.replace(
+              'has_gg(){ T="$(gg_plugin_target 2>/dev/null || true)"; [ -n "$T" ] && [ -f "$T/simpleui_bridge.lua" ]; }\n',
+              'has_gg(){ T="$(gg_plugin_target 2>/dev/null || true)"; [ -n "$T" ] && [ -f "$T/simpleui_bridge.lua" ]; }\nhas_gg_expected(){ T="$(gg_plugin_target 2>/dev/null || true)"; [ -n "$T" ] && grep -Fq "version = \\"$GG_EXPECT\\"" "$T/defaults.lua" 2>/dev/null; }\n', 1)
+
+          old_install = '''  INSTALL_OK=0\n  if run "$KPM" -y install ghostguard; then\n    INSTALL_OK=1\n  else\n    log "GhostGuard install returned non-zero; refreshing v2 repo and retrying once."\n    run "$KPM" -y remove-repo "$GG_REPO_ID" || true\n    run "$KPM" -y add-repo "$GG_REPO" || true\n    run "$KPM" -y update || true\n    if run "$KPM" -y install ghostguard; then INSTALL_OK=1; fi\n  fi\n\n  if [ "$INSTALL_OK" -ne 1 ] && ! has_gg; then\n    log "ERROR: GhostGuard install failed and no existing runtime was found."\n    say 9 "LOI: Cai GhostGuard that bai"\n    exit 1\n  fi\n\n  [ "$INSTALL_OK" -eq 1 ] && log "GhostGuard install command completed." || log "Using existing GhostGuard runtime; applying latest bridge hotfix."\n'''
+          new_install = '''  INSTALL_OK=0\n  if run "$KPM" -y install ghostguard && has_gg_expected; then\n    INSTALL_OK=1\n  else\n    log "GhostGuard install did not activate expected version $GG_EXPECT; repairing repository and retrying once."\n    repair_gg || log "WARN: repository repair retry returned non-zero"\n    if run "$KPM" -y install ghostguard && has_gg_expected; then INSTALL_OK=1; fi\n  fi\n\n  if [ "$INSTALL_OK" -ne 1 ]; then\n    if has_gg; then\n      log "ERROR: GhostGuard runtime exists but expected version $GG_EXPECT is not active."\n    else\n      log "ERROR: GhostGuard install failed and no existing runtime was found."\n    fi\n    say 9 "LOI: Cai GhostGuard $GG_EXPECT that bai"\n    exit 1\n  fi\n\n  log "GhostGuard $GG_EXPECT install/verification completed."\n'''
+          if old_install not in s:
+              raise SystemExit('install retry anchor not found')
+          s = s.replace(old_install, new_install, 1)
+          p.write_text(s)
+
+          w = Path('.github/workflows/build-artifact-v0612.yml')
+          t = w.read_text()
+          marker = "          grep -q 'DCPRO_ONECLICK_LIB_ONLY' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh\n"
+          insert = marker + "          grep -q 'GG_REPO_MIRROR=https://cdn.jsdelivr.net/' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh\n          grep -q 'GG_BRIDGE_MIRROR_URL=https://cdn.jsdelivr.net/' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh\n          grep -q 'refresh_gg_index' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh\n          grep -q 'has_gg_expected' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh\n"
+          if marker not in t:
+              raise SystemExit('workflow static validation anchor not found')
+          t = t.replace(marker, insert, 1)
+
+          step_anchor = "      - name: Validate integrated KOReader safety guards\n"
+          repo_step = '''      - name: Validate KPM repository refresh fallback\n        shell: bash\n        run: |\n          export DCPRO_ONECLICK_LIB_ONLY=1\n          export DCPRO_ONECLICK_ROOT=/tmp/dcpro-repo-test\n          export DCPRO_ONECLICK_LOG=/tmp/dcpro-repo-test.log\n          export DCPRO_ONECLICK_TMP=/tmp/dcpro-repo-state\n          . ./DCPRO_GhostGuard_OneClick_Installer_v12.1.sh\n\n          manifest_check(){ GG_ACTIVE_REPO="$GG_REPO"; return 0; }\n          manifest_check_url(){ return 0; }\n          TEST_ENDPOINT="$GG_REPO"\n          TEST_VISIBLE=1\n          kpm_list(){ printf '  - %s - Test (%s)\\n' "$GG_REPO_ID" "$TEST_ENDPOINT"; }\n          search_gg(){\n            if [ "$TEST_VISIBLE" = "1" ] || [ "$TEST_ENDPOINT" = "$GG_REPO_MIRROR" ]; then\n              printf '  - ghostguard (DCPRO GhostGuard): test\\n'\n            else\n              printf 'Found 0 package(s) for ghostguard:\\n'\n            fi\n          }\n          run(){\n            case "${3:-}" in\n              update) return 1 ;;\n              remove-repo) return 0 ;;\n              add-repo) TEST_ENDPOINT="$4"; return 0 ;;\n              *) return 0 ;;\n            esac\n          }\n\n          # Non-zero global update must be tolerated when ghostguard is indexed.\n          repair_gg\n          test "$TEST_ENDPOINT" = "$GG_REPO"\n\n          # If primary does not expose ghostguard, switch to jsDelivr; even if\n          # global update remains non-zero because another repo is broken.\n          TEST_VISIBLE=0\n          TEST_ENDPOINT="$GG_REPO"\n          repair_gg\n          test "$TEST_ENDPOINT" = "$GG_REPO_MIRROR"\n\n'''
+          if step_anchor not in t:
+              raise SystemExit('workflow step anchor not found')
+          t = t.replace(step_anchor, repo_step + step_anchor, 1)
+          w.write_text(t)
+          PY
+          sh -n DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          git rm .github/workflows/_apply-kpm-repo-fix-temp.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add DCPRO_GhostGuard_OneClick_Installer_v12.1.sh .github/workflows/build-artifact-v0612.yml
+          git commit -m "fix: make KPM repo refresh resilient [repo-fix-bot]"
+          git push origin HEAD:agent/fix-kpm-repo-refresh
