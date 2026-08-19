@@ -69,3 +69,4 @@ need('DCPRO_GhostGuard_OneClick_Installer_v12.1.sh', 'ghostguard_0.6.16_kindle5-
 need('.github/workflows/build-artifact-v0612.yml', 'ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg')
 
 print('RELEASE_0616_PREPARED')
+# trigger: workflow already exists on this branch
