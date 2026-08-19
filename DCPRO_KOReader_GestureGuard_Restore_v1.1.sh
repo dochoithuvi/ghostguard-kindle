@@ -1,6 +1,6 @@
 #!/bin/sh
-# Name: DCPRO KOReader GestureGuard RESTORE v1
-# Restores the one-time backup created by DCPRO_KOReader_GestureGuard_Test_v1.sh.
+# Name: DCPRO KOReader GestureGuard RESTORE v1.1
+# Restores the one-time backup created by GestureGuard test v1/v1.1.
 
 ROOT=/mnt/us
 LOG="$ROOT/documents/KOReader_GestureGuard_Restore.log"
@@ -40,5 +40,5 @@ fi
 
 rm -f "$STATE_FILE" 2>/dev/null || true
 log "SUCCESS: restored $RESTORED KOReader target(s). Restart KOReader."
-printf '%s\n' "OK: KOReader GestureGuard v1 restored. Restart KOReader."
+printf '%s\n' "OK: KOReader GestureGuard v1.1 restored. Restart KOReader."
 exit 0

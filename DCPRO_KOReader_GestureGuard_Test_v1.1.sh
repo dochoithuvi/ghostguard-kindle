@@ -1,5 +1,5 @@
 #!/bin/sh
-# Name: DCPRO KOReader GestureGuard TEST v1
+# Name: DCPRO KOReader GestureGuard TEST v1.1
 # Experimental fail-safe patch for KOReader GestureDetector nil-coordinate crashes.
 # Targeted at the v2026.07.1 code shape currently reproduced on KindleBasic4/goodix-ts.
 # This script does NOT modify GhostGuard. It only patches KOReader's
@@ -20,7 +20,7 @@ log() {
 
 fail() {
     log "ERROR: $*"
-    printf '%s\n' "KOReader GestureGuard TEST v1: $*" >&2
+    printf '%s\n' "KOReader GestureGuard TEST v1.1: $*" >&2
     exit 1
 }
 
@@ -37,12 +37,23 @@ find_luajit() {
     return 1
 }
 
+validate_lua_syntax() {
+    LUAJIT_BIN="$1"
+    LUA_FILE="$2"
+    LUA_EXPR="local f,e=loadfile([[$LUA_FILE]]); if not f then io.stderr:write((e or 'syntax error') .. '\\n'); os.exit(1) end"
+    if "$LUAJIT_BIN" -e "$LUA_EXPR" >> "$LOG" 2>&1; then
+        log "LuaJIT loadfile syntax validation: PASS"
+        return 0
+    fi
+    log "ERROR: LuaJIT loadfile syntax validation failed; original file left untouched"
+    return 1
+}
+
 patch_one() {
     TARGET="$1"
     KO_ROOT="${TARGET%/frontend/device/gesturedetector.lua}"
     BACKUP="$TARGET.dcpro-pre-gesture-guard-v1.bak"
     TMP="$TARGET.dcpro-gesture-guard-v1.tmp.$$"
-    BYTECODE="$STATE_DIR/gesture_guard_v1_check.luac"
 
     log "Target: $TARGET"
 
@@ -165,14 +176,10 @@ patch_one() {
 
     LUAJIT="$(find_luajit "$KO_ROOT" 2>/dev/null || true)"
     if [ -n "$LUAJIT" ]; then
-        rm -f "$BYTECODE" 2>/dev/null || true
-        if ! "$LUAJIT" -b "$TMP" "$BYTECODE" >> "$LOG" 2>&1; then
-            rm -f "$TMP" "$BYTECODE" 2>/dev/null || true
-            log "ERROR: LuaJIT syntax validation failed; original file left untouched"
+        if ! validate_lua_syntax "$LUAJIT" "$TMP"; then
+            rm -f "$TMP" 2>/dev/null || true
             return 1
         fi
-        rm -f "$BYTECODE" 2>/dev/null || true
-        log "LuaJIT syntax validation: PASS"
     else
         log "WARN: LuaJIT binary not found; syntax compile check skipped"
     fi
@@ -184,7 +191,7 @@ patch_one() {
 }
 
 log "========================================"
-log "DCPRO KOReader GestureGuard TEST v1"
+log "DCPRO KOReader GestureGuard TEST v1.1"
 log "Date: $(date)"
 log "Purpose: prevent GestureDetector nil x/y arithmetic crashes"
 log "========================================"
@@ -213,12 +220,13 @@ done
 
 {
     echo "DCPRO_KOREADER_GESTURE_GUARD_V1"
+    echo "PATCH_REVISION=1.1"
     echo "UTC=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date)"
     echo "TARGETS=$PATCHED"
     echo "LOG=$LOG"
 } > "$STATE_FILE" 2>/dev/null || true
 
-log "SUCCESS: gesture nil-guard installed on $PATCHED KOReader target(s)."
+log "SUCCESS: gesture nil-guard v1.1 installed on $PATCHED KOReader target(s)."
 log "Restart KOReader before testing."
-printf '%s\n' "OK: KOReader GestureGuard TEST v1 installed. Restart KOReader."
+printf '%s\n' "OK: KOReader GestureGuard TEST v1.1 installed. Restart KOReader."
 exit 0
