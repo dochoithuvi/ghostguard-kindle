@@ -12,12 +12,67 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: agent/fix-kpm-repo-refresh
-      - run: python3 scripts/_apply_kpm_repo_fix.py
-      - run: sh -n DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
-      - name: Commit generated fix
+      - name: Apply, test and commit OneClick only
+        shell: bash
         run: |
+          set -e
+          if grep -q 'GG_REPO_MIRROR=https://cdn.jsdelivr.net/' DCPRO_GhostGuard_OneClick_Installer_v12.1.sh; then
+            echo 'OneClick repo fallback already applied; nothing to do.'
+            exit 0
+          fi
+
+          python3 scripts/_apply_kpm_repo_fix.py
+          sh -n DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+
+          export DCPRO_ONECLICK_LIB_ONLY=1
+          export DCPRO_ONECLICK_ROOT=/tmp/dcpro-repo-test
+          export DCPRO_ONECLICK_LOG=/tmp/dcpro-repo-test.log
+          export DCPRO_ONECLICK_TMP=/tmp/dcpro-repo-state
+          . ./DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+
+          manifest_check(){ GG_ACTIVE_REPO="$GG_REPO"; return 0; }
+          manifest_check_url(){ return 0; }
+          TEST_ENDPOINT="$GG_REPO"
+          TEST_VISIBLE=1
+          kpm_list(){ printf '  - %s - Test (%s)\n' "$GG_REPO_ID" "$TEST_ENDPOINT"; }
+          search_gg(){
+            if [ "$TEST_VISIBLE" = "1" ] || [ "$TEST_ENDPOINT" = "$GG_REPO_MIRROR" ]; then
+              printf '  - ghostguard (DCPRO GhostGuard): test\n'
+            else
+              printf 'Found 0 package(s) for ghostguard:\n'
+            fi
+          }
+          run(){
+            case "${3:-}" in
+              update) return 1 ;;
+              remove-repo) return 0 ;;
+              add-repo) TEST_ENDPOINT="$4"; return 0 ;;
+              *) return 0 ;;
+            esac
+          }
+
+          # Case 1: another repo makes global kpm update non-zero, but GhostGuard
+          # is already indexed. OneClick must continue on the primary endpoint.
+          repair_gg
+          test "$TEST_ENDPOINT" = "$GG_REPO"
+
+          # Case 2: primary no longer exposes GhostGuard. OneClick must switch
+          # to jsDelivr and accept it even if global kpm update is still non-zero.
+          TEST_VISIBLE=0
+          TEST_ENDPOINT="$GG_REPO"
+          repair_gg
+          test "$TEST_ENDPOINT" = "$GG_REPO_MIRROR"
+
+          # Applicator also edits CI and deletes its own temp files locally.
+          # Restore those paths so the pushed commit contains OneClick only.
+          git restore --source=HEAD -- .github/workflows/build-artifact-v0612.yml
+          git restore --source=HEAD -- .github/workflows/_apply-kpm-repo-fix-pr.yml
+          git restore --source=HEAD -- .github/workflows/_apply-kpm-repo-fix-temp.yml
+          git restore --source=HEAD -- scripts/_apply_kpm_repo_fix.py
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          git diff --cached --quiet && { echo 'No OneClick changes to commit.'; exit 0; }
           git commit -m "fix: make KPM repo refresh resilient [repo-fix-bot]"
           git push origin HEAD:agent/fix-kpm-repo-refresh
