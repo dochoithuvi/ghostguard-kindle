@@ -75,9 +75,12 @@ return {
     teleport_distance = 350,
     zero_life_us = 1500,
 
-    protect_supported_models = {
-        KindleBasic4 = true,
-    },
+    -- Protect is no longer restricted to a model allowlist. Keep the same
+    -- lookup contract used by GhostGuard:protectSupported(), but return true
+    -- for every KOReader-reported Kindle model (including future model IDs).
+    protect_supported_models = setmetatable({}, {
+        __index = function() return true end,
+    }),
 
     weak_low_touch_major = 20,
     weak_short_lifetime_us = 100000,
