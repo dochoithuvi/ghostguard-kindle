@@ -3,7 +3,7 @@
 # Self-contained production bootstrap for KPM v0.2.x.
 # Installs/checks KOReader, applies tested KOReader GestureGuard + TouchMenuGuard
 # fail-safes, optionally installs SimpleUI, refreshes the current multi-package
-# KPM repository, installs GhostGuard 0.6.14, syncs the latest SimpleUI Tools
+# KPM repository, installs GhostGuard 0.6.15, syncs the latest SimpleUI Tools
 # bridge, then launches GhostGuard.
 
 LIB_ONLY=${DCPRO_ONECLICK_LIB_ONLY:-0}
@@ -21,8 +21,8 @@ fi
 
 GG_REPO_ID=dochoithuvi-ghostguard
 GG_REPO=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/manifest.v2.json
-GG_EXPECT=0.6.14
-GG_ARTIFACT=packages/ghostguard/artifacts/ghostguard_0.6.14_kindle5-kindlepw2-kindlehf.kpkg
+GG_EXPECT=0.6.15
+GG_ARTIFACT=packages/ghostguard/artifacts/ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg
 GG_BRIDGE_URL=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/source/payload/dcghostguardpro.koplugin/simpleui_bridge.lua
 
 KMC_REPO_ID=kindlemodding
@@ -490,8 +490,8 @@ manifest_check(){
   grep -q '"id"[[:space:]]*:[[:space:]]*"'$GG_REPO_ID'"' "$M" || { log "ERROR: manifest repo id mismatch"; return 1; }
   tr -d '[:space:]' < "$M" > "$MC" || { log "ERROR: cannot normalize manifest"; return 1; }
   grep -Fq '"ghostguard":{' "$MC" || { log "ERROR: ghostguard package missing"; return 1; }
-  grep -Fq '"url":"'$GG_ARTIFACT'"' "$MC" || { log "ERROR: GhostGuard 0.6.14 artifact missing"; return 1; }
-  grep -Fq '"version":[0,6,14]' "$MC" || { log "ERROR: expected GhostGuard 0.6.14 not present"; return 1; }
+  grep -Fq '"url":"'$GG_ARTIFACT'"' "$MC" || { log "ERROR: GhostGuard 0.6.15 artifact missing"; return 1; }
+  grep -Fq '"version":[0,6,15]' "$MC" || { log "ERROR: expected GhostGuard 0.6.15 not present"; return 1; }
   log "Manifest validation: PASS (GhostGuard $GG_EXPECT)"
   rm -f "$M" "$MC"
   return 0
@@ -569,10 +569,10 @@ main(){
   esac
 
   install_simpleui || log "SimpleUI skipped; native/ZenUI may be used."
-  say 7 "Kiem tra GhostGuard 0.6.14..."
+  say 7 "Kiem tra GhostGuard 0.6.15..."
 
   repair_gg || { log "ERROR: GhostGuard repo setup failed"; say 8 "LOI: Khong lam moi duoc repo"; exit 1; }
-  say 8 "Cai/cap nhat GhostGuard 0.6.14..."
+  say 8 "Cai/cap nhat GhostGuard 0.6.15..."
 
   INSTALL_OK=0
   if run "$KPM" -y install ghostguard; then

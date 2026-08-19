@@ -7,9 +7,12 @@ Public KPM v2 repository for Kindle tools maintained by Do Choi Thu Vi.
 ### GhostGuard
 
 - Package ID: `ghostguard`
-- Current version: `0.6.14`
+- Current version: `0.6.15`
 - KOReader touch-protection plugin.
-- Current artifact: `packages/ghostguard/artifacts/ghostguard_0.6.14_kindle5-kindlepw2-kindlehf.kpkg`
+- Current artifact: `packages/ghostguard/artifacts/ghostguard_0.6.15_kindle5-kindlepw2-kindlehf.kpkg`
+- Learning completion supports two safe outcomes:
+  - `GHOST_CLUSTER`: repeated ghost evidence is strong enough to activate learned coordinate clusters.
+  - `BASELINE`: normal usage has supplied enough completed contacts but no ghost cluster is yet trustworthy; Protect stays conservative and does not use weak coordinates as a blocking bonus.
 
 ### KindleForge
 
@@ -17,6 +20,21 @@ Public KPM v2 repository for Kindle tools maintained by Do Choi Thu Vi.
 - KPM integration revision: `4.1.1`
 - Upstream KindleForge UI: `4.1.0 stable`
 - Current artifact: `packages/kindleforge/artifacts/kindleforge_4.1.1_kindle5-kindlepw2-kindlehf.kpkg`
+
+## GhostGuard learning flow
+
+GhostGuard `0.6.15` keeps the existing ghost-signature thresholds (`12` suspect contacts with a strongest cluster of at least `5`) and adds a healthy-device completion path. Calibration counts every completed contact and stores both the contact count and learning time cumulatively across clean learning sessions.
+
+A profile becomes ready only after at least `180` seconds of cumulative learning time. At that point it completes as:
+
+- `GHOST_CLUSTER` when the repeated ghost evidence reaches `12` suspect contacts and the strongest cluster reaches `5` samples; or
+- `BASELINE` when at least `40` completed contacts have been observed without a sufficiently trustworthy ghost cluster.
+
+Because readiness time and contact progress are stored in the pending profile, ending or restarting a clean learning session does not reset the learning progress. The ready popup follows this cumulative readiness directly and does not impose another per-session `180` second wait.
+
+A `BASELINE` profile can be approved and used for Protect, but `ProfileManager:match()` deliberately returns no coordinate match for Baseline profiles. Generic abnormality, incomplete-position, extreme-edge, burst scoring, probation limits, fail-open behavior, and circuit breaker protection remain unchanged.
+
+Profiles written by GhostGuard `<=0.6.14` without `PROFILE_KIND` or `LEARNING_SECONDS` remain readable. Existing READY legacy profiles keep their readiness, and approved legacy profiles with clusters are treated as `GHOST_CLUSTER` profiles.
 
 ## Recommended GhostGuard OneClick
 
@@ -36,7 +54,7 @@ DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
 6. Validates the current multi-package repository manifest.
 7. Re-registers the repository only when the configured endpoint is missing/legacy.
 8. Runs `kpm update` and verifies package `ghostguard` is indexed.
-9. Installs GhostGuard `0.6.14`.
+9. Installs GhostGuard `0.6.15`.
 10. Syncs the latest compatible `simpleui_bridge.lua`.
 11. Launches GhostGuard.
 

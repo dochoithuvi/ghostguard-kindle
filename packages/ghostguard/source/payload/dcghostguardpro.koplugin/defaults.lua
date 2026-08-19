@@ -1,5 +1,5 @@
 return {
-    version = "0.6.14",
+    version = "0.6.15",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
     protect_mode = "PROTECT_PROFILE",
@@ -93,6 +93,11 @@ return {
     calibration_max_clusters = 8,
     calibration_profile_padding_x = 36,
     calibration_profile_padding_y = 56,
+    -- A healthy device may produce very few ghost candidates. Learning can
+    -- therefore complete as a conservative BASELINE after both enough normal
+    -- completed touches and enough cumulative learning time across sessions.
+    calibration_min_total_contacts = 40,
+    calibration_min_learning_seconds = 180,
 
     protect_min_base_score = 4,
     protect_suspect_score = 5,

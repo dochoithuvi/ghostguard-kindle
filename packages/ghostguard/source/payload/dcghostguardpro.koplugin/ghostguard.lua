@@ -386,10 +386,11 @@ function GhostGuard:onRawEvent(event)
     end
     if tonumber(event.type) == EV_SYN and tonumber(event.code) == SYN_REPORT then
         self.pending_frame_decision = self.protect_enabled and decision_or_err or nil
+        -- Readiness already includes the minimum cumulative learning time in
+        -- ProfileManager. Do not require another 180 seconds in the current
+        -- session or a resumed learner will look like it has reset.
         if self.calibration_enabled and not self.profile_ready_notified
-            and self.profiles:isCalibrationReady()
-            and self.session_started_wall
-            and wall_now - self.session_started_wall >= (self.config.customer_ready_notice_after_seconds or 180) then
+            and self.profiles:isCalibrationReady() then
             self.profile_ready_notified = true
             self.storage:touch(self.config.customer_profile_ready_marker,
                 "READY=1\nUTC=" .. os.date("!%Y-%m-%dT%H:%M:%SZ") .. "\n")

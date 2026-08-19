@@ -4,7 +4,7 @@ ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 SRC="$ROOT/packages/ghostguard/source"
 OUT="$ROOT/packages/ghostguard/artifacts"
 VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' "$SRC/manifest.json" | head -1 | tr -d ' ' | tr ',' '.')
-[ -n "$VERSION" ] || VERSION=0.6.14
+[ -n "$VERSION" ] || VERSION=0.6.15
 PKG="$OUT/ghostguard_${VERSION}_kindle5-kindlepw2-kindlehf.kpkg"
 rm -f "$PKG"
 TMP=$(mktemp -d)
@@ -13,7 +13,7 @@ mkdir -p "$TMP/payload" "$TMP/scriptlets" "$TMP/assets"
 cp "$SRC/manifest.json" "$TMP/manifest.json"
 cp -R "$SRC/payload/dcghostguardpro.koplugin" "$TMP/payload/"
 # Idempotent repair for legacy 0.6.11 source. If the source is already on the
-# 0.6.14 bridge implementation, leave it untouched instead of failing the build.
+# current bridge implementation, leave it untouched instead of failing the build.
 python3 - "$TMP/payload/dcghostguardpro.koplugin/main.lua" <<'PY'
 import sys
 p = sys.argv[1]
@@ -26,7 +26,7 @@ if old in s:
 s = s.replace('    -- 0.6.11 SAFE DIAGNOSTIC: no SimpleUI/ZenUI bridge instances.\n    self.simpleui = nil\n    self.zenui = nil\n', '', 1)
 open(p, "w", encoding="utf-8").write(s)
 PY
-# Idempotent 0.6.14 Protect fix. If the source is already repaired, keep it.
+# Idempotent Protect fix. If the source is already repaired, keep it.
 python3 - "$TMP/payload/dcghostguardpro.koplugin/ghostguard.lua" <<'PY'
 import sys
 p = sys.argv[1]
@@ -46,7 +46,8 @@ python3 - "$TMP/payload/dcghostguardpro.koplugin/defaults.lua" <<'PY'
 import sys
 p = sys.argv[1]
 s = open(p, encoding="utf-8").read()
-s = s.replace('version = "0.6.13"', 'version = "0.6.14"', 1)
+for old in ('0.6.13', '0.6.14'):
+    s = s.replace('version = "' + old + '"', 'version = "0.6.15"', 1)
 open(p, "w", encoding="utf-8").write(s)
 PY
 cp "$SRC/install.sh" "$TMP/install.sh"
@@ -56,7 +57,7 @@ if [ -f "$SRC/assets/ghostguard_library_600x960.jpg" ]; then
   cp "$SRC/assets/ghostguard_library_600x960.jpg" "$TMP/assets/ghostguard_library_600x960.jpg"
 fi
 chmod +x "$TMP/install.sh" "$TMP/launch.sh" "$TMP/scriptlets/DCPRO_GhostGuard.sh"
-for f in main.lua ghostguard.lua defaults.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua simpleui_bridge.lua zenui_bridge.lua; do
+for f in main.lua ghostguard.lua defaults.lua profile_manager.lua touch_observer.lua license_manager.lua keys/keyring.lua adaptive_bootstrap.lua simpleui_bridge.lua zenui_bridge.lua; do
   test -f "$TMP/payload/dcghostguardpro.koplugin/$f"
 done
 test -f "$TMP/manifest.json"
@@ -67,7 +68,10 @@ grep -q 'SimpleUIBridge.new' "$TMP/payload/dcghostguardpro.koplugin/main.lua"
 ! grep -q 'self.simpleui = nil' "$TMP/payload/dcghostguardpro.koplugin/main.lua"
 grep -q 'local bridge_ok, bridge_err = self:ensureInputBridge()' "$TMP/payload/dcghostguardpro.koplugin/ghostguard.lua"
 ! grep -q 'local protect = mode == self.config.protect_mode    local protect' "$TMP/payload/dcghostguardpro.koplugin/ghostguard.lua"
-grep -q 'version = "0.6.14"' "$TMP/payload/dcghostguardpro.koplugin/defaults.lua"
+grep -q 'version = "0.6.15"' "$TMP/payload/dcghostguardpro.koplugin/defaults.lua"
+grep -q 'calibration_min_total_contacts = 40' "$TMP/payload/dcghostguardpro.koplugin/defaults.lua"
+grep -q 'PROFILE_KIND=' "$TMP/payload/dcghostguardpro.koplugin/profile_manager.lua"
+grep -q 'profile_kind == "BASELINE"' "$TMP/payload/dcghostguardpro.koplugin/profile_manager.lua"
 tar -C "$TMP" -czf "$PKG" manifest.json payload install.sh launch.sh scriptlets assets
 # Sync patched runtime/config back into the source tree for reproducibility.
 cp "$TMP/payload/dcghostguardpro.koplugin/ghostguard.lua" "$SRC/payload/dcghostguardpro.koplugin/ghostguard.lua"
