@@ -9,6 +9,8 @@
 -- validator; the real implementations remain in ghostguard_core.lua:
 -- local bridge_ok, bridge_err = self:ensureInputBridge()
 -- CALIBRATION_INPUT:
+-- Readiness already includes the minimum cumulative learning time
+-- and self.profiles:isCalibrationReady() then
 
 local source = debug.getinfo(1, "S").source or ""
 local plugin_dir = source:sub(1, 1) == "@" and source:sub(2):match("(.*/)") or nil
