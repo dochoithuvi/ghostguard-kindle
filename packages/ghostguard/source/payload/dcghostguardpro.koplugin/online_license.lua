@@ -24,7 +24,10 @@ local function valid_date(s)
 end
 
 local function date_num(s)
-    return tonumber((s or ""):gsub("-", "")) or 0
+    -- string.gsub also returns the replacement count; keep only the compact
+    -- date string so tonumber never interprets that count as a numeric base.
+    local compact = (tostring(s or ""):gsub("-", ""))
+    return tonumber(compact) or 0
 end
 
 local function load_keyring(plugin_dir)
