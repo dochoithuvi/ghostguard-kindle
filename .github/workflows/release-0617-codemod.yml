@@ -1,0 +1,151 @@
+name: One-time GhostGuard 0.6.17 codemod
+
+on:
+  push:
+    branches:
+      - agent/release-0617-license-clock-watchdog
+
+permissions:
+  contents: write
+
+jobs:
+  codemod:
+    if: ${{ !contains(github.event.head_commit.message, '[release-0617-bot]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/release-0617-license-clock-watchdog
+          fetch-depth: 0
+
+      - name: Apply release and license-watchdog patch
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          production = [
+              Path('DCPRO_GhostGuard_OneClick_Installer_v12.1.sh'),
+              Path('README.md'),
+              Path('manifest.v2.json'),
+              Path('manifest.json'),
+              Path('manifest.mirror.json'),
+              Path('packages/ghostguard/source/manifest.json'),
+              Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua'),
+              Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/_meta.lua'),
+              Path('scripts/build_artifact_v0612.sh'),
+              Path('.github/workflows/build-artifact-v0612.yml'),
+          ]
+
+          for p in production:
+              s = p.read_text(encoding='utf-8')
+              s = s.replace('0.6.16', '0.6.17')
+              s = s.replace('[0, 6, 16]', '[0, 6, 17]')
+              s = s.replace('[0,6,16]', '[0,6,17]')
+              s = s.replace('calibration-flow-v2', 'license-clock-watchdog-v1')
+              p.write_text(s, encoding='utf-8')
+
+          build = Path('scripts/build_artifact_v0612.sh')
+          s = build.read_text(encoding='utf-8')
+          s = s.replace("for old in ('0.6.13', '0.6.14', '0.6.17'):",
+                        "for old in ('0.6.13', '0.6.14', '0.6.16', '0.6.17'):")
+          build.write_text(s, encoding='utf-8')
+
+          guard = Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua')
+          s = guard.read_text(encoding='utf-8')
+          old = '''    if not self.last_license_check_wall
+              or wall_now - self.last_license_check_wall >= (self.config.license_recheck_seconds or 30) then
+                  self.last_license_check_wall = wall_now
+                  local licensed, detail = self:licenseValid(false)
+                  if not licensed then
+                      self.last_error = "License failsafe: " .. tostring(detail)
+                      if self.session then
+                          self.session:writeAction({ timestamp_us = wall_now * 1000000, slot = -1, tracking_id = -1 },
+                              "LICENSE_FAILSAFE_STOP", self.last_error)
+                          self.session:flush()
+                      end
+                      self:setAutoProtectEnabled(false, true)
+                      self:stop("license-invalid")
+                      return
+                  end
+              end
+          '''
+          # Keep an exact, indentation-normalized fallback in case the source uses 4-space indentation.
+          if old not in s:
+              old = '''    if not self.last_license_check_wall
+        or wall_now - self.last_license_check_wall >= (self.config.license_recheck_seconds or 30) then
+        self.last_license_check_wall = wall_now
+        local licensed, detail = self:licenseValid(false)
+        if not licensed then
+            self.last_error = "License failsafe: " .. tostring(detail)
+            if self.session then
+                self.session:writeAction({ timestamp_us = wall_now * 1000000, slot = -1, tracking_id = -1 },
+                    "LICENSE_FAILSAFE_STOP", self.last_error)
+                self.session:flush()
+            end
+            self:setAutoProtectEnabled(false, true)
+            self:stop("license-invalid")
+            return
+        end
+    end
+'''
+          new = '''    -- Ask LicenseManager on every raw input event. LicenseManager itself caches
+    -- successful checks for license_recheck_seconds, but deliberately bypasses
+    -- that cache when the wall clock moves backwards. Keeping the outer timer
+    -- here used to make a rollback produce a negative delta and skip license
+    -- validation indefinitely until the old clock value was reached again.
+    local licensed, detail = self:licenseValid(false)
+    self.last_license_check_wall = wall_now
+    if not licensed then
+        self.last_error = "License failsafe: " .. tostring(detail)
+        if self.session then
+            self.session:writeAction({ timestamp_us = wall_now * 1000000, slot = -1, tracking_id = -1 },
+                "LICENSE_FAILSAFE_STOP", self.last_error)
+            self.session:flush()
+        end
+        self:setAutoProtectEnabled(false, true)
+        self:stop("license-invalid")
+        return
+    end
+'''
+          if old not in s:
+              raise SystemExit('GhostGuard onRawEvent license watchdog anchor not found')
+          if s.count(old) != 1:
+              raise SystemExit(f'GhostGuard watchdog anchor count unexpected: {s.count(old)}')
+          s = s.replace(old, new, 1)
+          guard.write_text(s, encoding='utf-8')
+
+          regression = Path('.github/workflows/ghostguard-license-icon-regression.yml')
+          s = regression.read_text(encoding='utf-8')
+          trigger = '      - packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua\n'
+          if 'ghostguard.lua\n' not in s.split('workflow_dispatch:')[0]:
+              s = s.replace(trigger, trigger + '      - packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua\n', 1)
+          marker = '      - name: Validate KindleForge-style embedded icon\n'
+          step = '''      - name: Validate runtime clock watchdog\n        run: |\n          G=packages/ghostguard/source/payload/dcghostguardpro.koplugin/ghostguard.lua\n          grep -q 'local licensed, detail = self:licenseValid(false)' "$G"\n          grep -q 'deliberately bypasses' "$G"\n          ! grep -q 'wall_now - self.last_license_check_wall >= (self.config.license_recheck_seconds or 30)' "$G"\n\n'''
+          if 'Validate runtime clock watchdog' not in s:
+              if marker not in s:
+                  raise SystemExit('Regression workflow insertion anchor missing')
+              s = s.replace(marker, step + marker, 1)
+          regression.write_text(s, encoding='utf-8')
+
+          # Sanity checks before allowing a bot commit.
+          assert 'version = "0.6.17"' in Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua').read_text()
+          assert 'runtime_revision = "license-clock-watchdog-v1"' in Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua').read_text()
+          assert '"version": [0, 6, 17]' in Path('packages/ghostguard/source/manifest.json').read_text()
+          assert 'GG_EXPECT=0.6.17' in Path('DCPRO_GhostGuard_OneClick_Installer_v12.1.sh').read_text()
+          assert 'ghostguard_0.6.17_kindle5-kindlepw2-kindlehf.kpkg' in Path('manifest.v2.json').read_text()
+          assert 'wall_now - self.last_license_check_wall >=' not in guard.read_text()
+          PY
+
+          rm -f .github/workflows/release-0617-codemod.yml
+
+      - name: Commit codemod result
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git diff --cached --quiet && exit 0
+          git commit -m "release GhostGuard 0.6.17 license clock watchdog [release-0617-bot]"
+          git push origin HEAD:agent/release-0617-license-clock-watchdog
