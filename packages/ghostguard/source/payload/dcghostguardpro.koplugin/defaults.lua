@@ -23,6 +23,7 @@ return {
 
     license_required = true,
     license_recheck_seconds = 30,
+    license_clock_rollback_tolerance_seconds = 300,
     allow_legacy_license_migration = false,
     legacy_license_paths = {},
 

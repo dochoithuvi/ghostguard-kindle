@@ -1,0 +1,134 @@
+name: GhostGuard license and icon regression
+
+on:
+  pull_request:
+    paths:
+      - packages/ghostguard/source/payload/dcghostguardpro.koplugin/license_manager.lua
+      - packages/ghostguard/source/payload/dcghostguardpro.koplugin/online_license.lua
+      - packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
+      - packages/ghostguard/source/scriptlets/DCPRO_GhostGuard.sh
+      - .github/workflows/ghostguard-license-icon-regression.yml
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LuaJIT
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq luajit
+
+      - name: Validate Lua syntax
+        run: |
+          ROOT=packages/ghostguard/source/payload/dcghostguardpro.koplugin
+          luajit -e 'assert(loadfile(arg[1]))' "$ROOT/license_manager.lua"
+          luajit -e 'assert(loadfile(arg[1]))' "$ROOT/online_license.lua"
+          luajit -e 'assert(loadfile(arg[1]))' "$ROOT/defaults.lua"
+
+      - name: Validate clock rollback behavior
+        shell: bash
+        run: |
+          cat > /tmp/test_license_clock.lua <<'LUA'
+          local root = "packages/ghostguard/source/payload/dcghostguardpro.koplugin/"
+          local config = dofile(root .. "defaults.lua")
+          local LicenseManager = dofile(root .. "license_manager.lua")
+          local OnlineLicense = dofile(root .. "online_license.lua")
+
+          local Storage = {}
+          Storage.__index = Storage
+          function Storage:new() return setmetatable({files = {}}, self) end
+          function Storage:readFile(path) return self.files[path] end
+          function Storage:writeAtomic(path, value) self.files[path] = value; return true end
+          function Storage:fileExists(path) return self.files[path] ~= nil end
+
+          local real_date, real_time = os.date, os.time
+          local fake_date, fake_time = "2026-08-20", 2000
+          os.date = function(fmt)
+              if fmt == "%Y-%m-%d" then return fake_date end
+              if fmt == "%Y-%m-%d %H:%M:%S" then return fake_date .. " 12:00:00" end
+              if fmt == "!%Y-%m-%dT%H:%M:%SZ" then return fake_date .. "T12:00:00Z" end
+              return real_date(fmt)
+          end
+          os.time = function() return fake_time end
+
+          -- Online-only licensing must advance the same calendar floor used by
+          -- local license.key checks, then fail closed if the date moves back.
+          local storage = Storage:new()
+          local lm = setmetatable({
+              config = config,
+              storage = storage,
+              state_path = config.data_dir .. "/license_last_date",
+              debug_path = config.data_dir .. "/license_debug.log",
+              license_path = root .. "license.key",
+              device_id = "TEST",
+              last_ok = false,
+              last_detail = "NOT_CHECKED",
+              last_checked_wall = 0,
+          }, {__index = LicenseManager})
+          lm.localCheck = function() return false, "MISSING_PLUGIN_LICENSE_KEY" end
+          lm.online = {
+              readCache = function()
+                  return {entry = {license_id = "TRIAL", status = "active"}, age = 0}, "ONLINE_CACHE_VALID"
+              end,
+              evaluateEntry = function()
+                  return true, "ONLINE_ACTIVE;LICENSE_ID=TRIAL;EXPIRE=2026-08-27"
+              end,
+          }
+
+          local ok, detail = lm:check(true)
+          assert(ok, detail)
+          assert(storage.files[lm.state_path] == "2026-08-20\n")
+
+          fake_date, fake_time = "2026-08-19", 1000
+          ok, detail = lm:check(true)
+          assert(not ok and tostring(detail):match("CLOCK_ROLLBACK_DETECTED"), tostring(detail))
+
+          -- The signed-cache age itself must never become fresh after a wall
+          -- clock rollback. Small NTP corrections within five minutes remain OK.
+          local storage2 = Storage:new()
+          storage2.files[config.online_license_sync_state] = "SYNC_EPOCH=2000\nSYNC_UTC=2026-08-20T12:00:00Z\nSOURCE=TEST\n"
+          local online = OnlineLicense:new(config, storage2, root, "TEST", {})
+
+          fake_time = 1600
+          local age, age_detail = online:cacheAgeSeconds()
+          assert(age == nil and tostring(age_detail):match("CLOCK_ROLLBACK_DETECTED"), tostring(age_detail))
+
+          fake_time = 1750
+          age, age_detail = online:cacheAgeSeconds()
+          assert(age == 0 and age_detail == "ONLINE_CACHE_AGE_OK")
+
+          -- An online trial cannot be used before its signed issue date.
+          fake_date = "2026-08-19"
+          local allowed, policy = online:evaluateEntry({
+              license_id = "TRIAL",
+              issued_at = "2026-08-20",
+              expire = "2026-08-27",
+              features = {"ghostguard"},
+              status = "active",
+          })
+          assert(allowed == false and policy == "CLOCK_BEFORE_ISSUE_DATE", tostring(policy))
+
+          os.date, os.time = real_date, real_time
+          print("LICENSE_CLOCK_ROLLBACK_PASS")
+          LUA
+          luajit /tmp/test_license_clock.lua | grep -q LICENSE_CLOCK_ROLLBACK_PASS
+
+      - name: Validate KindleForge-style embedded icon
+        run: |
+          LAUNCHER=packages/ghostguard/source/scriptlets/DCPRO_GhostGuard.sh
+          head -n 6 "$LAUNCHER" | grep -q '^# Name: DCPRO GhostGuard$'
+          head -n 6 "$LAUNCHER" | grep -q '^# Icon: data:image/png;base64,iVBORw0KGgo'
+          ! head -n 6 "$LAUNCHER" | grep -q '# Icon: /mnt/us/'
+          python3 - "$LAUNCHER" <<'PY'
+          import base64, pathlib, re, sys
+          text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
+          m = re.search(r'^# Icon: data:image/png;base64,([^\r\n]+)$', text, re.M)
+          assert m, "embedded icon header missing"
+          raw = base64.b64decode(m.group(1), validate=True)
+          assert raw.startswith(b'\x89PNG\r\n\x1a\n'), "embedded icon is not PNG"
+          assert len(raw) >= 1024, "embedded icon unexpectedly small"
+          print("EMBEDDED_ICON_PASS", len(raw))
+          PY
