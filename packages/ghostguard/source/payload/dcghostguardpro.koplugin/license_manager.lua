@@ -26,7 +26,10 @@ local function valid_date(s)
 end
 
 local function date_num(s)
-    return tonumber((s or ""):gsub("-", "")) or 0
+    -- string.gsub returns both the new string and a replacement count. Store
+    -- the string first so tonumber never mistakes that count for its base arg.
+    local compact = (tostring(s or ""):gsub("-", ""))
+    return tonumber(compact) or 0
 end
 
 local function parse_license(raw)
