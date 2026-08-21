@@ -32,7 +32,6 @@ jobs:
               Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua'),
               Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/_meta.lua'),
               Path('scripts/build_artifact_v0612.sh'),
-              Path('.github/workflows/build-artifact-v0612.yml'),
           ]
           for p in files:
               s = p.read_text(encoding='utf-8')
@@ -49,13 +48,13 @@ jobs:
           assert 'ghostguard_0.6.17_kindle5-kindlepw2-kindlehf.kpkg' in Path('manifest.json').read_text(encoding='utf-8')
           assert 'ghostguard_0.6.17_kindle5-kindlepw2-kindlehf.kpkg' in Path('manifest.mirror.json').read_text(encoding='utf-8')
           PY
-          rm -f .github/workflows/release-0617-final.yml .release-0617-final-trigger
+          rm -f .release-0617-final-trigger
       - name: Commit release bump
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add -A ':!.github/workflows/*'
           git diff --cached --check
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "release GhostGuard 0.6.17 [release-0617-final-bot]"
