@@ -1,7 +1,7 @@
 {
   "registry_format": 1,
   "product": "DCPRO GhostGuard",
-  "generated_at": "2026-08-21T05:44:46Z",
+  "generated_at": "2026-08-21T05:47:05Z",
   "key_id": "ghostguard-prod-2026-08",
   "sig_alg": "RSA-SHA256",
   "entries": [
@@ -91,7 +91,7 @@
         "ghostguard",
         "ultimate"
       ],
-      "status": "active"
+      "status": "revoked"
     },
     {
       "serial_hash": "2e28a037413923c5f556284ec9850b0b178f99dbb858e226aeeeb33e3adacea4",
