@@ -1,5 +1,5 @@
 return {
-    version = "0.6.16",
+    version = "0.6.17",
     runtime_revision = "calibration-flow-v2",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
