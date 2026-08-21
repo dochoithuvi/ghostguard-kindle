@@ -7,9 +7,9 @@ Public KPM v2 repository for Kindle tools maintained by Do Choi Thu Vi.
 ### GhostGuard
 
 - Package ID: `ghostguard`
-- Current version: `0.6.16`
+- Current version: `0.6.17`
 - KOReader touch-protection plugin.
-- Current artifact: `packages/ghostguard/artifacts/ghostguard_0.6.16_kindle5-kindlepw2-kindlehf.kpkg`
+- Current artifact: `packages/ghostguard/artifacts/ghostguard_0.6.17_kindle5-kindlepw2-kindlehf.kpkg`
 - Learning completion supports two safe outcomes:
   - `GHOST_CLUSTER`: repeated ghost evidence is strong enough to activate learned coordinate clusters.
   - `BASELINE`: normal usage has supplied enough completed contacts but no ghost cluster is yet trustworthy; Protect stays conservative and does not use weak coordinates as a blocking bonus.
@@ -23,7 +23,7 @@ Public KPM v2 repository for Kindle tools maintained by Do Choi Thu Vi.
 
 ## GhostGuard learning flow
 
-GhostGuard `0.6.16` keeps the existing ghost-signature thresholds (`12` suspect contacts with a strongest cluster of at least `5`) and adds a healthy-device completion path. Calibration counts every completed contact and stores both the contact count and learning time cumulatively across clean learning sessions.
+GhostGuard `0.6.17` keeps the existing ghost-signature thresholds (`12` suspect contacts with a strongest cluster of at least `5`) and adds a healthy-device completion path. Calibration counts every completed contact and stores both the contact count and learning time cumulatively across clean learning sessions.
 
 A profile becomes ready only after at least `180` seconds of cumulative learning time. At that point it completes as:
 
@@ -54,7 +54,7 @@ DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
 6. Validates the current multi-package repository manifest.
 7. Re-registers the repository only when the configured endpoint is missing/legacy.
 8. Runs `kpm update` and verifies package `ghostguard` is indexed.
-9. Installs GhostGuard `0.6.16`.
+9. Installs GhostGuard `0.6.17`.
 10. Syncs the latest compatible `simpleui_bridge.lua`.
 11. Launches GhostGuard.
 
