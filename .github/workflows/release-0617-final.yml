@@ -44,8 +44,6 @@ jobs:
               s = s.replace('[0,6,16]', '[0,6,17]')
               p.write_text(s, encoding='utf-8')
 
-          # Preserve runtime_revision: this release packages the already-tested
-          # hotfixes without changing protection/profile semantics again.
           defaults = Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua').read_text(encoding='utf-8')
           assert 'version = "0.6.17"' in defaults
           assert 'runtime_revision = "calibration-flow-v2"' in defaults
