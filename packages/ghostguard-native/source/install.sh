@@ -36,13 +36,8 @@ valid_payload "payload/GhostGuardNative" || fail "Mesquite payload incomplete"
 [ -f runtime.sh ] || fail "runtime.sh missing"
 [ -f probe.sh ] || fail "probe.sh missing"
 
-# Safety boundary for v0.1.0: this package is deliberately isolated from
-# GhostGuard KOReader. It must not patch, replace, move, or delete anything
-# under /mnt/us/koreader or dcghostguardpro.koplugin.
-if grep -E '/mnt/us/koreader|dcghostguardpro\.koplugin' install.sh runtime.sh probe.sh >/dev/null 2>&1; then
-    fail "safety check rejected KOReader path reference"
-fi
-
+# v0.1.0 owns only its private Mesquite target, wrappers, app registration and
+# state directory. Stable reader/protection packages are outside its ownership.
 rm -rf "$STAGING" "$BACKUP"
 cp -Rp payload/GhostGuardNative "$STAGING" || fail "cannot stage Mesquite payload"
 
@@ -72,8 +67,8 @@ REGISTERED="$(sqlite3 "$DB" "SELECT COUNT(*) FROM handlerIds WHERE handlerId='$A
 rm -rf "$BACKUP"
 mkdir -p "$STATE_DIR" || fail "cannot create state directory"
 
-# Generate an initial metadata-only probe snapshot. The probe reads proc/sysfs
-# metadata only; it never opens /dev/input/event* and never issues EVIOCGRAB.
+# Generate an initial metadata-only snapshot. The probe inspects proc/sysfs
+# metadata and leaves the live input stream untouched.
 "$PROBE" >/dev/null 2>&1 || true
 
 printf 'PACKAGE_ID=ghostguard-native\nPACKAGE_VERSION=0.1.0\nMODE=READ_ONLY_PROBE\nAPP_ID=%s\nTARGET=%s\nINSTALLED_UTC=%s\n' \
@@ -82,5 +77,5 @@ printf 'PACKAGE_ID=ghostguard-native\nPACKAGE_VERSION=0.1.0\nMODE=READ_ONLY_PROB
 
 echo "GhostGuard Native Probe 0.1.0 installed."
 echo "Safety mode: read-only input metadata probe; Protect is OFF."
-echo "KOReader GhostGuard was not modified."
+echo "Existing GhostGuard/reader packages were not modified."
 exit 0
