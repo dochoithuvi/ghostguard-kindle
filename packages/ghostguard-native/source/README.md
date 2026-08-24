@@ -1,4 +1,4 @@
-# DCPRO GhostGuard Native 0.2.1
+# DCPRO GhostGuard Native 0.2.2
 
 GhostGuard Native is an isolated native-Kindle research package. It does not depend on KOReader and does not modify the stable GhostGuard KOReader package.
 
@@ -13,9 +13,17 @@ GhostGuard Native is an isolated native-Kindle research package. It does not dep
 - installs a **DCPRO GhostGuard Native** launcher in the Kindle Library/Home so normal use no longer requires typing `;kpm launch ghostguard-native`
 - reuses the existing GhostGuard Library artwork/icon already shipped by DCPRO
 
+## 0.2.2 launcher compatibility
+
+0.2.2 aligns the Mesquite `config.xml` capability envelope with the known-good KindleForge application layout. It also records Native-only launch diagnostics at:
+
+`/mnt/us/.dcpro_ghostguard_native/launch.log`
+
+The log records Library/KPM app-manager launch requests, Native runtime startup and the Mesquite exit code. This is specifically for diagnosing devices that briefly open the icon and then return to Home.
+
 ## Hard safety boundary
 
-Version 0.2.1 does **not**:
+Version 0.2.2 does **not**:
 
 - call `EVIOCGRAB`
 - create or write to `/dev/uinput`
@@ -38,10 +46,12 @@ Upgrade an existing Native installation:
 
 After installation, open **DCPRO GhostGuard Native** directly from the Kindle Library/Home. The command `;kpm launch ghostguard-native` remains available as a fallback/test path.
 
+If a device returns immediately to Home, copy `/mnt/us/.dcpro_ghostguard_native/launch.log` for diagnosis.
+
 ## Test flow
 
 1. Open **DCPRO GhostGuard Native** from the Kindle Library/Home.
-2. While the panel is open, tap, swipe and turn several pages for about 12 seconds.
+2. While the panel is open, tap and swipe for about 12 seconds.
 3. The panel refreshes the `Passive event watch` section automatically.
 4. Inspect `EVENT`, `NAME`, `STATUS` and `[RAW_EVDEV_HEX]` to validate the controller path.
 
