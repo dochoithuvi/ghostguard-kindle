@@ -76,7 +76,8 @@ jobs:
           grep -q '^# Name: DCPRO GhostGuard Native$' /tmp/gncheck/scriptlets/DCPRO_GhostGuard_Native.sh
           grep -q '^# Icon: data:image/png;base64,' /tmp/gncheck/scriptlets/DCPRO_GhostGuard_Native.sh
           grep -q 'com.dcpro.ghostguardnative' /tmp/gncheck/scriptlets/DCPRO_GhostGuard_Native.sh
-          grep -q '/mnt/us/.dcpro_ghostguard_native/launch.log' /tmp/gncheck/runtime.sh
+          grep -q 'STATE_DIR="/mnt/us/.dcpro_ghostguard_native"' /tmp/gncheck/runtime.sh
+          grep -q 'LAUNCH_LOG="$STATE_DIR/launch.log"' /tmp/gncheck/runtime.sh
           grep -q 'MESQUITE_EXIT rc=' /tmp/gncheck/runtime.sh
           grep -q 'LIBRARY_LAUNCH appmgrd_rc=' /tmp/gncheck/scriptlets/DCPRO_GhostGuard_Native.sh
           grep -q 'DCPRO_GhostGuard_Native.sh' /tmp/gncheck/install.sh
