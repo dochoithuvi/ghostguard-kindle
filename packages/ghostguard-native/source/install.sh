@@ -1,12 +1,16 @@
 #!/bin/sh
 set -eu
 
+ROOT="${GHOSTGUARD_US_ROOT:-/mnt/us}"
 APP_ID="com.dcpro.ghostguardnative"
 TARGET="/var/local/mesquite/GhostGuardNative"
 RUNTIME="/var/local/mesquite/GhostGuardNative.kpm-launch.sh"
 PROBE="/var/local/mesquite/GhostGuardNative.kpm-probe.sh"
 DB="/var/local/appreg.db"
-STATE_DIR="/mnt/us/.dcpro_ghostguard_native"
+STATE_DIR="$ROOT/.dcpro_ghostguard_native"
+LAUNCHER="$ROOT/documents/DCPRO_GhostGuard_Native.sh"
+ASSET_DIR="$ROOT/dcpro/ghostguard-native/assets"
+LIBRARY_COVER="$ASSET_DIR/ghostguard_native_library_600x960.jpg"
 STAGING="/var/local/mesquite/.GhostGuardNative.kpm-new.$$"
 BACKUP="/var/local/mesquite/.GhostGuardNative.kpm-old.$$"
 RUNTIME_STAGING="${RUNTIME}.new.$$"
@@ -61,12 +65,15 @@ command -v lipc-set-prop >/dev/null 2>&1 || fail "lipc-set-prop not found"
 valid_payload "payload/GhostGuardNative" || fail "Mesquite payload incomplete"
 [ -f runtime.sh ] || fail "runtime.sh missing"
 [ -f probe.sh ] || fail "probe.sh missing"
+[ -f scriptlets/DCPRO_GhostGuard_Native.sh ] || fail "Library launcher missing"
+[ -f assets/ghostguard_native_library_600x960.jpg ] || fail "Library cover missing"
 
 REGISTERED_BEFORE="$(sqlite3 "$DB" "SELECT COUNT(*) FROM handlerIds WHERE handlerId='$APP_ID';" 2>/dev/null || echo 0)"
 [ "$REGISTERED_BEFORE" = "1" ] || REGISTERED_BEFORE=0
 
-# Native owns only its private Mesquite target, wrappers, app registration and
-# state directory. Stable KOReader GhostGuard and KindleForge stay untouched.
+# Native owns only its private Mesquite target, wrappers, app registration,
+# Library launcher and state directory. Stable KOReader GhostGuard and
+# KindleForge stay untouched.
 cleanup_staging
 rm -rf "$BACKUP" 2>/dev/null || true
 rm -f "$RUNTIME_BACKUP" "$PROBE_BACKUP" 2>/dev/null || true
@@ -118,17 +125,36 @@ rm -f "$RUNTIME_BACKUP" "$PROBE_BACKUP" 2>/dev/null || true
 cleanup_staging
 
 mkdir -p "$STATE_DIR" || fail "cannot create state directory"
+mkdir -p "$ROOT/documents" "$ASSET_DIR" || fail "cannot create Library launcher directories"
+
+# Match the stable GhostGuard Library behavior: put the cover in place before
+# rewriting/touching the .sh launcher so SH_Integration can index the tile with
+# the same user-provided GhostGuard artwork instead of caching a blank entry.
+COVER_TMP="$ASSET_DIR/.ghostguard_native_library_600x960.jpg.kpm-new.$$"
+LAUNCHER_TMP="$ROOT/documents/.DCPRO_GhostGuard_Native.sh.kpm-new.$$"
+rm -f "$COVER_TMP" "$LAUNCHER_TMP" 2>/dev/null || true
+cp -p assets/ghostguard_native_library_600x960.jpg "$COVER_TMP" || fail "cannot stage Library cover"
+chmod 644 "$COVER_TMP" 2>/dev/null || true
+mv -f "$COVER_TMP" "$LIBRARY_COVER" || fail "cannot install Library cover"
+sync 2>/dev/null || true
+
+cp -p scriptlets/DCPRO_GhostGuard_Native.sh "$LAUNCHER_TMP" || fail "cannot stage Library launcher"
+chmod 755 "$LAUNCHER_TMP" 2>/dev/null || true
+mv -f "$LAUNCHER_TMP" "$LAUNCHER" || fail "cannot install Library launcher"
+touch "$LAUNCHER" 2>/dev/null || true
+sync 2>/dev/null || true
 
 # Generate metadata immediately; passive event capture starts only when the
-# Native control panel is launched.
+# Native control panel is launched from KPM or from the new Library icon.
 "$PROBE" >/dev/null 2>&1 || true
 
-printf 'PACKAGE_ID=ghostguard-native\nPACKAGE_VERSION=0.2.0\nMODE=PASSIVE_EVENT_WATCH\nAPP_ID=%s\nTARGET=%s\nINSTALLED_UTC=%s\n' \
-    "$APP_ID" "$TARGET" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" \
+printf 'PACKAGE_ID=ghostguard-native\nPACKAGE_VERSION=0.2.1\nMODE=PASSIVE_EVENT_WATCH\nAPP_ID=%s\nTARGET=%s\nLIBRARY_LAUNCHER=%s\nLIBRARY_COVER=%s\nINSTALLED_UTC=%s\n' \
+    "$APP_ID" "$TARGET" "$LAUNCHER" "$LIBRARY_COVER" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" \
     > "$STATE_DIR/KPM_INSTALL_OK" 2>/dev/null || true
 
-echo "GhostGuard Native 0.2.0 installed."
+echo "GhostGuard Native 0.2.1 installed."
 echo "Safety mode: passive read-only evdev watch; input grab and injection are OFF."
-echo "Launch with ;kpm launch ghostguard-native and touch the screen during the capture window."
+echo "GhostGuard Native Library launcher: $LAUNCHER"
+echo "You can now open GhostGuard Native directly from the Kindle Library/Home."
 echo "Existing GhostGuard/reader packages were not modified."
 exit 0
