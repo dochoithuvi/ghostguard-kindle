@@ -51,7 +51,7 @@ fail() {
 
 valid_payload() {
     [ -f "$1/config.xml" ] && [ -f "$1/index.html" ] && \
-    [ -f "$1/style.css" ] && [ -f "$1/script.js" ]
+    [ -f "$1/style.css" ] && [ -f "$1/script.js" ] && [ -f "$1/watch.sh" ]
 }
 
 command -v sqlite3 >/dev/null 2>&1 || fail "sqlite3 not found"
@@ -65,13 +65,14 @@ valid_payload "payload/GhostGuardNative" || fail "Mesquite payload incomplete"
 REGISTERED_BEFORE="$(sqlite3 "$DB" "SELECT COUNT(*) FROM handlerIds WHERE handlerId='$APP_ID';" 2>/dev/null || echo 0)"
 [ "$REGISTERED_BEFORE" = "1" ] || REGISTERED_BEFORE=0
 
-# v0.1.0 owns only its private Mesquite target, wrappers, app registration and
-# state directory. Stable reader/protection packages are outside its ownership.
+# Native owns only its private Mesquite target, wrappers, app registration and
+# state directory. Stable KOReader GhostGuard and KindleForge stay untouched.
 cleanup_staging
 rm -rf "$BACKUP" 2>/dev/null || true
 rm -f "$RUNTIME_BACKUP" "$PROBE_BACKUP" 2>/dev/null || true
 
 cp -Rp payload/GhostGuardNative "$STAGING" || fail "cannot stage Mesquite payload"
+chmod 755 "$STAGING/watch.sh" 2>/dev/null || fail "cannot make passive watcher executable"
 cp -p runtime.sh "$RUNTIME_STAGING" || fail "cannot stage runtime wrapper"
 cp -p probe.sh "$PROBE_STAGING" || fail "cannot stage probe wrapper"
 chmod 755 "$RUNTIME_STAGING" "$PROBE_STAGING" 2>/dev/null || true
@@ -118,15 +119,16 @@ cleanup_staging
 
 mkdir -p "$STATE_DIR" || fail "cannot create state directory"
 
-# Generate an initial metadata-only snapshot. The probe inspects proc/sysfs
-# metadata and leaves the live input stream untouched.
+# Generate metadata immediately; passive event capture starts only when the
+# Native control panel is launched.
 "$PROBE" >/dev/null 2>&1 || true
 
-printf 'PACKAGE_ID=ghostguard-native\nPACKAGE_VERSION=0.1.0\nMODE=READ_ONLY_PROBE\nAPP_ID=%s\nTARGET=%s\nINSTALLED_UTC=%s\n' \
+printf 'PACKAGE_ID=ghostguard-native\nPACKAGE_VERSION=0.2.0\nMODE=PASSIVE_EVENT_WATCH\nAPP_ID=%s\nTARGET=%s\nINSTALLED_UTC=%s\n' \
     "$APP_ID" "$TARGET" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" \
     > "$STATE_DIR/KPM_INSTALL_OK" 2>/dev/null || true
 
-echo "GhostGuard Native Probe 0.1.0 installed."
-echo "Safety mode: read-only input metadata probe; Protect is OFF."
+echo "GhostGuard Native 0.2.0 installed."
+echo "Safety mode: passive read-only evdev watch; input grab and injection are OFF."
+echo "Launch with ;kpm launch ghostguard-native and touch the screen during the capture window."
 echo "Existing GhostGuard/reader packages were not modified."
 exit 0

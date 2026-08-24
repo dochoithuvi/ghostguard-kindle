@@ -1,10 +1,10 @@
 {
   "manifest_version": 2,
   "id": "ghostguard-native",
-  "name": "DCPRO GhostGuard Native Probe",
+  "name": "DCPRO GhostGuard Native",
   "author": "Do Choi Thu Vi",
-  "description": "Experimental read-only native Kindle touch/input probe. Does not modify KOReader, does not grab input devices, and does not block touches.",
-  "version": [0, 1, 0],
+  "description": "Experimental passive native Kindle touch watcher. Opens the selected touchscreen event node read-only for short captures, never grabs input, never injects events, and leaves KOReader untouched.",
+  "version": [0, 2, 0],
   "dependencies": [],
   "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
 }
