@@ -46,7 +46,7 @@ jobs:
       - name: Validate GhostGuard Native artifact
         shell: bash
         run: |
-          PKG=$(ls packages/ghostguard-native/artifacts/ghostguard-native_0.2.1_*.kpkg | tail -1)
+          PKG=$(ls packages/ghostguard-native/artifacts/ghostguard-native_0.2.2_*.kpkg | tail -1)
           test -s "$PKG"
           rm -rf /tmp/gncheck
           mkdir -p /tmp/gncheck
@@ -63,7 +63,10 @@ jobs:
           test -f /tmp/gncheck/payload/GhostGuardNative/config.xml
           test -f /tmp/gncheck/payload/GhostGuardNative/index.html
           grep -q '"id": "ghostguard-native"' /tmp/gncheck/manifest.json
-          grep -q '"version": \[0, 2, 1\]' /tmp/gncheck/manifest.json
+          grep -q '"version": \[0, 2, 2\]' /tmp/gncheck/manifest.json
+          grep -q 'version="1.0"' /tmp/gncheck/payload/GhostGuardNative/config.xml
+          grep -q 'kindle:permission name="local-port-access"' /tmp/gncheck/payload/GhostGuardNative/config.xml
+          grep -q 'param name="messaging" value="yes"' /tmp/gncheck/payload/GhostGuardNative/config.xml
           grep -q 'MODE=READ_ONLY_METADATA' /tmp/gncheck/probe.sh
           grep -q 'EVENT_NODE_OPEN=NO' /tmp/gncheck/probe.sh
           grep -q 'MODE=PASSIVE_EVENT_WATCH' /tmp/gncheck/payload/GhostGuardNative/watch.sh
@@ -73,6 +76,9 @@ jobs:
           grep -q '^# Name: DCPRO GhostGuard Native$' /tmp/gncheck/scriptlets/DCPRO_GhostGuard_Native.sh
           grep -q '^# Icon: data:image/png;base64,' /tmp/gncheck/scriptlets/DCPRO_GhostGuard_Native.sh
           grep -q 'com.dcpro.ghostguardnative' /tmp/gncheck/scriptlets/DCPRO_GhostGuard_Native.sh
+          grep -q '/mnt/us/.dcpro_ghostguard_native/launch.log' /tmp/gncheck/runtime.sh
+          grep -q 'MESQUITE_EXIT rc=' /tmp/gncheck/runtime.sh
+          grep -q 'LIBRARY_LAUNCH appmgrd_rc=' /tmp/gncheck/scriptlets/DCPRO_GhostGuard_Native.sh
           grep -q 'DCPRO_GhostGuard_Native.sh' /tmp/gncheck/install.sh
           grep -q 'DCPRO_GhostGuard_Native.sh' /tmp/gncheck/uninstall.sh
           ! grep -Ei 'EVIOCGRAB|/dev/uinput|/mnt/us/koreader|dcghostguardpro\.koplugin' \
@@ -81,7 +87,7 @@ jobs:
       - name: Register Native package in KPM v2 manifest
         shell: bash
         run: |
-          PKG=$(ls packages/ghostguard-native/artifacts/ghostguard-native_0.2.1_*.kpkg | tail -1)
+          PKG=$(ls packages/ghostguard-native/artifacts/ghostguard-native_0.2.2_*.kpkg | tail -1)
           python3 - "$PKG" <<'PY'
           import json
           import os
@@ -113,7 +119,7 @@ jobs:
               fh.write("\n")
           PY
           grep -q '"ghostguard-native"' manifest.v2.json
-          grep -q 'ghostguard-native_0.2.1_kindle5-kindlepw2-kindlehf.kpkg' manifest.v2.json
+          grep -q 'ghostguard-native_0.2.2_kindle5-kindlepw2-kindlehf.kpkg' manifest.v2.json
 
       - name: Publish Native package
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -121,14 +127,14 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add manifest.v2.json packages/ghostguard-native/artifacts/ghostguard-native_0.2.1_*.kpkg
+          git add manifest.v2.json packages/ghostguard-native/artifacts/ghostguard-native_0.2.2_*.kpkg
           git diff --cached --quiet && exit 0
-          git commit -m "build(native): publish GhostGuard Native 0.2.1 [native-artifact-bot]"
+          git commit -m "build(native): publish GhostGuard Native 0.2.2 [native-artifact-bot]"
           git push
 
       - name: Upload Native artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ghostguard-native-0.2.1-kpkg
-          path: packages/ghostguard-native/artifacts/ghostguard-native_0.2.1_*.kpkg
+          name: ghostguard-native-0.2.2-kpkg
+          path: packages/ghostguard-native/artifacts/ghostguard-native_0.2.2_*.kpkg
           if-no-files-found: error
