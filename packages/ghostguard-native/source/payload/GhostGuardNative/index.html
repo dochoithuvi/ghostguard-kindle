@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>GhostGuard Native Probe</title>
+  <title>GhostGuard Native</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <header>
       <div>
         <h1>GhostGuard Native</h1>
-        <p class="sub">Touch Probe v0.1.0</p>
+        <p class="sub">Passive Watch v0.2.0</p>
       </div>
       <span class="badge">READ-ONLY</span>
     </header>
@@ -24,13 +24,19 @@
     </section>
 
     <section>
-      <h2>Native input discovery</h2>
-      <p>This first build only inventories Kindle input devices through proc/sysfs metadata. It does not open touch event nodes or alter the Amazon reader input path.</p>
+      <h2>Controller discovery</h2>
+      <p>Metadata probe identifies likely touchscreen/controller candidates without opening the live event stream.</p>
       <pre id="probe">Loading latest probe snapshot…</pre>
     </section>
 
+    <section>
+      <h2>Passive event watch</h2>
+      <p>For about 12 seconds after launch, GhostGuard Native opens the selected touchscreen event node read-only. Tap and swipe now; Amazon's reader still receives the same touches.</p>
+      <pre id="watch">Starting passive capture…</pre>
+    </section>
+
     <section class="note">
-      <strong>Test goal:</strong> identify the physical touchscreen event device/controller safely before Observe, Auto Learn or Protect are implemented.
+      <strong>v0.2 goal:</strong> prove the physical touchscreen event path and collect raw evdev samples before Controller Fingerprint and normalization are implemented.
     </section>
   </main>
   <script src="script.js"></script>
