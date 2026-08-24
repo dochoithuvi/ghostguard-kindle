@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" id="com.dcpro.ghostguardnative" version="0.1.0">
+  <name>GhostGuard Native Probe</name>
+  <description>Read-only native Kindle touch/input metadata probe.</description>
+  <content src="index.html" />
+</widget>
