@@ -8,12 +8,38 @@ PROBE="/var/local/mesquite/GhostGuardNative.kpm-probe.sh"
 DB="/var/local/appreg.db"
 STATE_DIR="/mnt/us/.dcpro_ghostguard_native"
 STAGING="/var/local/mesquite/.GhostGuardNative.kpm-new.$$"
-BACKUP="/var/local/mesquite/.GhostGuardNative.kpm-old"
+BACKUP="/var/local/mesquite/.GhostGuardNative.kpm-old.$$"
+RUNTIME_STAGING="${RUNTIME}.new.$$"
+PROBE_STAGING="${PROBE}.new.$$"
+RUNTIME_BACKUP="${RUNTIME}.old.$$"
+PROBE_BACKUP="${PROBE}.old.$$"
+TARGET_ACTIVATED=0
+TARGET_BACKED_UP=0
+RUNTIME_ACTIVATED=0
+RUNTIME_BACKED_UP=0
+PROBE_ACTIVATED=0
+PROBE_BACKED_UP=0
+REGISTERED_BEFORE=0
+
+cleanup_staging() {
+    rm -rf "$STAGING" 2>/dev/null || true
+    rm -f "$RUNTIME_STAGING" "$PROBE_STAGING" 2>/dev/null || true
+}
 
 rollback() {
-    rm -rf "$STAGING" 2>/dev/null || true
-    if [ -d "$BACKUP" ] && [ ! -d "$TARGET" ]; then
-        mv "$BACKUP" "$TARGET" 2>/dev/null || true
+    cleanup_staging
+
+    if [ "$PROBE_ACTIVATED" = "1" ]; then rm -f "$PROBE" 2>/dev/null || true; fi
+    if [ "$PROBE_BACKED_UP" = "1" ] && [ -f "$PROBE_BACKUP" ]; then mv "$PROBE_BACKUP" "$PROBE" 2>/dev/null || true; fi
+
+    if [ "$RUNTIME_ACTIVATED" = "1" ]; then rm -f "$RUNTIME" 2>/dev/null || true; fi
+    if [ "$RUNTIME_BACKED_UP" = "1" ] && [ -f "$RUNTIME_BACKUP" ]; then mv "$RUNTIME_BACKUP" "$RUNTIME" 2>/dev/null || true; fi
+
+    if [ "$TARGET_ACTIVATED" = "1" ]; then rm -rf "$TARGET" 2>/dev/null || true; fi
+    if [ "$TARGET_BACKED_UP" = "1" ] && [ -d "$BACKUP" ]; then mv "$BACKUP" "$TARGET" 2>/dev/null || true; fi
+
+    if [ "$REGISTERED_BEFORE" = "0" ] && command -v sqlite3 >/dev/null 2>&1 && [ -f "$DB" ]; then
+        sqlite3 "$DB" "DELETE FROM properties WHERE handlerId='$APP_ID'; DELETE FROM handlerIds WHERE handlerId='$APP_ID';" >/dev/null 2>&1 || true
     fi
 }
 
@@ -36,17 +62,39 @@ valid_payload "payload/GhostGuardNative" || fail "Mesquite payload incomplete"
 [ -f runtime.sh ] || fail "runtime.sh missing"
 [ -f probe.sh ] || fail "probe.sh missing"
 
+REGISTERED_BEFORE="$(sqlite3 "$DB" "SELECT COUNT(*) FROM handlerIds WHERE handlerId='$APP_ID';" 2>/dev/null || echo 0)"
+[ "$REGISTERED_BEFORE" = "1" ] || REGISTERED_BEFORE=0
+
 # v0.1.0 owns only its private Mesquite target, wrappers, app registration and
 # state directory. Stable reader/protection packages are outside its ownership.
-rm -rf "$STAGING" "$BACKUP"
+cleanup_staging
+rm -rf "$BACKUP" 2>/dev/null || true
+rm -f "$RUNTIME_BACKUP" "$PROBE_BACKUP" 2>/dev/null || true
+
 cp -Rp payload/GhostGuardNative "$STAGING" || fail "cannot stage Mesquite payload"
+cp -p runtime.sh "$RUNTIME_STAGING" || fail "cannot stage runtime wrapper"
+cp -p probe.sh "$PROBE_STAGING" || fail "cannot stage probe wrapper"
+chmod 755 "$RUNTIME_STAGING" "$PROBE_STAGING" 2>/dev/null || true
 
-[ -d "$TARGET" ] && mv "$TARGET" "$BACKUP" || true
+if [ -d "$TARGET" ]; then
+    mv "$TARGET" "$BACKUP" || fail "cannot back up existing Mesquite payload"
+    TARGET_BACKED_UP=1
+fi
+if [ -f "$RUNTIME" ]; then
+    mv "$RUNTIME" "$RUNTIME_BACKUP" || fail "cannot back up existing runtime wrapper"
+    RUNTIME_BACKED_UP=1
+fi
+if [ -f "$PROBE" ]; then
+    mv "$PROBE" "$PROBE_BACKUP" || fail "cannot back up existing probe wrapper"
+    PROBE_BACKED_UP=1
+fi
+
 mv "$STAGING" "$TARGET" || fail "cannot activate Mesquite payload"
-
-cp -p runtime.sh "$RUNTIME" || fail "cannot install runtime wrapper"
-cp -p probe.sh "$PROBE" || fail "cannot install probe wrapper"
-chmod 755 "$RUNTIME" "$PROBE" 2>/dev/null || true
+TARGET_ACTIVATED=1
+mv "$RUNTIME_STAGING" "$RUNTIME" || fail "cannot activate runtime wrapper"
+RUNTIME_ACTIVATED=1
+mv "$PROBE_STAGING" "$PROBE" || fail "cannot activate probe wrapper"
+PROBE_ACTIVATED=1
 
 if ! sqlite3 "$DB" <<EOF
 BEGIN;
@@ -64,7 +112,10 @@ fi
 REGISTERED="$(sqlite3 "$DB" "SELECT COUNT(*) FROM handlerIds WHERE handlerId='$APP_ID';" 2>/dev/null || echo 0)"
 [ "$REGISTERED" = "1" ] || fail "application registration verification failed"
 
-rm -rf "$BACKUP"
+rm -rf "$BACKUP" 2>/dev/null || true
+rm -f "$RUNTIME_BACKUP" "$PROBE_BACKUP" 2>/dev/null || true
+cleanup_staging
+
 mkdir -p "$STATE_DIR" || fail "cannot create state directory"
 
 # Generate an initial metadata-only snapshot. The probe inspects proc/sysfs
