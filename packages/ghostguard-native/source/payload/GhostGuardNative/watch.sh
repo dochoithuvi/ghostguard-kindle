@@ -64,33 +64,31 @@ UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)"
     echo "EVENT_INJECTION=OFF"
     echo "CAPTURE_SECONDS=$CAPTURE_SECONDS"
     echo "UTC=$UTC"
-
-    if [ -z "$EVENT" ]; then
-        echo "STATUS=NO_TOUCH_CANDIDATE"
-        echo "EVENT=NONE"
-        echo "DETAIL=No readable touchscreen candidate was found. Run the metadata probe and inspect DEVICE_PERMS/TOUCH_CANDIDATE."
-        exit 0
-    fi
-
-    SYS="/sys/class/input/$EVENT"
-    DEVICE="/dev/input/$EVENT"
-    NAME="$(dev_name "$SYS")"
-    echo "STATUS=CAPTURING"
-    echo "EVENT=$EVENT"
-    echo "DEVICE=$DEVICE"
-    echo "NAME=${NAME:-UNKNOWN}"
-    echo
-    echo "[RAW_EVDEV_HEX]"
 } > "$TMP"
 
 if [ -z "$EVENT" ]; then
+    {
+        echo "STATUS=NO_TOUCH_CANDIDATE"
+        echo "EVENT=NONE"
+        echo "DETAIL=No readable touchscreen candidate was found. Run the metadata probe and inspect DEVICE_PERMS/TOUCH_CANDIDATE."
+    } >> "$TMP"
     mv "$TMP" "$LATEST" 2>/dev/null || exit 1
     [ -d "$TARGET" ] && cp "$LATEST" "$UI_COPY" 2>/dev/null || true
     cat "$LATEST"
     exit 0
 fi
 
+SYS="/sys/class/input/$EVENT"
 DEVICE="/dev/input/$EVENT"
+NAME="$(dev_name "$SYS")"
+{
+    echo "STATUS=CAPTURING"
+    echo "EVENT=$EVENT"
+    echo "DEVICE=$DEVICE"
+    echo "NAME=${NAME:-UNKNOWN}"
+    echo
+    echo "[RAW_EVDEV_HEX]"
+} >> "$TMP"
 
 # Short-lived passive capture only. dd opens the evdev node for reading; there
 # is no grab, no write path and no synthetic input device. The capture process
