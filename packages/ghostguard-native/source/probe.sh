@@ -1,7 +1,7 @@
 #!/bin/sh
 set -u
 
-VERSION="0.1.0"
+VERSION="0.2.0"
 STATE_DIR="/mnt/us/.dcpro_ghostguard_native"
 TARGET="/var/local/mesquite/GhostGuardNative"
 LATEST="$STATE_DIR/probe-latest.txt"
@@ -40,7 +40,7 @@ candidate_reason() {
 }
 
 {
-    echo "DCPRO_GHOSTGUARD_NATIVE_PROBE_V1"
+    echo "DCPRO_GHOSTGUARD_NATIVE_PROBE_V2"
     echo "VERSION=$VERSION"
     echo "MODE=READ_ONLY_METADATA"
     echo "PROTECT=OFF"
@@ -104,7 +104,7 @@ candidate_reason() {
     echo "EVIOCGRAB: NO"
     echo "uinput injection: NO"
     echo "background daemon: NO"
-    echo "read /dev/input/event*: NO"
+    echo "probe reads /dev/input/event*: NO"
 } > "$TMP"
 
 mv "$TMP" "$LATEST" || exit 1
