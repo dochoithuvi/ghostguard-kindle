@@ -1,34 +1,42 @@
-# DCPRO GhostGuard Native Probe 0.1.0
+# DCPRO GhostGuard Native 0.2.0
 
-This package is the first isolated native-Kindle research build for GhostGuard.
+GhostGuard Native is an isolated native-Kindle research package. It does not depend on KOReader and does not modify the stable GhostGuard KOReader package.
 
-## Scope
+## v0.2 scope — Passive Watch
 
-- installs as an independent KPM package: `ghostguard-native`
-- registers its own Mesquite application ID: `com.dcpro.ghostguardnative`
-- inventories input devices from `/proc/bus/input/devices` and `/sys/class/input/event*`
-- highlights likely touchscreen candidates from device names and ABS capabilities
-- displays the latest probe snapshot in a small Mesquite control panel
+- discovers likely touchscreen controllers from `/proc/bus/input/devices` and `/sys/class/input/event*`
+- selects a readable touchscreen candidate
+- opens that `/dev/input/event*` node **read-only** for a short 12-second capture when the Native panel launches
+- records raw evdev bytes as hex for device/controller analysis
+- mirrors the latest metadata and watch snapshots into the Mesquite control panel
+- capture exits automatically; there is no resident daemon
 
 ## Hard safety boundary
 
-Version 0.1.0 is metadata-only. It does **not**:
+Version 0.2.0 does **not**:
 
-- open `/dev/input/event*`
 - call `EVIOCGRAB`
-- create a `uinput` device
-- inject or block touch events
-- install a background daemon
-- modify KOReader or the existing GhostGuard KOReader package/data
+- create or write to `/dev/uinput`
+- inject synthetic input
+- block, filter, suppress, or rewrite touches
+- modify the Amazon reader input path
+- modify KOReader, GhostGuard KOReader, or KindleForge
 
-The purpose of this version is to identify the Kindle-native touchscreen/controller path safely before Observe, Auto Learn, Shadow Protect, or real Protect are attempted.
+Amazon's original reader continues to receive the same touchscreen stream while the short passive watcher is active.
+
+## Test flow
+
+1. Upgrade/install `ghostguard-native`.
+2. Run `;kpm launch ghostguard-native`.
+3. While the panel is open, tap, swipe and turn several pages for about 12 seconds.
+4. The panel refreshes the `Passive event watch` section automatically.
+5. Inspect `EVENT`, `NAME`, `STATUS` and `[RAW_EVDEV_HEX]` to validate the controller path.
 
 ## Planned progression
 
-1. v0.1 — read-only input/controller probe
-2. v0.2 — passive event observation after device-specific validation
-3. v0.3 — Auto Learn/profile generation adapted from the stable KOReader GhostGuard concepts
-4. v0.4 — Shadow Protect (`WOULD_BLOCK`) without blocking input
-5. v0.5+ — real native filtering only after device testing proves a fail-safe interception/reinjection path
-
-The KOReader GhostGuard package remains an independent stable product and is not a dependency of this package.
+1. v0.1 — metadata-only controller probe
+2. **v0.2 — passive read-only event observation**
+3. v0.3 — Controller Fingerprint + normalized touch stream
+4. v0.4 — Auto Learn/profile generation
+5. v0.5 — Shadow Protect (`WOULD_BLOCK`) without blocking input
+6. v0.6+ — real filtering only after device testing proves a fail-safe interception/reinjection path
