@@ -8,6 +8,7 @@ RUNTIME="/var/local/mesquite/GhostGuardNative.kpm-launch.sh"
 PROBE="/var/local/mesquite/GhostGuardNative.kpm-probe.sh"
 DB="/var/local/appreg.db"
 STATE_DIR="$ROOT/.dcpro_ghostguard_native"
+LAUNCH_LOG="$STATE_DIR/launch.log"
 LAUNCHER="$ROOT/documents/DCPRO_GhostGuard_Native.sh"
 ASSET_DIR="$ROOT/dcpro/ghostguard-native/assets"
 LIBRARY_COVER="$ASSET_DIR/ghostguard_native_library_600x960.jpg"
@@ -127,6 +128,12 @@ cleanup_staging
 mkdir -p "$STATE_DIR" || fail "cannot create state directory"
 mkdir -p "$ROOT/documents" "$ASSET_DIR" || fail "cannot create Library launcher directories"
 
+# Start a fresh launch log for this package revision. Runtime and both launch
+# paths append their exact result here so an immediate return-to-Home can be
+# diagnosed without touching KOReader logs.
+printf 'DCPRO_GHOSTGUARD_NATIVE_LAUNCH_LOG_V1\nPACKAGE_VERSION=0.2.2\nINSTALLED_UTC=%s\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" > "$LAUNCH_LOG" 2>/dev/null || true
+
 # Match the stable GhostGuard Library behavior: put the cover in place before
 # rewriting/touching the .sh launcher so SH_Integration can index the tile with
 # the same user-provided GhostGuard artwork instead of caching a blank entry.
@@ -145,16 +152,16 @@ touch "$LAUNCHER" 2>/dev/null || true
 sync 2>/dev/null || true
 
 # Generate metadata immediately; passive event capture starts only when the
-# Native control panel is launched from KPM or from the new Library icon.
+# Native control panel is launched from KPM or from the Library icon.
 "$PROBE" >/dev/null 2>&1 || true
 
-printf 'PACKAGE_ID=ghostguard-native\nPACKAGE_VERSION=0.2.1\nMODE=PASSIVE_EVENT_WATCH\nAPP_ID=%s\nTARGET=%s\nLIBRARY_LAUNCHER=%s\nLIBRARY_COVER=%s\nINSTALLED_UTC=%s\n' \
-    "$APP_ID" "$TARGET" "$LAUNCHER" "$LIBRARY_COVER" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" \
+printf 'PACKAGE_ID=ghostguard-native\nPACKAGE_VERSION=0.2.2\nMODE=PASSIVE_EVENT_WATCH\nAPP_ID=%s\nTARGET=%s\nLIBRARY_LAUNCHER=%s\nLIBRARY_COVER=%s\nLAUNCH_LOG=%s\nINSTALLED_UTC=%s\n' \
+    "$APP_ID" "$TARGET" "$LAUNCHER" "$LIBRARY_COVER" "$LAUNCH_LOG" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" \
     > "$STATE_DIR/KPM_INSTALL_OK" 2>/dev/null || true
 
-echo "GhostGuard Native 0.2.1 installed."
+echo "GhostGuard Native 0.2.2 installed."
 echo "Safety mode: passive read-only evdev watch; input grab and injection are OFF."
 echo "GhostGuard Native Library launcher: $LAUNCHER"
-echo "You can now open GhostGuard Native directly from the Kindle Library/Home."
+echo "Launch diagnostics: $LAUNCH_LOG"
 echo "Existing GhostGuard/reader packages were not modified."
 exit 0
