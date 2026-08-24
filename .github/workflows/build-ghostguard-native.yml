@@ -1,0 +1,124 @@
+name: Build GhostGuard Native Probe
+
+on:
+  pull_request:
+    paths:
+      - packages/ghostguard-native/source/**
+      - scripts/build_ghostguard_native_artifact.sh
+      - .github/workflows/build-ghostguard-native.yml
+  push:
+    branches: [main]
+    paths:
+      - packages/ghostguard-native/source/**
+      - scripts/build_ghostguard_native_artifact.sh
+      - .github/workflows/build-ghostguard-native.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-native-probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Guard stable packages on pull requests
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          BASE='${{ github.event.pull_request.base.sha }}'
+          git diff --exit-code "$BASE" HEAD -- \
+            packages/ghostguard \
+            packages/kindleforge \
+            DCPRO_GhostGuard_OneClick_Installer_v12.1.sh \
+            manifest.json \
+            manifest.mirror.json
+
+      - name: Build GhostGuard Native artifact
+        run: |
+          chmod +x scripts/build_ghostguard_native_artifact.sh
+          scripts/build_ghostguard_native_artifact.sh
+
+      - name: Validate GhostGuard Native artifact
+        shell: bash
+        run: |
+          PKG=$(ls packages/ghostguard-native/artifacts/ghostguard-native_0.1.0_*.kpkg | tail -1)
+          test -s "$PKG"
+          rm -rf /tmp/gncheck
+          mkdir -p /tmp/gncheck
+          tar -xzf "$PKG" -C /tmp/gncheck
+          test -f /tmp/gncheck/manifest.json
+          test -x /tmp/gncheck/install.sh
+          test -x /tmp/gncheck/launch.sh
+          test -x /tmp/gncheck/uninstall.sh
+          test -x /tmp/gncheck/runtime.sh
+          test -x /tmp/gncheck/probe.sh
+          test -f /tmp/gncheck/payload/GhostGuardNative/config.xml
+          test -f /tmp/gncheck/payload/GhostGuardNative/index.html
+          grep -q '"id": "ghostguard-native"' /tmp/gncheck/manifest.json
+          grep -q '"version": \[0, 1, 0\]' /tmp/gncheck/manifest.json
+          grep -q 'MODE=READ_ONLY_METADATA' /tmp/gncheck/probe.sh
+          grep -q 'EVENT_NODE_OPEN=NO' /tmp/gncheck/probe.sh
+          grep -q 'INPUT_GRAB=OFF' /tmp/gncheck/probe.sh
+          ! grep -Ei 'EVIOCGRAB|/dev/uinput|/mnt/us/koreader|dcghostguardpro\.koplugin' \
+            /tmp/gncheck/install.sh /tmp/gncheck/launch.sh /tmp/gncheck/uninstall.sh /tmp/gncheck/runtime.sh
+          ! grep -Ei 'cat[[:space:]]+/dev/input/event|dd[[:space:]].*/dev/input/event' /tmp/gncheck/probe.sh
+
+      - name: Register Native package in KPM v2 manifest
+        shell: bash
+        run: |
+          PKG=$(ls packages/ghostguard-native/artifacts/ghostguard-native_0.1.0_*.kpkg | tail -1)
+          python3 - "$PKG" <<'PY'
+          import json
+          import os
+          import sys
+          import tarfile
+
+          pkg_path = sys.argv[1]
+          with tarfile.open(pkg_path, "r:gz") as tf:
+              with tf.extractfile("manifest.json") as fh:
+                  package = json.load(fh)
+
+          with open("manifest.v2.json", "r", encoding="utf-8") as fh:
+              repo = json.load(fh)
+
+          repo.setdefault("packages", {})[package["id"]] = {
+              "name": package["name"],
+              "author": package["author"],
+              "description": package["description"],
+              "artifacts": [{
+                  "url": os.path.relpath(pkg_path, ".").replace(os.sep, "/"),
+                  "version": package["version"],
+                  "dependencies": package["dependencies"],
+                  "supported_platforms": package["supported_platforms"],
+              }],
+          }
+
+          with open("manifest.v2.json", "w", encoding="utf-8") as fh:
+              json.dump(repo, fh, indent=2, ensure_ascii=False)
+              fh.write("\n")
+          PY
+          grep -q '"ghostguard-native"' manifest.v2.json
+          grep -q 'ghostguard-native_0.1.0_kindle5-kindlepw2-kindlehf.kpkg' manifest.v2.json
+
+      - name: Publish Native package
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.v2.json packages/ghostguard-native/artifacts/ghostguard-native_0.1.0_*.kpkg
+          git diff --cached --quiet && exit 0
+          git commit -m "build(native): publish GhostGuard Native Probe 0.1.0 [native-artifact-bot]"
+          git push
+
+      - name: Upload Native artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghostguard-native-0.1.0-kpkg
+          path: packages/ghostguard-native/artifacts/ghostguard-native_0.1.0_*.kpkg
+          if-no-files-found: error

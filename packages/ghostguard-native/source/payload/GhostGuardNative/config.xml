@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<widget id="com.dcpro.ghostguardnative" version="0.1.0" viewmodes="application"
+    xmlns="http://www.w3.org/ns/widgets"
+    xmlns:kindle="http://kindle.amazon.com/ns/widget-extensions">
+    <name xml:lang="en">GhostGuard Native Probe</name>
+    <description xml:lang="en">Read-only native Kindle touch/input metadata probe.</description>
+    <content src="index.html" />
+
+    <kindle:chrome>
+        <kindle:asset key="configureSearchBar" value="system" />
+    </kindle:chrome>
+
+    <kindle:gestures>
+        <kindle:param name="tap" value="yes" properties="fire_on_tap:1 max_updown_delta:0" />
+        <kindle:param name="swipe" value="yes" />
+    </kindle:gestures>
+
+    <feature name="http://kindle.amazon.com/apis" required="true">
+        <param name="appmgr" value="yes" />
+        <param name="gestures" value="yes" />
+        <param name="chrome" value="yes" />
+        <param name="device" value="yes" />
+    </feature>
+
+    <kindle:resources>
+        <kindle:asset key="LocalStorageQuota" value="1048576" />
+    </kindle:resources>
+
+    <kindle:settings>
+        <kindle:setting name="internetRequired" value="no" />
+        <kindle:setting name="saveContext" value="no" />
+        <kindle:setting name="disable-wua-features" value="yes" />
+    </kindle:settings>
+</widget>

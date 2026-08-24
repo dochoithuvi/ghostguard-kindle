@@ -1,0 +1,38 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GhostGuard Native Probe</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="card">
+    <header>
+      <div>
+        <h1>GhostGuard Native</h1>
+        <p class="sub">Touch Probe v0.1.0</p>
+      </div>
+      <span class="badge">READ-ONLY</span>
+    </header>
+
+    <section class="status-grid">
+      <div><span>Protect</span><strong>OFF</strong></div>
+      <div><span>Input grab</span><strong>OFF</strong></div>
+      <div><span>Event injection</span><strong>OFF</strong></div>
+      <div><span>KOReader changes</span><strong>NONE</strong></div>
+    </section>
+
+    <section>
+      <h2>Native input discovery</h2>
+      <p>This first build only inventories Kindle input devices through proc/sysfs metadata. It does not open touch event nodes or alter the Amazon reader input path.</p>
+      <pre id="probe">Loading latest probe snapshot…</pre>
+    </section>
+
+    <section class="note">
+      <strong>Test goal:</strong> identify the physical touchscreen event device/controller safely before Observe, Auto Learn or Protect are implemented.
+    </section>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
