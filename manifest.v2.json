@@ -49,14 +49,14 @@
     "ghostguard-native": {
       "name": "DCPRO GhostGuard Native",
       "author": "Do Choi Thu Vi",
-      "description": "Experimental passive native Kindle touch watcher. Opens the selected touchscreen event node read-only for short captures, never grabs input, never injects events, and leaves KOReader untouched.",
+      "description": "Experimental passive native Kindle touch watcher with a Kindle Library launcher. Opens the selected touchscreen event node read-only for short captures, never grabs input, never injects events, and leaves KOReader untouched.",
       "artifacts": [
         {
-          "url": "packages/ghostguard-native/artifacts/ghostguard-native_0.2.0_kindle5-kindlepw2-kindlehf.kpkg",
+          "url": "packages/ghostguard-native/artifacts/ghostguard-native_0.2.1_kindle5-kindlepw2-kindlehf.kpkg",
           "version": [
             0,
             2,
-            0
+            1
           ],
           "dependencies": [],
           "supported_platforms": [
