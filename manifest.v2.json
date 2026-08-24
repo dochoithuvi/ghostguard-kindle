@@ -45,6 +45,27 @@
           ]
         }
       ]
+    },
+    "ghostguard-native": {
+      "name": "DCPRO GhostGuard Native Probe",
+      "author": "Do Choi Thu Vi",
+      "description": "Experimental read-only native Kindle touch/input probe. Does not modify KOReader, does not grab input devices, and does not block touches.",
+      "artifacts": [
+        {
+          "url": "packages/ghostguard-native/artifacts/ghostguard-native_0.1.0_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [
+            0,
+            1,
+            0
+          ],
+          "dependencies": [],
+          "supported_platforms": [
+            "kindle5",
+            "kindlepw2",
+            "kindlehf"
+          ]
+        }
+      ]
     }
   }
 }
