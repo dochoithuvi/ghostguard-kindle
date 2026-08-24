@@ -1,4 +1,4 @@
-# DCPRO GhostGuard Native 0.2.0
+# DCPRO GhostGuard Native 0.2.1
 
 GhostGuard Native is an isolated native-Kindle research package. It does not depend on KOReader and does not modify the stable GhostGuard KOReader package.
 
@@ -10,10 +10,12 @@ GhostGuard Native is an isolated native-Kindle research package. It does not dep
 - records raw evdev bytes as hex for device/controller analysis
 - mirrors the latest metadata and watch snapshots into the Mesquite control panel
 - capture exits automatically; there is no resident daemon
+- installs a **DCPRO GhostGuard Native** launcher in the Kindle Library/Home so normal use no longer requires typing `;kpm launch ghostguard-native`
+- reuses the existing GhostGuard Library artwork/icon already shipped by DCPRO
 
 ## Hard safety boundary
 
-Version 0.2.0 does **not**:
+Version 0.2.1 does **not**:
 
 - call `EVIOCGRAB`
 - create or write to `/dev/uinput`
@@ -24,13 +26,24 @@ Version 0.2.0 does **not**:
 
 Amazon's original reader continues to receive the same touchscreen stream while the short passive watcher is active.
 
+## Install / upgrade
+
+Fresh install:
+
+`;kpm install ghostguard-native`
+
+Upgrade an existing Native installation:
+
+`;kpm upgrade`
+
+After installation, open **DCPRO GhostGuard Native** directly from the Kindle Library/Home. The command `;kpm launch ghostguard-native` remains available as a fallback/test path.
+
 ## Test flow
 
-1. Upgrade/install `ghostguard-native`.
-2. Run `;kpm launch ghostguard-native`.
-3. While the panel is open, tap, swipe and turn several pages for about 12 seconds.
-4. The panel refreshes the `Passive event watch` section automatically.
-5. Inspect `EVENT`, `NAME`, `STATUS` and `[RAW_EVDEV_HEX]` to validate the controller path.
+1. Open **DCPRO GhostGuard Native** from the Kindle Library/Home.
+2. While the panel is open, tap, swipe and turn several pages for about 12 seconds.
+3. The panel refreshes the `Passive event watch` section automatically.
+4. Inspect `EVENT`, `NAME`, `STATUS` and `[RAW_EVDEV_HEX]` to validate the controller path.
 
 ## Planned progression
 
