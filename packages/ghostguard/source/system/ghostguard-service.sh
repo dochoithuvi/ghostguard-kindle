@@ -72,12 +72,22 @@ read_config() {
     done < "$CONFIG"
 }
 
+pid_is_ghostguard_service() {
+    pid="$1"
+    case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+    kill -0 "$pid" 2>/dev/null || return 1
+    [ -r "/proc/$pid/cmdline" ] || return 1
+    tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -Fq 'ghostguard-service.sh'
+}
+
 # Single instance without relying on flock (not present on every Kindle build).
+# A stale PID file must never make us mistake an unrelated reused PID for GG.
 if [ -r "$PIDFILE" ]; then
     oldpid="$(cat "$PIDFILE" 2>/dev/null || true)"
-    if [ -n "$oldpid" ] && kill -0 "$oldpid" 2>/dev/null; then
+    if pid_is_ghostguard_service "$oldpid"; then
         exit 0
     fi
+    rm -f "$PIDFILE" 2>/dev/null || true
 fi
 printf '%s\n' "$$" > "$PIDFILE" 2>/dev/null || exit 0
 cleanup() { rm -f "$PIDFILE" 2>/dev/null || true; }
@@ -145,6 +155,9 @@ probe_controller() {
 
 persist_fingerprint() {
     probe_controller || true
+    # A transiently unavailable input node must not destroy the last known-good
+    # controller identity. Keep the old fingerprint until a real controller is seen.
+    [ "$CONTROLLER_HASH" != "NONE" ] || return 1
     {
         echo "DCPRO_GHOSTGUARD_CONTROLLER_FINGERPRINT_V1"
         echo "VERSION=$VERSION"
@@ -208,6 +221,14 @@ write_status() {
     } | write_atomic "$STATUS" || true
 }
 
+mark_controller_changed() {
+    old_hash="$1"
+    new_hash="$2"
+    reason="$3"
+    printf 'OLD=%s\nNEW=%s\nREASON=%s\nUTC=%s\n' "$old_hash" "$new_hash" "$reason" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" > "$CONTROLLER_CHANGED" 2>/dev/null || true
+    log "controller fingerprint changed: $old_hash -> $new_hash ($reason); marker is sticky until profile approval"
+}
+
 on_wake() {
     read_config
     old_hash=""
@@ -215,16 +236,32 @@ on_wake() {
         old_hash="$(sed -n 's/^FINGERPRINT=//p' "$FINGERPRINT" | head -1)"
         cp -f "$FINGERPRINT" "$FINGERPRINT_PREV" 2>/dev/null || true
     fi
-    persist_fingerprint
+
+    # Give the input stack a brief chance to reappear after powerd announces wake.
+    attempts=0
+    while [ "$attempts" -lt 4 ]; do
+        probe_controller || true
+        [ "$CONTROLLER_HASH" != "NONE" ] && break
+        attempts=$((attempts + 1))
+        sleep 1 2>/dev/null || true
+    done
+
     new_hash="$CONTROLLER_HASH"
     match="YES"
-    if [ -n "$old_hash" ] && [ "$old_hash" != "NONE" ] && [ "$new_hash" != "$old_hash" ]; then
+    if [ "$new_hash" = "NONE" ]; then
+        match="UNKNOWN"
+        log "controller unavailable after wake; keeping previous fingerprint and failing open"
+    elif [ -n "$old_hash" ] && [ "$old_hash" != "NONE" ] && [ "$new_hash" != "$old_hash" ]; then
         match="NO"
-        printf 'OLD=%s\nNEW=%s\nUTC=%s\n' "$old_hash" "$new_hash" "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" > "$CONTROLLER_CHANGED" 2>/dev/null || true
-        log "controller fingerprint changed: $old_hash -> $new_hash; auto Protect must fail open"
+        mark_controller_changed "$old_hash" "$new_hash" "WAKE"
+        persist_fingerprint || true
     else
-        rm -f "$CONTROLLER_CHANGED" 2>/dev/null || true
+        persist_fingerprint || true
+        # Never clear CONTROLLER_CHANGED here. A real mismatch stays blocked
+        # until KOReader explicitly approves a freshly learned profile.
+        if [ -f "$CONTROLLER_CHANGED" ]; then match="PENDING_RELEARN"; fi
     fi
+
     seq="$(next_wake_seq)"
     if [ "$ENABLED" = "1" ] && [ "$RESUME_AFTER_WAKE" = "1" ]; then
         {
@@ -242,7 +279,17 @@ on_wake() {
 }
 
 read_config
-persist_fingerprint
+startup_old_hash=""
+if [ -r "$FINGERPRINT" ]; then
+    startup_old_hash="$(sed -n 's/^FINGERPRINT=//p' "$FINGERPRINT" | head -1)"
+    cp -f "$FINGERPRINT" "$FINGERPRINT_PREV" 2>/dev/null || true
+fi
+persist_fingerprint || true
+startup_new_hash="$CONTROLLER_HASH"
+if [ -n "$startup_old_hash" ] && [ "$startup_old_hash" != "NONE" ] \
+    && [ "$startup_new_hash" != "NONE" ] && [ "$startup_new_hash" != "$startup_old_hash" ]; then
+    mark_controller_changed "$startup_old_hash" "$startup_new_hash" "SERVICE_START"
+fi
 state="$(power_state)"
 prev_state="$state"
 last_heartbeat="$(date +%s 2>/dev/null || echo 0)"
