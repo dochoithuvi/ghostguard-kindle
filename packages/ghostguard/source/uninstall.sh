@@ -26,11 +26,19 @@ if [ -s "$TARGET/license.key" ]; then
     cp -p "$TARGET/license.key" "$DATA/license.key.kpm-backup" 2>/dev/null || true
 fi
 
-# Stop current supervisor before removing its boot job. Never signal any PID
-# unless it is the exact PID recorded by our own service file.
+pid_is_ghostguard_service() {
+    pid="$1"
+    case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+    kill -0 "$pid" 2>/dev/null || return 1
+    [ -r "/proc/$pid/cmdline" ] || return 1
+    tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -Fq 'ghostguard-service.sh'
+}
+
+# Stop current supervisor before removing its boot job. A stale service.pid can
+# refer to a reused PID after reboot, so verify /proc before sending a signal.
 if [ -r "$SERVICE_PID" ]; then
     pid="$(cat "$SERVICE_PID" 2>/dev/null || true)"
-    case "$pid" in ''|*[!0-9]*) ;; *) kill "$pid" 2>/dev/null || true ;; esac
+    if pid_is_ghostguard_service "$pid"; then kill "$pid" 2>/dev/null || true; fi
 fi
 if command -v initctl >/dev/null 2>&1; then initctl stop dcpro-ghostguard >/dev/null 2>&1 || true; fi
 
