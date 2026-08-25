@@ -1,8 +1,8 @@
 #!/bin/sh
 # DCPRO GhostGuard OneClick v12.1
-# Self-contained production bootstrap for KPM v0.1.x/v0.2.x.
+# Self-contained production bootstrap for KPM v0.2.x.
 # Installs/checks KOReader, applies tested KOReader GestureGuard + TouchMenuGuard
-# fail-safes, optionally installs SimpleUI, refreshes the GhostGuard compatibility
+# fail-safes, optionally installs SimpleUI, refreshes the current multi-package
 # KPM repository, installs GhostGuard 0.6.17, syncs the latest SimpleUI Tools
 # bridge, then launches GhostGuard.
 
@@ -20,7 +20,7 @@ if [ "$LIB_ONLY" != "1" ]; then
 fi
 
 GG_REPO_ID=dochoithuvi-ghostguard
-GG_REPO=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/manifest.json
+GG_REPO=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/manifest.v2.json
 GG_REPO_MIRROR=https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/manifest.mirror.json
 GG_EXPECT=0.6.17
 GG_RUNTIME_REVISION=calibration-flow-v2
@@ -30,7 +30,7 @@ GG_BRIDGE_URL=https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/ma
 GG_BRIDGE_MIRROR_URL=https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/source/payload/dcghostguardpro.koplugin/simpleui_bridge.lua
 
 KMC_REPO_ID=kindlemodding
-KMC_REPO=https://cdn.jsdelivr.net/gh/KindleModding/repo@main/manifest.json
+KMC_REPO=https://cdn.jsdelivr.net/gh/KindleModding/repo@main/manifest.v2.json
 KO_VER=2026.07
 
 GG_GESTURE_MARKER=DCPRO_KOREADER_GESTURE_NIL_GUARD_V1
@@ -131,17 +131,12 @@ install_ko(){
 
 koreader_find_luajit(){
   KO_ROOT="$1"
-  CANDIDATE="$KO_ROOT/luajit"
-  if [ -x "$CANDIDATE" ]; then
-    if "$CANDIDATE" -e 'os.exit(0)' >/dev/null 2>&1; then
-      printf '%s\n' "$CANDIDATE"
-      return 0
-    fi
-    log "WARN: bundled KOReader LuaJIT exists but cannot execute on this Kindle; syntax compile check will be skipped ($CANDIDATE)"
+  if [ -x "$KO_ROOT/luajit" ]; then
+    printf '%s\n' "$KO_ROOT/luajit"
+    return 0
   fi
-  CANDIDATE="$(command -v luajit 2>/dev/null || true)"
-  if [ -n "$CANDIDATE" ] && "$CANDIDATE" -e 'os.exit(0)' >/dev/null 2>&1; then
-    printf '%s\n' "$CANDIDATE"
+  if command -v luajit >/dev/null 2>&1; then
+    command -v luajit
     return 0
   fi
   return 1
@@ -157,47 +152,6 @@ koreader_validate_lua_syntax(){
   fi
   log "ERROR: LuaJIT loadfile syntax validation failed; original file left untouched ($LUA_FILE)"
   return 1
-}
-
-copy_backup_portable(){
-  SRC="$1"
-  DST="$2"
-
-  # /mnt/us is commonly FAT-backed on Kindle. BusyBox cp -p may copy the bytes
-  # successfully but still return non-zero when ownership/mode metadata cannot
-  # be preserved. The guard only needs a byte-for-byte restore point, so retry
-  # with a plain copy before treating the backup as a hard failure.
-  if cp -p "$SRC" "$DST" >> "$LOG" 2>&1; then
-    return 0
-  fi
-
-  log "WARN: metadata-preserving KOReader backup failed; retrying content-only copy ($DST)"
-  rm -f "$DST" 2>/dev/null || true
-  cp "$SRC" "$DST" >> "$LOG" 2>&1 || return 1
-
-  if command -v cmp >/dev/null 2>&1 && ! cmp -s "$SRC" "$DST"; then
-    log "ERROR: KOReader backup content verification failed ($DST)"
-    rm -f "$DST" 2>/dev/null || true
-    return 1
-  fi
-
-  log "Portable KOReader backup: PASS ($DST)"
-  return 0
-}
-
-log_koreader_guard_context(){
-  log "KOReader safety guard failure context:"
-  log "ROOT=$ROOT"
-  command -v mount >/dev/null 2>&1 && mount 2>&1 | grep ' /mnt/us ' >> "$LOG" 2>&1 || true
-  for F in \
-    "$ROOT/koreader/frontend/device/gesturedetector.lua" \
-    "$ROOT/extensions/koreader/frontend/device/gesturedetector.lua" \
-    "$ROOT/koreader/frontend/ui/widget/touchmenu.lua" \
-    "$ROOT/extensions/koreader/frontend/ui/widget/touchmenu.lua"
-  do
-    [ -e "$F" ] || continue
-    ls -l "$F" >> "$LOG" 2>&1 || true
-  done
 }
 
 patch_gesture_guard_one(){
@@ -222,7 +176,7 @@ patch_gesture_guard_one(){
   grep -Fq 'local y_diff = self.current_tev.y - initial_tev.y' "$TARGET" || { log "SKIP: GestureGuard getPath vulnerable expression not found"; return 2; }
 
   if [ ! -f "$BACKUP" ]; then
-    copy_backup_portable "$TARGET" "$BACKUP" || { log "ERROR: cannot create GestureGuard backup $BACKUP"; return 1; }
+    cp -p "$TARGET" "$BACKUP" || { log "ERROR: cannot create GestureGuard backup $BACKUP"; return 1; }
     log "GestureGuard backup: $BACKUP"
   else
     log "GestureGuard backup already exists: $BACKUP"
@@ -402,7 +356,7 @@ patch_touchmenu_guard_one(){
   grep -Fq 'if nb > self.page_num then' "$TARGET" || { log "SKIP: TouchMenuGuard vulnerable goto-page expression missing"; return 2; }
 
   if [ ! -f "$BACKUP" ]; then
-    copy_backup_portable "$TARGET" "$BACKUP" || { log "ERROR: cannot create TouchMenuGuard backup $BACKUP"; return 1; }
+    cp -p "$TARGET" "$BACKUP" || { log "ERROR: cannot create TouchMenuGuard backup $BACKUP"; return 1; }
     log "TouchMenuGuard backup: $BACKUP"
   else
     log "TouchMenuGuard backup already exists: $BACKUP"
@@ -536,12 +490,12 @@ install_simpleui(){
 
 manifest_check_url(){
   URL="$1"
-  M="$TMP/ghostguard_manifest.json"
+  M="$TMP/ghostguard_manifest.v2.json"
   MC="$TMP/ghostguard_manifest.compact.json"
   rm -f "$M" "$MC"
   log "Checking manifest: $URL"
   get "$URL" "$M" || { log "WARN: manifest download failed: $URL"; return 1; }
-  grep -q '"manifest_version"[[:space:]]*:[[:space:]]*1' "$M" || { log "WARN: manifest is not KPM v1-compatible: $URL"; return 1; }
+  grep -q '"manifest_version"[[:space:]]*:[[:space:]]*2' "$M" || { log "WARN: manifest is not v2: $URL"; return 1; }
   grep -q '"id"[[:space:]]*:[[:space:]]*"'$GG_REPO_ID'"' "$M" || { log "WARN: manifest repo id mismatch: $URL"; return 1; }
   tr -d '[:space:]' < "$M" > "$MC" || { log "WARN: cannot normalize manifest: $URL"; return 1; }
   grep -Fq '"ghostguard":{' "$MC" || { log "WARN: ghostguard package missing: $URL"; return 1; }
@@ -626,21 +580,21 @@ repair_gg(){
   register_gg_repo "$FALLBACK" || return 1
   refresh_gg_index || { log "ERROR: GhostGuard package not visible on primary or mirror"; return 1; }
   GG_ACTIVE_REPO="$FALLBACK"
-  log "GhostGuard compatibility repo refresh complete via fallback endpoint."
+  log "GhostGuard v2 repo refresh complete via fallback endpoint."
   return 0
 }
 
 main(){
   log "========================================"
   log "DCPRO GhostGuard OneClick v12.1"
-  log "Target: GitHub Raw manifest.json (KPM v1 compatibility; manifest.v2.json remains available for newer KPM)"
+  log "Target: GitHub Raw manifest.v2.json"
   log "Expected: GhostGuard $GG_EXPECT/$GG_RUNTIME_REVISION + KOReader safety guards + latest SimpleUI Tools bridge"
   log "Date: $(date)"
   log "KPM=$KPM"
   log "========================================"
 
   say 1 "DCPRO GhostGuard Installer v12.1"
-  say 2 "KPM v1/v2 + KOReader safety guards"
+  say 2 "KPM v2 + KOReader safety guards"
 
   install_ko || { log "ERROR: KOReader install failed"; say 5 "LOI: Khong cai duoc KOReader"; exit 1; }
   say 4 "KOReader... OK"
@@ -658,7 +612,6 @@ main(){
       ;;
     *)
       log "ERROR: KOReader safety guard patch failed; original target was preserved where validation failed."
-      log_koreader_guard_context
       say 6 "LOI: KOReader safety guard"
       exit 1
       ;;
