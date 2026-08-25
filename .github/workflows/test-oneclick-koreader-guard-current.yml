@@ -49,3 +49,30 @@ jobs:
 
           grep -q 'DCPRO_KOREADER_GESTURE_NIL_GUARD_V1' "$ROOT/koreader/frontend/device/gesturedetector.lua"
           grep -q 'DCPRO_KOREADER_TOUCHMENU_PAGE_GUARD_V1' "$ROOT/koreader/frontend/ui/widget/touchmenu.lua"
+
+      - name: Simulate Kindle storage rejecting cp -p metadata preservation
+        shell: bash
+        run: |
+          export DCPRO_ONECLICK_LIB_ONLY=1
+          export DCPRO_ONECLICK_ROOT=/tmp/dcpro-lib-portable
+          export DCPRO_ONECLICK_LOG=/tmp/dcpro-lib-portable.log
+          export DCPRO_ONECLICK_TMP=/tmp/dcpro-lib-portable-state
+          . ./DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+
+          SRC=/tmp/portable-backup-source
+          DST=/tmp/portable-backup-dest
+          printf 'ghostguard-backup-test\n' > "$SRC"
+          rm -f "$DST"
+
+          cp() {
+            if [ "${1:-}" = '-p' ]; then
+              command cp "$2" "$3"
+              return 1
+            fi
+            command cp "$@"
+          }
+
+          copy_backup_portable "$SRC" "$DST"
+          cmp -s "$SRC" "$DST"
+          grep -q 'retrying content-only copy' "$DCPRO_ONECLICK_LOG"
+          grep -q 'Portable KOReader backup: PASS' "$DCPRO_ONECLICK_LOG"
