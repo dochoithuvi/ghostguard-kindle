@@ -131,12 +131,17 @@ install_ko(){
 
 koreader_find_luajit(){
   KO_ROOT="$1"
-  if [ -x "$KO_ROOT/luajit" ]; then
-    printf '%s\n' "$KO_ROOT/luajit"
-    return 0
+  CANDIDATE="$KO_ROOT/luajit"
+  if [ -x "$CANDIDATE" ]; then
+    if "$CANDIDATE" -e 'os.exit(0)' >/dev/null 2>&1; then
+      printf '%s\n' "$CANDIDATE"
+      return 0
+    fi
+    log "WARN: bundled KOReader LuaJIT exists but cannot execute on this Kindle; syntax compile check will be skipped ($CANDIDATE)"
   fi
-  if command -v luajit >/dev/null 2>&1; then
-    command -v luajit
+  CANDIDATE="$(command -v luajit 2>/dev/null || true)"
+  if [ -n "$CANDIDATE" ] && "$CANDIDATE" -e 'os.exit(0)' >/dev/null 2>&1; then
+    printf '%s\n' "$CANDIDATE"
     return 0
   fi
   return 1
