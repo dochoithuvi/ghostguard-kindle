@@ -76,3 +76,35 @@ jobs:
           cmp -s "$SRC" "$DST"
           grep -q 'retrying content-only copy' "$DCPRO_ONECLICK_LOG"
           grep -q 'Portable KOReader backup: PASS' "$DCPRO_ONECLICK_LOG"
+
+      - name: Treat unusable bundled LuaJIT as unavailable, not as guard failure
+        shell: bash
+        run: |
+          export DCPRO_ONECLICK_LIB_ONLY=1
+          export DCPRO_ONECLICK_ROOT=/tmp/dcpro-lib-luajit
+          export DCPRO_ONECLICK_LOG=/tmp/dcpro-lib-luajit.log
+          export DCPRO_ONECLICK_TMP=/tmp/dcpro-lib-luajit-state
+          . ./DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+
+          ROOT=/tmp/koreader-guard-unusable-luajit
+          LOG=/tmp/koreader-guard-unusable-luajit.log
+          TMP=/tmp/koreader-guard-unusable-luajit-state
+          GG_GESTURE_STATE="$TMP/KOREADER_GESTURE_GUARD_V1"
+          GG_TOUCHMENU_STATE="$TMP/KOREADER_TOUCHMENU_GUARD_V1"
+          rm -rf "$ROOT" "$TMP" "$LOG"
+          mkdir -p "$ROOT/koreader/frontend/device" "$ROOT/koreader/frontend/ui/widget" "$TMP"
+
+          curl -fsSL https://raw.githubusercontent.com/koreader/koreader/v2026.07.2/frontend/device/gesturedetector.lua -o "$ROOT/koreader/frontend/device/gesturedetector.lua"
+          curl -fsSL https://raw.githubusercontent.com/koreader/koreader/v2026.07.2/frontend/ui/widget/touchmenu.lua -o "$ROOT/koreader/frontend/ui/widget/touchmenu.lua"
+
+          cat > "$ROOT/koreader/luajit" <<'EOF'
+#!/bin/sh
+exit 127
+EOF
+          chmod +x "$ROOT/koreader/luajit"
+
+          apply_koreader_safety_patches
+          grep -q 'bundled KOReader LuaJIT exists but cannot execute' "$LOG"
+          grep -q 'GestureGuard PATCHED' "$LOG"
+          grep -q 'TouchMenuGuard PATCHED' "$LOG"
+          grep -q 'KOReader safety guards: PASS' "$LOG"
