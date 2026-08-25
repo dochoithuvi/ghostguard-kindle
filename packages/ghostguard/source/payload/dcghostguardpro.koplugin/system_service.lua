@@ -114,8 +114,15 @@ function SystemService:controllerSafe()
         return false, req and ("controller fingerprint changed: " .. req.controller) or "controller fingerprint changed"
     end
     local req = self:resumeRequest()
-    if req and req.fingerprint_match == "NO" then
-        return false, "controller fingerprint mismatch after wake"
+    if req then
+        local state = tostring(req.fingerprint_match or "UNKNOWN")
+        if state == "NO" then
+            return false, "controller fingerprint mismatch after wake"
+        elseif state == "UNKNOWN" then
+            return false, "controller identity unavailable after wake"
+        elseif state == "PENDING_RELEARN" then
+            return false, "controller changed; fresh profile approval required"
+        end
     end
     return true
 end
@@ -131,10 +138,9 @@ end
 
 function SystemService:acknowledgeController()
     os.remove(self.controller_changed_path)
-    local req = self:resumeRequest()
-    if req and req.fingerprint_match == "NO" then
-        local text = read_file(self.resume_path) or ""
-        text = text:gsub("FINGERPRINT_MATCH=NO", "FINGERPRINT_MATCH=ACKNOWLEDGED", 1)
+    local text = read_file(self.resume_path)
+    if text then
+        text = text:gsub("FINGERPRINT_MATCH=[^\r\n]+", "FINGERPRINT_MATCH=ACKNOWLEDGED", 1)
         write_atomic(self.resume_path, text)
     end
     return true
