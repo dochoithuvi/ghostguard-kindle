@@ -596,6 +596,18 @@ main(){
   say 1 "DCPRO GhostGuard Installer v12.1"
   say 2 "KPM v2 + KOReader safety guards"
 
+  # Match the reliable manual recovery sequence: refresh KPM first, then run
+  # the existing OneClick flow unchanged. A partial update failure is logged
+  # but does not block installation because an unrelated repository may fail.
+  say 3 "[0/9] KPM update..."
+  PREFLIGHT_UPDATE_RC=0
+  run "$KPM" -y update || PREFLIGHT_UPDATE_RC=$?
+  if [ "$PREFLIGHT_UPDATE_RC" -eq 0 ]; then
+    log "OneClick preflight KPM update: PASS"
+  else
+    log "WARN: OneClick preflight KPM update returned rc=$PREFLIGHT_UPDATE_RC; continuing with the previous installer flow."
+  fi
+
   install_ko || { log "ERROR: KOReader install failed"; say 5 "LOI: Khong cai duoc KOReader"; exit 1; }
   say 4 "KOReader... OK"
 
