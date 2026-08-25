@@ -1,27 +1,51 @@
 {
-  "manifest_version": 1,
+  "manifest_version": 2,
   "id": "dochoithuvi-ghostguard",
   "name": "Do Choi Thu Vi GhostGuard Repository (jsDelivr mirror)",
-  "description": "Mirror manifest for Kindle devices that cannot resolve raw.githubusercontent.com.",
+  "description": "KPM v2 mirror for Kindle devices that cannot resolve raw.githubusercontent.com.",
   "packages": {
     "ghostguard": {
       "name": "DCPRO GhostGuard",
       "author": "Do Choi Thu Vi",
-      "description": "KOReader GhostGuard v0.6.17 - safe baseline learning completion plus profile-based protection.",
+      "description": "GhostGuard v0.8.0 - integrated fail-open Kindle system supervisor, native controller diagnostics, cumulative profile learning and KOReader protection bridge.",
       "artifacts": [
         {
-          "url": "packages/ghostguard/artifacts/ghostguard_0.6.17_kindle5-kindlepw2-kindlehf.kpkg",
-          "version": [
-            0,
-            6,
-            17
-          ],
+          "url": "packages/ghostguard/artifacts/ghostguard_0.8.0_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [0, 8, 0],
           "dependencies": [],
-          "supported_platforms": [
-            "kindle5",
-            "kindlepw2",
-            "kindlehf"
-          ]
+          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
+        },
+        {
+          "url": "packages/ghostguard/artifacts/ghostguard_0.6.17_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [0, 6, 17],
+          "dependencies": [],
+          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
+        }
+      ]
+    },
+    "kindleforge": {
+      "name": "KindleForge",
+      "author": "Penguins184 / KindleTweaks",
+      "description": "KindleForge upstream 4.1.0 with KPM integration revision 4.1.1.",
+      "artifacts": [
+        {
+          "url": "packages/kindleforge/artifacts/kindleforge_4.1.1_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [4, 1, 1],
+          "dependencies": [],
+          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
+        }
+      ]
+    },
+    "ghostguard-native": {
+      "name": "DCPRO GhostGuard Native (Legacy Standalone)",
+      "author": "Do Choi Thu Vi",
+      "description": "Legacy standalone native watcher; v0.8 integrates this diagnostic layer.",
+      "artifacts": [
+        {
+          "url": "packages/ghostguard-native/artifacts/ghostguard-native_0.2.2_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [0, 2, 2],
+          "dependencies": [],
+          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
         }
       ]
     }
