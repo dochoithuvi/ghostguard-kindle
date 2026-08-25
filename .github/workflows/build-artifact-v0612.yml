@@ -15,10 +15,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate-v080:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[artifact-v080]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -140,3 +141,15 @@ jobs:
           name: ghostguard-0.8.0-kpkg
           path: packages/ghostguard/artifacts/ghostguard_0.8.0_kindle5-kindlepw2-kindlehf.kpkg
           if-no-files-found: error
+
+      - name: Materialize artifact on v0.8 branch
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/v0.8-system-service' }}
+        run: |
+          set -eu
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/ghostguard/artifacts/ghostguard_0.8.0_kindle5-kindlepw2-kindlehf.kpkg
+          if ! git diff --cached --quiet; then
+            git commit -m "[artifact-v080] materialize GhostGuard 0.8.0 KPM artifact"
+            git push origin HEAD:v0.8-system-service
+          fi
