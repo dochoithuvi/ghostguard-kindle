@@ -1,6 +1,6 @@
 return {
-    version = "0.6.17",
-    runtime_revision = "calibration-flow-v2",
+    version = "0.8.0",
+    runtime_revision = "system-service-v1",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
     protect_mode = "PROTECT_PROFILE",
@@ -49,6 +49,15 @@ return {
         "/mnt/us/.dcpro_ghostguard/SAFE_MODE",
         "/mnt/us/koreader/dcpro/SAFE_MODE",
     },
+
+    -- v0.8 system supervisor. It owns boot/power/controller lifecycle only.
+    -- It never grabs/injects evdev; KOReader remains the touch suppression host.
+    system_service_dir = "/mnt/us/.dcpro_ghostguard/service",
+    system_service_autostart_default = true,
+    system_service_resume_after_wake_default = true,
+    system_service_pause_during_sleep_default = true,
+    system_service_controller_change_fail_open = true,
+    system_service_resume_retry_delays = { 2, 4, 8, 12 },
 
     drive_root_folder_id = "1h26N0Gtb1PgV2SYCkzU_ue2iwFrtwnah",
     drive_root_folder_url = "https://drive.google.com/drive/folders/1h26N0Gtb1PgV2SYCkzU_ue2iwFrtwnah",
