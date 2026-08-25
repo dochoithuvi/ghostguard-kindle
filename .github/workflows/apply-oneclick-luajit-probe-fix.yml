@@ -1,0 +1,53 @@
+name: Apply OneClick LuaJIT probe fix
+
+on:
+  push:
+    branches:
+      - agent/fix-oneclick-luajit-probe
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[oneclick-luajit-fix-bot]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/fix-oneclick-luajit-probe
+          fetch-depth: 0
+      - name: Patch OneClick LuaJIT detection and regression test
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('DCPRO_GhostGuard_OneClick_Installer_v12.1.sh')
+          s = p.read_text(encoding='utf-8')
+          old = '''koreader_find_luajit(){\n  KO_ROOT="$1"\n  if [ -x "$KO_ROOT/luajit" ]; then\n    printf '%s\\n' "$KO_ROOT/luajit"\n    return 0\n  fi\n  if command -v luajit >/dev/null 2>&1; then\n    command -v luajit\n    return 0\n  fi\n  return 1\n}\n'''
+          new = '''koreader_find_luajit(){\n  KO_ROOT="$1"\n  CANDIDATE="$KO_ROOT/luajit"\n  if [ -x "$CANDIDATE" ]; then\n    if "$CANDIDATE" -e 'os.exit(0)' >/dev/null 2>&1; then\n      printf '%s\\n' "$CANDIDATE"\n      return 0\n    fi\n    log "WARN: bundled KOReader LuaJIT exists but cannot execute on this Kindle; syntax compile check will be skipped ($CANDIDATE)"\n  fi\n  CANDIDATE="$(command -v luajit 2>/dev/null || true)"\n  if [ -n "$CANDIDATE" ] && "$CANDIDATE" -e 'os.exit(0)' >/dev/null 2>&1; then\n    printf '%s\\n' "$CANDIDATE"\n    return 0\n  fi\n  return 1\n}\n'''
+          if old not in s:
+              raise SystemExit('koreader_find_luajit anchor not found')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+
+          w = Path('.github/workflows/test-oneclick-koreader-guard-current.yml')
+          t = w.read_text(encoding='utf-8')
+          anchor = '''          grep -q 'DCPRO_KOREADER_TOUCHMENU_PAGE_GUARD_V1' "$ROOT/koreader/frontend/ui/widget/touchmenu.lua"\n'''
+          extra = anchor + '''\n      - name: Treat unusable bundled LuaJIT as unavailable, not as patch failure\n        shell: bash\n        run: |\n          export DCPRO_ONECLICK_LIB_ONLY=1\n          export DCPRO_ONECLICK_ROOT=/tmp/dcpro-lib\n          export DCPRO_ONECLICK_LOG=/tmp/dcpro-lib.log\n          export DCPRO_ONECLICK_TMP=/tmp/dcpro-lib-state\n          . ./DCPRO_GhostGuard_OneClick_Installer_v12.1.sh\n\n          ROOT=/tmp/koreader-guard-unusable-luajit\n          LOG=/tmp/koreader-guard-unusable-luajit.log\n          TMP=/tmp/koreader-guard-unusable-luajit-state\n          GG_GESTURE_STATE="$TMP/KOREADER_GESTURE_GUARD_V1"\n          GG_TOUCHMENU_STATE="$TMP/KOREADER_TOUCHMENU_GUARD_V1"\n          rm -rf "$ROOT" "$TMP" "$LOG"\n          mkdir -p "$ROOT/koreader/frontend/device" "$ROOT/koreader/frontend/ui/widget" "$TMP"\n\n          curl -fsSL https://raw.githubusercontent.com/koreader/koreader/v2026.07.2/frontend/device/gesturedetector.lua -o "$ROOT/koreader/frontend/device/gesturedetector.lua"\n          curl -fsSL https://raw.githubusercontent.com/koreader/koreader/v2026.07.2/frontend/ui/widget/touchmenu.lua -o "$ROOT/koreader/frontend/ui/widget/touchmenu.lua"\n\n          cat > "$ROOT/koreader/luajit" <<'EOF'\n#!/bin/sh\nexit 127\nEOF\n          chmod +x "$ROOT/koreader/luajit"\n\n          apply_koreader_safety_patches\n          grep -q 'bundled KOReader LuaJIT exists but cannot execute' "$LOG"\n          grep -q 'GestureGuard PATCHED' "$LOG"\n          grep -q 'TouchMenuGuard PATCHED' "$LOG"\n          grep -q 'KOReader safety guards: PASS' "$LOG"\n'''
+          if extra not in t:
+              if anchor not in t:
+                  raise SystemExit('workflow anchor not found')
+              w.write_text(t.replace(anchor, extra, 1), encoding='utf-8')
+          PY
+          sh -n DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+          git diff --check
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add DCPRO_GhostGuard_OneClick_Installer_v12.1.sh .github/workflows/test-oneclick-koreader-guard-current.yml
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: tolerate unusable bundled KOReader LuaJIT [oneclick-luajit-fix-bot]"
+          git push origin HEAD:agent/fix-oneclick-luajit-probe
