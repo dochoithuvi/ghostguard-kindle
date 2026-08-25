@@ -60,6 +60,8 @@ DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
 
 The KOReader safety guards keep one-time backups beside the patched KOReader files and refuse to modify unknown code shapes. A real patch/compile failure is treated as an installer error; a future unknown KOReader code shape is skipped instead of being modified blindly.
 
+On Kindle storage where metadata-preserving `cp -p` is rejected by the `/mnt/us` filesystem, OneClick retries the safety-guard backup as a verified content-only copy before failing. Guard failures also append filesystem/target context to `GhostGuard_Installer.log` for diagnosis.
+
 Installer log:
 
 ```text
