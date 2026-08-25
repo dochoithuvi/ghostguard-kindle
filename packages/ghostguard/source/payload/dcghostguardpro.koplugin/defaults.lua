@@ -1,3 +1,7 @@
+-- OneClick v12.1 compatibility anchors. These are comments only; v0.8 is the
+-- active runtime. Keep until the legacy OneClick bootstrap is retired:
+-- version = "0.6.17"
+-- runtime_revision = "calibration-flow-v2"
 return {
     version = "0.8.0",
     runtime_revision = "system-service-v1",
