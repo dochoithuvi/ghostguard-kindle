@@ -1,0 +1,78 @@
+name: Test OneClick KOReader current guard
+
+on:
+  pull_request:
+    paths:
+      - DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+      - .github/workflows/test-oneclick-koreader-guard-current.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-current-koreader-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LuaJIT
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq luajit
+      - name: Run safety guards against KOReader 2026.07.2
+        shell: bash
+        run: |
+          export DCPRO_ONECLICK_LIB_ONLY=1
+          export DCPRO_ONECLICK_ROOT=/tmp/dcpro-lib
+          export DCPRO_ONECLICK_LOG=/tmp/dcpro-lib.log
+          export DCPRO_ONECLICK_TMP=/tmp/dcpro-lib-state
+          . ./DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+
+          ROOT=/tmp/koreader-guard-2026.07.2
+          LOG=/tmp/koreader-guard-2026.07.2.log
+          TMP=/tmp/koreader-guard-2026.07.2-state
+          GG_GESTURE_STATE="$TMP/KOREADER_GESTURE_GUARD_V1"
+          GG_TOUCHMENU_STATE="$TMP/KOREADER_TOUCHMENU_GUARD_V1"
+          rm -rf "$ROOT" "$TMP" "$LOG"
+          mkdir -p "$ROOT/koreader/frontend/device" "$ROOT/koreader/frontend/ui/widget" "$TMP"
+
+          curl -fsSL https://raw.githubusercontent.com/koreader/koreader/v2026.07.2/frontend/device/gesturedetector.lua -o "$ROOT/koreader/frontend/device/gesturedetector.lua"
+          curl -fsSL https://raw.githubusercontent.com/koreader/koreader/v2026.07.2/frontend/ui/widget/touchmenu.lua -o "$ROOT/koreader/frontend/ui/widget/touchmenu.lua"
+
+          set +e
+          apply_koreader_safety_patches
+          RC=$?
+          set -e
+          echo "guard_rc=$RC"
+          cat "$LOG" || true
+          test "$RC" -eq 0
+
+          grep -q 'DCPRO_KOREADER_GESTURE_NIL_GUARD_V1' "$ROOT/koreader/frontend/device/gesturedetector.lua"
+          grep -q 'DCPRO_KOREADER_TOUCHMENU_PAGE_GUARD_V1' "$ROOT/koreader/frontend/ui/widget/touchmenu.lua"
+
+      - name: Simulate Kindle storage rejecting cp -p metadata preservation
+        shell: bash
+        run: |
+          export DCPRO_ONECLICK_LIB_ONLY=1
+          export DCPRO_ONECLICK_ROOT=/tmp/dcpro-lib-portable
+          export DCPRO_ONECLICK_LOG=/tmp/dcpro-lib-portable.log
+          export DCPRO_ONECLICK_TMP=/tmp/dcpro-lib-portable-state
+          . ./DCPRO_GhostGuard_OneClick_Installer_v12.1.sh
+
+          SRC=/tmp/portable-backup-source
+          DST=/tmp/portable-backup-dest
+          printf 'ghostguard-backup-test\n' > "$SRC"
+          rm -f "$DST"
+
+          cp() {
+            if [ "${1:-}" = '-p' ]; then
+              command cp "$2" "$3"
+              return 1
+            fi
+            command cp "$@"
+          }
+
+          copy_backup_portable "$SRC" "$DST"
+          cmp -s "$SRC" "$DST"
+          grep -q 'retrying content-only copy' "$DCPRO_ONECLICK_LOG"
+          grep -q 'Portable KOReader backup: PASS' "$DCPRO_ONECLICK_LOG"

@@ -154,6 +154,47 @@ koreader_validate_lua_syntax(){
   return 1
 }
 
+copy_backup_portable(){
+  SRC="$1"
+  DST="$2"
+
+  # /mnt/us is commonly FAT-backed on Kindle. BusyBox cp -p may copy the bytes
+  # successfully but still return non-zero when ownership/mode metadata cannot
+  # be preserved. The guard only needs a byte-for-byte restore point, so retry
+  # with a plain copy before treating the backup as a hard failure.
+  if cp -p "$SRC" "$DST" >> "$LOG" 2>&1; then
+    return 0
+  fi
+
+  log "WARN: metadata-preserving KOReader backup failed; retrying content-only copy ($DST)"
+  rm -f "$DST" 2>/dev/null || true
+  cp "$SRC" "$DST" >> "$LOG" 2>&1 || return 1
+
+  if command -v cmp >/dev/null 2>&1 && ! cmp -s "$SRC" "$DST"; then
+    log "ERROR: KOReader backup content verification failed ($DST)"
+    rm -f "$DST" 2>/dev/null || true
+    return 1
+  fi
+
+  log "Portable KOReader backup: PASS ($DST)"
+  return 0
+}
+
+log_koreader_guard_context(){
+  log "KOReader safety guard failure context:"
+  log "ROOT=$ROOT"
+  command -v mount >/dev/null 2>&1 && mount 2>&1 | grep ' /mnt/us ' >> "$LOG" 2>&1 || true
+  for F in \
+    "$ROOT/koreader/frontend/device/gesturedetector.lua" \
+    "$ROOT/extensions/koreader/frontend/device/gesturedetector.lua" \
+    "$ROOT/koreader/frontend/ui/widget/touchmenu.lua" \
+    "$ROOT/extensions/koreader/frontend/ui/widget/touchmenu.lua"
+  do
+    [ -e "$F" ] || continue
+    ls -l "$F" >> "$LOG" 2>&1 || true
+  done
+}
+
 patch_gesture_guard_one(){
   TARGET="$1"
   KO_ROOT="${TARGET%/frontend/device/gesturedetector.lua}"
@@ -176,7 +217,7 @@ patch_gesture_guard_one(){
   grep -Fq 'local y_diff = self.current_tev.y - initial_tev.y' "$TARGET" || { log "SKIP: GestureGuard getPath vulnerable expression not found"; return 2; }
 
   if [ ! -f "$BACKUP" ]; then
-    cp -p "$TARGET" "$BACKUP" || { log "ERROR: cannot create GestureGuard backup $BACKUP"; return 1; }
+    copy_backup_portable "$TARGET" "$BACKUP" || { log "ERROR: cannot create GestureGuard backup $BACKUP"; return 1; }
     log "GestureGuard backup: $BACKUP"
   else
     log "GestureGuard backup already exists: $BACKUP"
@@ -356,7 +397,7 @@ patch_touchmenu_guard_one(){
   grep -Fq 'if nb > self.page_num then' "$TARGET" || { log "SKIP: TouchMenuGuard vulnerable goto-page expression missing"; return 2; }
 
   if [ ! -f "$BACKUP" ]; then
-    cp -p "$TARGET" "$BACKUP" || { log "ERROR: cannot create TouchMenuGuard backup $BACKUP"; return 1; }
+    copy_backup_portable "$TARGET" "$BACKUP" || { log "ERROR: cannot create TouchMenuGuard backup $BACKUP"; return 1; }
     log "TouchMenuGuard backup: $BACKUP"
   else
     log "TouchMenuGuard backup already exists: $BACKUP"
@@ -612,6 +653,7 @@ main(){
       ;;
     *)
       log "ERROR: KOReader safety guard patch failed; original target was preserved where validation failed."
+      log_koreader_guard_context
       say 6 "LOI: KOReader safety guard"
       exit 1
       ;;
