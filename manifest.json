@@ -1,5 +1,5 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 1,
   "id": "dochoithuvi-ghostguard",
   "name": "Do Choi Thu Vi GhostGuard Repository",
   "description": "Public KPM repository for DCPRO GhostGuard on Kindle.",
