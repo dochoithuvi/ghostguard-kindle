@@ -23,13 +23,13 @@ end
 function CloudManager:start()
     self.last_error = "CLOUD_DISABLED_PUBLIC_BUILD"
     return false,
-        "Gửi Cloud đã được tắt trong bản public. Báo cáo vẫn được lưu cục bộ trên Kindle; không cần file .conf."
+        "Tạo báo cáo GhostGuard. Báo cáo được lưu cục bộ trên Kindle; không cần file .conf."
 end
 
 function CloudManager:statusText()
     return table.concat({
-        "DCPRO_GHOSTGUARD_CLOUD_DISABLED_V1",
-        "STATUS=DISABLED",
+        "DCPRO_GHOSTGUARD_LOCAL_REPORT_V1",
+        "STATUS=LOCAL_ONLY",
         "DETAIL=Public build stores reports locally and does not require a Cloud credential file.",
     }, "\n")
 end

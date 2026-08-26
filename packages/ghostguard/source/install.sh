@@ -123,11 +123,11 @@ sync 2>/dev/null || true
 
 find "$TARGET/bin" -type f -name '*.sh' -exec chmod 755 {} \; 2>/dev/null || true
 
-printf 'PACKAGE_ID=ghostguard\nPACKAGE_VERSION=0.8.2\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nSYSTEM_SERVICE=1\nSYSTEM_SERVICE_STARTED=%s\nUPSTART_INSTALLED=%s\nUPSTART_JOB=%s\nNATIVE_INTEGRATED=1\nINPUT_GRAB=OFF\nEVENT_INJECTION=OFF\nLIBRARY_LAUNCHER=%s\nLIBRARY_COVER=%s\nLIBRARY_ICON_MODE=FILE_PATH_FORCE_REINDEX\nREPORT_MODE=LOCAL_ONLY\nCLOUD_UPLOAD=DISABLED_PUBLIC_BUILD\nINSTALL_MODE=ATOMIC_REPLACE_FAIL_OPEN_SERVICE\nINSTALLED_UTC=%s\n' \
+printf 'PACKAGE_ID=ghostguard\nPACKAGE_VERSION=0.8.3\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nSYSTEM_SERVICE=1\nSYSTEM_SERVICE_STARTED=%s\nUPSTART_INSTALLED=%s\nUPSTART_JOB=%s\nNATIVE_INTEGRATED=1\nINPUT_GRAB=OFF\nEVENT_INJECTION=OFF\nLIBRARY_LAUNCHER=%s\nLIBRARY_COVER=%s\nLIBRARY_ICON_MODE=FILE_PATH_FORCE_REINDEX\nREPORT_MODE=LOCAL_ONLY\nCLOUD_UPLOAD=DISABLED_PUBLIC_BUILD\nINSTALL_MODE=ATOMIC_REPLACE_FAIL_OPEN_SERVICE\nINSTALLED_UTC=%s\n' \
     "$KO_ROOT" "$TARGET" "$SERVICE_STARTED" "$UPSTART_OK" "$UPSTART_JOB" "$LAUNCHER" "$LIBRARY_COVER" \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" > "$DATA/KPM_INSTALL_OK"
 
-echo "GhostGuard v0.8.2 installed. KOReader root: $KO_ROOT"
+echo "GhostGuard v0.8.3 installed. KOReader root: $KO_ROOT"
 echo "GhostGuard plugin: $TARGET"
 echo "GhostGuard system supervisor: $SERVICE_SCRIPT"
 echo "GhostGuard Native diagnostics integrated: $NATIVE_CAPTURE"
@@ -136,5 +136,5 @@ echo "Reports: local-only in public build; no Cloud .conf file is required."
 if [ "$UPSTART_OK" = "1" ]; then echo "Auto-start on Kindle boot: enabled via $UPSTART_JOB"
 else echo "Auto-start on Kindle boot: Upstart install unavailable; current-boot supervisor started fail-open."; fi
 echo "Safety: system service input grab/injection are OFF; Protect remains in the tested KOReader bridge."
-echo "Restart KOReader once after upgrading to v0.8.2."
+echo "Restart KOReader once after upgrading to v0.8.3."
 exit 0
