@@ -1,0 +1,80 @@
+name: GhostGuard v0.8.3 report label
+
+on:
+  push:
+    branches: [v0.8.3-report-label]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-build:
+    if: ${{ !contains(github.event.head_commit.message, '[artifact-v083]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch local report wording and package version
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua')
+          s = p.read_text()
+          s = s.replace('Báo cáo đã đưa vào cloud_outbox.', 'Báo cáo GhostGuard đã được tạo và lưu trên Kindle.')
+          s = s.replace('Đã bắt đầu gửi báo cáo Cloud ở nền.\\n', 'Tạo báo cáo GhostGuard.\\n')
+          s = s.replace('Không thể gửi Cloud:\\n', 'Không thể tạo báo cáo GhostGuard:\\n')
+          s = s.replace('Để gửi đủ report, GhostGuard cần dừng và đóng phiên hiện tại trước. Dừng rồi gửi Cloud ngay?', 'Để tạo báo cáo đầy đủ, GhostGuard cần dừng và đóng phiên hiện tại trước. Dừng rồi tạo báo cáo GhostGuard ngay?')
+          s = s.replace('Dừng và gửi', 'Dừng và tạo báo cáo')
+          s = s.replace('Gửi báo cáo Cloud', 'Tạo báo cáo GhostGuard')
+          p.write_text(s)
+
+          p = Path('packages/ghostguard/source/payload/dcghostguardpro.koplugin/cloud_manager.lua')
+          s = p.read_text()
+          s = s.replace('Gửi Cloud đã được tắt trong bản public. Báo cáo vẫn được lưu cục bộ trên Kindle; không cần file .conf.', 'Tạo báo cáo GhostGuard. Báo cáo được lưu cục bộ trên Kindle; không cần file .conf.')
+          s = s.replace('DCPRO_GHOSTGUARD_CLOUD_DISABLED_V1', 'DCPRO_GHOSTGUARD_LOCAL_REPORT_V1')
+          s = s.replace('STATUS=DISABLED', 'STATUS=LOCAL_ONLY')
+          p.write_text(s)
+
+          p = Path('packages/ghostguard/source/manifest.json')
+          s = p.read_text()
+          s = s.replace('"version": [0, 8, 2]', '"version": [0, 8, 3]')
+          s = s.replace('GhostGuard v0.8.2', 'GhostGuard v0.8.3')
+          p.write_text(s)
+
+          p = Path('packages/ghostguard/source/install.sh')
+          s = p.read_text().replace('PACKAGE_VERSION=0.8.2', 'PACKAGE_VERSION=0.8.3')
+          s = s.replace('GhostGuard v0.8.2 installed.', 'GhostGuard v0.8.3 installed.')
+          s = s.replace('upgrading to v0.8.2.', 'upgrading to v0.8.3.')
+          p.write_text(s)
+
+          for name in ['manifest.v2.json','manifest.mirror.json','manifest.json']:
+              p=Path(name)
+              s=p.read_text()
+              if 'ghostguard_0.8.3_kindle5-kindlepw2-kindlehf.kpkg' not in s:
+                  marker='"artifacts": ['
+                  entry='\n        {"url":"packages/ghostguard/artifacts/ghostguard_0.8.3_kindle5-kindlepw2-kindlehf.kpkg","version":[0,8,3],"dependencies":[],"supported_platforms":["kindle5","kindlepw2","kindlehf"]},'
+                  s=s.replace(marker, marker+entry, 1)
+              s=s.replace('GhostGuard v0.8.2', 'GhostGuard v0.8.3', 1)
+              p.write_text(s)
+          PY
+      - name: Validate wording
+        run: |
+          set -eu
+          grep -q 'Tạo báo cáo GhostGuard' packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua
+          ! grep -q 'Gửi báo cáo Cloud' packages/ghostguard/source/payload/dcghostguardpro.koplugin/main.lua
+          ! grep -q 'Thiếu cấu hình Cloud' packages/ghostguard/source/payload/dcghostguardpro.koplugin/cloud_manager.lua
+          grep -q '"version": \[0, 8, 3\]' packages/ghostguard/source/manifest.json
+          sh -n packages/ghostguard/source/install.sh
+      - name: Build package
+        run: |
+          chmod +x scripts/build_ghostguard_v080.sh
+          scripts/build_ghostguard_v080.sh
+          test -s packages/ghostguard/artifacts/ghostguard_0.8.3_kindle5-kindlepw2-kindlehf.kpkg
+      - name: Commit source, manifests and artifact
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/ghostguard/source manifest.json manifest.v2.json manifest.mirror.json packages/ghostguard/artifacts/ghostguard_0.8.3_kindle5-kindlepw2-kindlehf.kpkg
+          if ! git diff --cached --quiet; then
+            git commit -m '[artifact-v083] rename Cloud action to Tạo báo cáo GhostGuard'
+            git push origin HEAD:v0.8.3-report-label
+          fi
