@@ -3,8 +3,8 @@
   "id": "ghostguard",
   "name": "DCPRO GhostGuard",
   "author": "Do Choi Thu Vi",
-  "description": "GhostGuard v0.8.1 - v0.8 system supervisor/native integration plus reliable file-backed Kindle Library icon re-indexing.",
-  "version": [0, 8, 1],
+  "description": "GhostGuard v0.8.2 - v0.8 system supervisor/native integration, reliable Kindle Library icon, and clean public reporting with no Cloud .conf dependency.",
+  "version": [0, 8, 2],
   "dependencies": [],
   "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
 }

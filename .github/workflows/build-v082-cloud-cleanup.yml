@@ -1,0 +1,49 @@
+name: Build GhostGuard v0.8.2 cloud cleanup
+
+on:
+  push:
+    branches: [v0.8.2-cloud-cleanup]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq luajit
+      - name: Validate public reporting cleanup
+        run: |
+          set -eu
+          grep -q '"version": \[0, 8, 2\]' packages/ghostguard/source/manifest.json
+          grep -q 'CLOUD_DISABLED_PUBLIC_BUILD' packages/ghostguard/source/payload/dcghostguardpro.koplugin/cloud_manager.lua
+          ! test -e packages/ghostguard/source/payload/dcghostguardpro.koplugin/bin/cloud_upload.sh
+          ! test -e packages/ghostguard/source/payload/dcghostguardpro.koplugin/config/PUBLIC_CLOUD_NOTICE.txt
+          grep -q 'CLOUD_UPLOAD=DISABLED_PUBLIC_BUILD' packages/ghostguard/source/install.sh
+          sh -n packages/ghostguard/source/install.sh
+          P=packages/ghostguard/source/payload/dcghostguardpro.koplugin
+          for f in "$P"/*.lua "$P"/keys/*.lua; do luajit -b "$f" /dev/null; done
+      - name: Build package
+        run: |
+          chmod +x scripts/build_ghostguard_v080.sh
+          scripts/build_ghostguard_v080.sh
+          test -s packages/ghostguard/artifacts/ghostguard_0.8.2_kindle5-kindlepw2-kindlehf.kpkg
+      - name: Validate package
+        run: |
+          rm -rf /tmp/gg082 && mkdir /tmp/gg082
+          tar -xzf packages/ghostguard/artifacts/ghostguard_0.8.2_kindle5-kindlepw2-kindlehf.kpkg -C /tmp/gg082
+          grep -q 'PACKAGE_VERSION=0.8.2' /tmp/gg082/install.sh
+          ! test -e /tmp/gg082/payload/dcghostguardpro.koplugin/bin/cloud_upload.sh
+      - name: Materialize artifact
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/v0.8.2-cloud-cleanup' }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/ghostguard/artifacts/ghostguard_0.8.2_kindle5-kindlepw2-kindlehf.kpkg
+          if ! git diff --cached --quiet; then
+            git commit -m "[artifact-v082] materialize GhostGuard 0.8.2 KPM artifact"
+            git push origin HEAD:v0.8.2-cloud-cleanup
+          fi
