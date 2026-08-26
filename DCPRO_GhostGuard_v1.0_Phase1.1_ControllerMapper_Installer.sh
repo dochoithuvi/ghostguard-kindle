@@ -1,12 +1,15 @@
 #!/bin/sh
 # DCPRO GhostGuard v1.0 Phase 1.1 Controller Mapper installer/runner
-# Read-only mapper. Temporarily pauses Native Shadow while mapping, then restores it.
+# Read-only mapper. Temporarily pauses the GhostGuard supervisor + Native Shadow
+# while mapping, then restores the supervisor after capture.
 
 ROOT="${DCPRO_ROOT:-/mnt/us}"
 DATA="$ROOT/.dcpro_ghostguard"
 SERVICE_DIR="$DATA/service"
 FINGERPRINT="$SERVICE_DIR/controller.fingerprint"
 SERVICE_STATUS="$SERVICE_DIR/service.status"
+SERVICE_PIDFILE="$SERVICE_DIR/service.pid"
+SERVICE_SCRIPT="$SERVICE_DIR/ghostguard-service.sh"
 SHADOW_PIDFILE="$SERVICE_DIR/native-shadow.pid"
 MAPPER="$SERVICE_DIR/ghostguard-controller-mapper.lua"
 PROFILE="$SERVICE_DIR/native-mapping.profile"
@@ -14,6 +17,7 @@ RAW="$SERVICE_DIR/native-mapping-raw.log"
 LOG="$ROOT/documents/GhostGuard_v1_Phase1_1_Mapper.log"
 PAUSE="$SERVICE_DIR/native-shadow.pause"
 DURATION="${DCPRO_MAPPING_SECONDS:-90}"
+SUPERVISOR_WAS_RUNNING=0
 
 URL="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/v1.0-phase1.1-controller-mapper/packages/ghostguard/source/system/ghostguard-controller-mapper.lua"
 
@@ -21,7 +25,6 @@ mkdir -p "$SERVICE_DIR" "$ROOT/documents" 2>/dev/null || exit 1
 : > "$LOG" 2>/dev/null || true
 
 log(){ printf '%s\n' "$*" >> "$LOG" 2>/dev/null || true; }
-fail(){ log "ERROR: $*"; rm -f "$PAUSE" 2>/dev/null || true; exit 1; }
 
 find_luajit(){
     for x in "$ROOT/koreader/luajit" "$ROOT/koreader/bin/luajit" \
@@ -60,6 +63,41 @@ stop_shadow(){
     rm -f "$SHADOW_PIDFILE" 2>/dev/null || true
 }
 
+stop_supervisor(){
+    if [ -r "$SERVICE_PIDFILE" ]; then
+        pid="$(cat "$SERVICE_PIDFILE" 2>/dev/null || true)"
+        if pid_matches "$pid" "ghostguard-service.sh"; then
+            SUPERVISOR_WAS_RUNNING=1
+            kill "$pid" 2>/dev/null || true
+            n=0
+            while kill -0 "$pid" 2>/dev/null && [ "$n" -lt 20 ]; do
+                sleep 1 2>/dev/null || true
+                n=$((n + 1))
+            done
+        fi
+    fi
+    stop_shadow
+    rm -f "$SERVICE_PIDFILE" 2>/dev/null || true
+}
+
+restart_supervisor(){
+    [ "$SUPERVISOR_WAS_RUNNING" = "1" ] || return 0
+    [ -f "$SERVICE_SCRIPT" ] || return 1
+    /bin/sh "$SERVICE_SCRIPT" >/dev/null 2>&1 &
+    return 0
+}
+
+cleanup_restore(){
+    rm -f "$PAUSE" 2>/dev/null || true
+    restart_supervisor || true
+}
+
+fail(){
+    log "ERROR: $*"
+    cleanup_restore
+    exit 1
+}
+
 controller_event(){
     e="$(sed -n 's/^EVENT=//p' "$FINGERPRINT" 2>/dev/null | head -1)"
     [ -n "$e" ] || e="$(sed -n 's/^EVENT=//p' "$SERVICE_STATUS" 2>/dev/null | head -1)"
@@ -80,6 +118,7 @@ verify_mapper(){
 }
 
 [ -r "$FINGERPRINT" ] || fail "controller.fingerprint missing; GhostGuard service must run first"
+[ -f "$SERVICE_SCRIPT" ] || fail "GhostGuard supervisor script missing"
 
 LUAJIT="$(find_luajit)"
 [ -n "$LUAJIT" ] || fail "LuaJIT not found"
@@ -96,18 +135,21 @@ mv -f "$TMP" "$MAPPER" || fail "cannot install mapper"
 chmod 644 "$MAPPER" 2>/dev/null || true
 
 touch "$PAUSE" 2>/dev/null || true
-stop_shadow
+stop_supervisor
 sleep 1 2>/dev/null || true
 
 log "Starting read-only controller mapping"
 log "DEVICE=$DEVICE"
 log "DURATION=$DURATION"
 log "FINGERPRINT=$FINGERPRINT"
+log "SUPERVISOR_WAS_RUNNING=$SUPERVISOR_WAS_RUNNING"
 
 "$LUAJIT" "$MAPPER" "$DEVICE" "$FINGERPRINT" "$PROFILE" "$RAW" "$DURATION" >>"$LOG" 2>&1
 RC=$?
 
 rm -f "$PAUSE" 2>/dev/null || true
+restart_supervisor || fail "mapping finished but GhostGuard supervisor could not restart"
+SUPERVISOR_WAS_RUNNING=0
 
 [ "$RC" -eq 0 ] || fail "controller mapper exited rc=$RC"
 [ -s "$PROFILE" ] || fail "mapping profile not created"
