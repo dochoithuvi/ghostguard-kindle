@@ -1,12 +1,12 @@
 #!/bin/sh
-# DCPRO GhostGuard v0.8 system supervisor.
+# DCPRO GhostGuard v0.9 system supervisor.
 #
 # This process intentionally does NOT grab, write or inject input events.
 # It survives independently of KOReader, tracks power/controller lifecycle,
 # and leaves actual touch suppression to the tested KOReader protection bridge.
 set -u
 
-VERSION="0.8.0"
+VERSION="0.9.0"
 ROOT="${GHOSTGUARD_US_ROOT:-/mnt/us}"
 DATA="$ROOT/.dcpro_ghostguard"
 SERVICE_DIR="$DATA/service"
@@ -19,6 +19,13 @@ FINGERPRINT_PREV="$SERVICE_DIR/controller.previous"
 RESUME_REQUEST="$SERVICE_DIR/resume.request"
 WAKE_SEQ_FILE="$SERVICE_DIR/wake.seq"
 CONTROLLER_CHANGED="$SERVICE_DIR/CONTROLLER_CHANGED"
+SHADOW_SCRIPT="$SERVICE_DIR/ghostguard-native-shadow.lua"
+SHADOW_PIDFILE="$SERVICE_DIR/native-shadow.pid"
+SHADOW_STATUS="$SERVICE_DIR/native-shadow.status"
+SHADOW_SPOOL="$SERVICE_DIR/native-shadow-candidates.log"
+SHADOW_PAUSE="$SERVICE_DIR/native-shadow.pause"
+SHADOW_RETRY_AT=0
+SHADOW_FAILURES=0
 LOOP_SECONDS="${GHOSTGUARD_SERVICE_POLL_SECONDS:-5}"
 HEARTBEAT_SECONDS="${GHOSTGUARD_SERVICE_HEARTBEAT_SECONDS:-300}"
 
@@ -44,11 +51,12 @@ write_atomic() {
 
 if [ ! -f "$CONFIG" ]; then
     cat > "$CONFIG" <<'EOF'
-# DCPRO GhostGuard v0.8 persistent service policy
+# DCPRO GhostGuard v0.9 persistent service policy
 ENABLED=1
 AUTOSTART=1
 RESUME_AFTER_WAKE=1
 PAUSE_DURING_SLEEP=1
+NATIVE_SHADOW=1
 DESIRED_MODE=AUTO
 EOF
 fi
@@ -59,6 +67,7 @@ read_config() {
     AUTOSTART=1
     RESUME_AFTER_WAKE=1
     PAUSE_DURING_SLEEP=1
+    NATIVE_SHADOW=1
     DESIRED_MODE=AUTO
     [ -r "$CONFIG" ] || return 0
     while IFS='=' read -r key value; do
@@ -67,6 +76,7 @@ read_config() {
             AUTOSTART) [ "$value" = "0" ] && AUTOSTART=0 || AUTOSTART=1 ;;
             RESUME_AFTER_WAKE) [ "$value" = "0" ] && RESUME_AFTER_WAKE=0 || RESUME_AFTER_WAKE=1 ;;
             PAUSE_DURING_SLEEP) [ "$value" = "0" ] && PAUSE_DURING_SLEEP=0 || PAUSE_DURING_SLEEP=1 ;;
+            NATIVE_SHADOW) [ "$value" = "0" ] && NATIVE_SHADOW=0 || NATIVE_SHADOW=1 ;;
             DESIRED_MODE) DESIRED_MODE="$(printf '%s' "$value" | tr -cd 'A-Za-z0-9_-')" ;;
         esac
     done < "$CONFIG"
@@ -80,6 +90,71 @@ pid_is_ghostguard_service() {
     tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -Fq 'ghostguard-service.sh'
 }
 
+pid_is_shadow() {
+    pid="$1"
+    case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+    kill -0 "$pid" 2>/dev/null || return 1
+    [ -r "/proc/$pid/cmdline" ] || return 1
+    tr '\000' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -Fq 'ghostguard-native-shadow.lua'
+}
+
+find_luajit() {
+    for bin in "$ROOT/koreader/luajit" "$ROOT/koreader/bin/luajit" \
+        "$ROOT/extensions/koreader/luajit" "$ROOT/extensions/koreader/bin/luajit"; do
+        if [ -x "$bin" ]; then printf '%s\n' "$bin"; return 0; fi
+    done
+    command -v luajit 2>/dev/null || true
+}
+
+stop_shadow() {
+    if [ -r "$SHADOW_PIDFILE" ]; then
+        spid="$(cat "$SHADOW_PIDFILE" 2>/dev/null || true)"
+        if pid_is_shadow "$spid"; then kill "$spid" 2>/dev/null || true; fi
+    fi
+    rm -f "$SHADOW_PIDFILE" 2>/dev/null || true
+}
+
+shadow_backoff() {
+    now="$(date +%s 2>/dev/null || echo 0)"
+    SHADOW_FAILURES=$((SHADOW_FAILURES + 1))
+    delay=30
+    [ "$SHADOW_FAILURES" -ge 3 ] 2>/dev/null && delay=300
+    if [ "$now" -gt 0 ] 2>/dev/null; then SHADOW_RETRY_AT=$((now + delay)); fi
+    log "native shadow exited unexpectedly; retry in ${delay}s (failure $SHADOW_FAILURES)"
+}
+
+start_shadow() {
+    [ "${ENABLED:-1}" = "1" ] || { stop_shadow; return 0; }
+    [ "${NATIVE_SHADOW:-1}" = "1" ] || { stop_shadow; return 0; }
+    [ -r "$SHADOW_SCRIPT" ] || return 1
+    event="${CONTROLLER_EVENT:-NONE}"
+    [ "$event" != "NONE" ] && [ -r "/dev/input/$event" ] || return 1
+
+    if [ -r "$SHADOW_PIDFILE" ]; then
+        spid="$(cat "$SHADOW_PIDFILE" 2>/dev/null || true)"
+        if pid_is_shadow "$spid"; then return 0; fi
+        rm -f "$SHADOW_PIDFILE" 2>/dev/null || true
+        shadow_backoff
+        return 1
+    fi
+
+    now="$(date +%s 2>/dev/null || echo 0)"
+    if [ "$now" -gt 0 ] 2>/dev/null && [ "$SHADOW_RETRY_AT" -gt "$now" ] 2>/dev/null; then
+        return 1
+    fi
+
+    lua="$(find_luajit)"
+    [ -n "$lua" ] || return 1
+    did="$(tr -cd 'A-Za-z0-9' < /proc/usid 2>/dev/null | tr '[:lower:]' '[:upper:]' || true)"
+    [ -n "$did" ] || did="UNKNOWNDEVICE"
+    profile="$DATA/profiles/$did.approved.profile"
+    "$lua" "$SHADOW_SCRIPT" "/dev/input/$event" "$SHADOW_SPOOL" \
+        "$SHADOW_STATUS" "$SHADOW_PAUSE" "$profile" >/dev/null 2>&1 &
+    spid=$!
+    printf '%s\n' "$spid" > "$SHADOW_PIDFILE" 2>/dev/null || true
+    return 0
+}
+
 # Single instance without relying on flock (not present on every Kindle build).
 # A stale PID file must never make us mistake an unrelated reused PID for GG.
 if [ -r "$PIDFILE" ]; then
@@ -90,7 +165,7 @@ if [ -r "$PIDFILE" ]; then
     rm -f "$PIDFILE" 2>/dev/null || true
 fi
 printf '%s\n' "$$" > "$PIDFILE" 2>/dev/null || exit 0
-cleanup() { rm -f "$PIDFILE" 2>/dev/null || true; }
+cleanup() { stop_shadow; rm -f "$SHADOW_PAUSE" "$PIDFILE" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM HUP
 
 read_one() {
@@ -211,6 +286,11 @@ write_status() {
         echo "AUTOSTART=$AUTOSTART"
         echo "RESUME_AFTER_WAKE=$RESUME_AFTER_WAKE"
         echo "PAUSE_DURING_SLEEP=$PAUSE_DURING_SLEEP"
+        echo "NATIVE_SHADOW=$NATIVE_SHADOW"
+        shadow_pid="$(cat "$SHADOW_PIDFILE" 2>/dev/null || echo 0)"
+        if ! pid_is_shadow "$shadow_pid"; then shadow_pid=0; fi
+        echo "NATIVE_SHADOW_PID=$shadow_pid"
+        echo "NATIVE_FILTER=SHADOW_ONLY"
         echo "DESIRED_MODE=${DESIRED_MODE:-AUTO}"
         echo "EVENT=${CONTROLLER_EVENT:-UNKNOWN}"
         echo "CONTROLLER=${CONTROLLER_NAME:-UNKNOWN}"
@@ -275,6 +355,9 @@ on_wake() {
             echo "DESIRED_MODE=${DESIRED_MODE:-AUTO}"
         } | write_atomic "$RESUME_REQUEST" || true
     fi
+    SHADOW_RETRY_AT=0
+    rm -f "$SHADOW_PAUSE" 2>/dev/null || true
+    start_shadow || true
     write_status "active" "WAKE"
 }
 
@@ -292,6 +375,8 @@ if [ -n "$startup_old_hash" ] && [ "$startup_old_hash" != "NONE" ] \
 fi
 state="$(power_state)"
 prev_state="$state"
+rm -f "$SHADOW_PAUSE" 2>/dev/null || true
+if is_active_state "$state"; then start_shadow || true; else stop_shadow; fi
 last_heartbeat="$(date +%s 2>/dev/null || echo 0)"
 write_status "$state" "START"
 log "service start pid=$$ power=$state controller=$CONTROLLER_NAME fingerprint=$CONTROLLER_HASH"
@@ -306,10 +391,13 @@ while :; do
         if is_active_state "$state" && ! is_active_state "$prev_state"; then
             on_wake
         else
+            stop_shadow
             write_status "$state" "POWER_TRANSITION"
         fi
         prev_state="$state"
     fi
+
+    if is_active_state "$state"; then start_shadow || true; else stop_shadow; fi
 
     now="$(date +%s 2>/dev/null || echo 0)"
     if [ "$now" -gt 0 ] 2>/dev/null && [ $((now - last_heartbeat)) -ge "$HEARTBEAT_SECONDS" ] 2>/dev/null; then

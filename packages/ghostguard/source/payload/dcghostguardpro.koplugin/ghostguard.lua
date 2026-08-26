@@ -1,6 +1,6 @@
--- DCPRO GhostGuard runtime wrapper v0.8.
+-- DCPRO GhostGuard runtime wrapper v0.9.
 --
--- The protection engine remains in ghostguard_core.lua. v0.8 adds a fail-open
+-- The protection engine remains in ghostguard_core.lua. v0.9 keeps a fail-open
 -- system-service bridge around the existing KOReader engine. The external
 -- service owns boot/sleep/wake/controller lifecycle only; it never grabs or
 -- injects input. Actual suppression remains in the tested KOReader wrapper.
@@ -103,7 +103,7 @@ function GhostGuard:new(config, ...)
         if ok then
             obj.system_service = service
             pcall(service.consumeResumeRequest, service)
-            pcall(service.markKOReader, service, "LOADED", obj.mode or "NONE", "runtime v0.8 loaded")
+            pcall(service.markKOReader, service, "LOADED", obj.mode or "NONE", "runtime v0.9 loaded")
         end
     end
     return obj
@@ -186,10 +186,10 @@ end
 function GhostGuard:statusText(...)
     local base = core_status(self, ...)
     if not self.system_service then
-        return tostring(base or "GhostGuard") .. "\nSystem service v0.8: unavailable; KOReader protection remains fail-open."
+        return tostring(base or "GhostGuard") .. "\nSystem service v0.9: unavailable; KOReader protection remains fail-open."
     end
     local ok, text = pcall(self.system_service.statusText, self.system_service)
-    if not ok then text = "System service v0.8: status unavailable (fail-open)." end
+    if not ok then text = "System service v0.9: status unavailable (fail-open)." end
     return tostring(base or "GhostGuard") .. "\n" .. tostring(text)
 end
 

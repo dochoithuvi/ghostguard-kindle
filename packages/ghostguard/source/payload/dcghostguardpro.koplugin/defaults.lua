@@ -3,8 +3,8 @@
 -- version = "0.6.17"
 -- runtime_revision = "calibration-flow-v2"
 return {
-    version = "0.8.0",
-    runtime_revision = "system-service-v1",
+    version = "0.9.0",
+    runtime_revision = "continuous-learning-shadow-v1",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
     protect_mode = "PROTECT_PROFILE",
@@ -20,6 +20,7 @@ return {
     cloud_token_file = "/mnt/us/documents/dochoithuvi_drive_token.conf",
     cloud_max_bytes = 8388608,
     cloud_compress_threshold = 2000000,
+    cloud_upload_enabled = false,
 
     exit_reason_detail_file = "/mnt/us/.dcpro_ghostguard/EXIT_REASON_DETAIL.txt",
     koreader_traceback_file = "/mnt/us/.dcpro_ghostguard/KOReader_EXIT_TRACEBACK.txt",
@@ -132,4 +133,19 @@ return {
     adaptive_candidate_min_suspects = 8,
     adaptive_candidate_min_cluster = 3,
     adaptive_learning_during_protect = true,
+    -- v0.9 continuous learning is event-driven. Normal touches do only a few
+    -- arithmetic checks; flash is checkpointed only after strong anomalies.
+    adaptive_min_base_score = 7,
+    adaptive_cluster_radius_px = 96,
+    adaptive_checkpoint_samples = 8,
+    adaptive_checkpoint_seconds = 120,
+    adaptive_promotion_min_cluster = 6,
+    adaptive_promotion_min_confidence = 0.72,
+    adaptive_promotion_min_age_seconds = 30,
+    adaptive_max_clusters = 32,
+    adaptive_max_candidate_clusters = 32,
+    -- Native shadow coordinates are raw evdev coordinates. Keep them as
+    -- diagnostics until controller-axis normalization is proven on-device.
+    adaptive_import_native_shadow = false,
+    native_shadow_enabled = true,
 }

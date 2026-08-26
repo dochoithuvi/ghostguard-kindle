@@ -61,6 +61,7 @@ function SystemService:policy()
         autostart = bool01(parse(text, "AUTOSTART"), true),
         resume_after_wake = bool01(parse(text, "RESUME_AFTER_WAKE"), true),
         pause_during_sleep = bool01(parse(text, "PAUSE_DURING_SLEEP"), true),
+        native_shadow = bool01(parse(text, "NATIVE_SHADOW"), true),
         desired_mode = parse(text, "DESIRED_MODE") or "AUTO",
     }
 end
@@ -70,11 +71,12 @@ function SystemService:setDesired(enabled, mode)
     p.enabled = enabled and "1" or "0"
     if mode and mode ~= "" then p.desired_mode = tostring(mode) end
     local text = table.concat({
-        "# DCPRO GhostGuard v0.8 persistent service policy",
+        "# DCPRO GhostGuard v0.9 persistent service policy",
         "ENABLED=" .. p.enabled,
         "AUTOSTART=" .. p.autostart,
         "RESUME_AFTER_WAKE=" .. p.resume_after_wake,
         "PAUSE_DURING_SLEEP=" .. p.pause_during_sleep,
+        "NATIVE_SHADOW=" .. p.native_shadow,
         "DESIRED_MODE=" .. p.desired_mode,
         "UPDATED_UTC=" .. os.date("!%Y-%m-%dT%H:%M:%SZ"),
         "",
@@ -154,11 +156,14 @@ function SystemService:statusText()
     local controller = parse(status, "CONTROLLER") or "unknown"
     local event = parse(status, "EVENT") or "unknown"
     local fail_open = parse(status, "FAIL_OPEN") or "YES"
+    local shadow = parse(status, "NATIVE_SHADOW") or "0"
+    local shadow_pid = parse(status, "NATIVE_SHADOW_PID") or "0"
+    local native_filter = parse(status, "NATIVE_FILTER") or "OFF"
     local safe, detail = self:controllerSafe()
     local controller_state = safe and "OK" or ("CHANGED — " .. tostring(detail))
     return string.format(
-        "System service v0.8: PID %s, power=%s\nController: %s (%s) — %s\nFail-open=%s; native grab/injection=OFF",
-        pid, power, controller, event, controller_state, fail_open)
+        "System service v0.9: PID %s, power=%s\nController: %s (%s) — %s\nFail-open=%s; Native shadow=%s (PID %s); Native filter=%s; grab/injection=OFF",
+        pid, power, controller, event, controller_state, fail_open, shadow, shadow_pid, native_filter)
 end
 
 return SystemService

@@ -615,14 +615,16 @@ function GhostGuard:stop(reason)
             circuit_breakers = self.protect_stats.circuit_breakers or 0,
             last_error = self.last_error or "NONE",
         })
-        local active_profile = self.profiles:hasApproved() and self.profiles.approved_path
-            or (self.profiles.pending and self.profiles.pending_path or nil)
-        local out_ok, out_result = self.storage:prepareCloudOutbox(session, {
-            device_id = self.device_id,
-            model = self.model,
-            profile_path = active_profile,
-        })
-        if out_ok then self.last_outbox = out_result end
+        if self.config.cloud_upload_enabled ~= false then
+            local active_profile = self.profiles:hasApproved() and self.profiles.approved_path
+                or (self.profiles.pending and self.profiles.pending_path or nil)
+            local out_ok, out_result = self.storage:prepareCloudOutbox(session, {
+                device_id = self.device_id,
+                model = self.model,
+                profile_path = active_profile,
+            })
+            if out_ok then self.last_outbox = out_result end
+        end
     end
 
     self.storage:removeExact(self.config.run_marker)
@@ -632,7 +634,7 @@ function GhostGuard:stop(reason)
         local remaining = self:probationRemaining()
         if remaining > 0 then self:setProbationRemaining(remaining - 1) end
     end
-    return true, "stopped; report queued in cloud_outbox"
+    return true, "stopped; report saved locally"
 end
 
 function GhostGuard:finishCalibration()
@@ -727,11 +729,8 @@ function GhostGuard:statusText()
         "Bảo vệ thử còn lại: " .. tostring(self:probationRemaining()) .. " phiên",
         "Safe Mode: " .. (safe and ("BẬT — " .. tostring(safe_path)) or "TẮT"),
         "Đã chặn: " .. tostring(self.protect_stats.blocked_frames or 0) .. " | Cách ly: " .. tostring(self.protect_stats.quarantines or 0),
-        "Báo cáo: " .. self.config.report_dir,
-        "Cloud outbox: " .. self.config.cloud_outbox_dir,
-        "Cloud Apps Script: ĐÃ CẤU HÌNH",
-        "Cloud worker: " .. (self.cloud:isBusy() and "ĐANG CHẠY" or "RẢNH"),
-        "Drive đích: " .. tostring(self.config.drive_root_folder_id),
+        "Báo cáo local: " .. self.config.report_dir,
+        "Cloud upload: TẮT trong bản public",
     }
     if self.last_outbox then lines[#lines + 1] = "Gói chờ upload: " .. self.last_outbox end
     if self.stale_report then lines[#lines + 1] = "Stale report: " .. self.stale_report end

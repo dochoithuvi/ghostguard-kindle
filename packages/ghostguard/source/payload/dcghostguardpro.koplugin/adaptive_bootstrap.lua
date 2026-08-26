@@ -279,57 +279,78 @@ function Adaptive:promoteReady()
     local profiles = self.guard.profiles
     local approved = profiles and profiles.approved
     if not approved or approved.ready ~= true then return 0 end
+
     local min_count = tonumber(self.config.adaptive_promotion_min_cluster) or 6
     local min_conf = tonumber(self.config.adaptive_promotion_min_confidence) or 0.72
     local min_age = tonumber(self.config.adaptive_promotion_min_age_seconds) or 30
-    local promoted, keep = 0, {}
+    local max_clusters = tonumber(self.config.adaptive_max_clusters) or 32
 
+    -- Work on a staged copy. The live approved profile is swapped only after
+    -- the complete profile has been written atomically.
+    local staged = { clusters = {} }
+    for key, value in pairs(approved) do
+        if key ~= "clusters" and type(value) ~= "table" then staged[key] = value end
+    end
+    for _, cluster in ipairs(approved.clusters or {}) do
+        staged.clusters[#staged.clusters + 1] = copy_cluster(cluster)
+    end
+
+    local promoted, keep = 0, {}
     for _, cluster in ipairs(self.clusters) do
         cluster.confidence = self:confidence(cluster)
-        local age = math.max(0, (tonumber(cluster.last_seen_wall) or 0) - (tonumber(cluster.first_seen_wall) or 0))
-        local repeat_ok = (tonumber(cluster.session_hits) or 0) >= 2 or age >= min_age
+        local age = math.max(0,
+            (tonumber(cluster.last_seen_wall) or 0) - (tonumber(cluster.first_seen_wall) or 0))
+        local repeat_ok = (tonumber(cluster.session_hits) or 0) >= 2
+            or age >= min_age
             or (tonumber(cluster.count) or 0) >= math.max(min_count + 4, 10)
         local cx, cy = center(cluster.x_min, cluster.x_max), center(cluster.y_min, cluster.y_max)
         local already = nil
         if type(profiles.match) == "function" then
-            local ok, m = pcall(profiles.match, profiles, cx, cy)
-            if ok then already = m end
+            local ok, match = pcall(profiles.match, profiles, cx, cy)
+            if ok then already = match end
         end
-        if not already and self:approvedRoom()
+
+        if not already and #staged.clusters < max_clusters
             and (tonumber(cluster.count) or 0) >= min_count
             and (tonumber(cluster.confidence) or 0) >= min_conf and repeat_ok then
-            local c = copy_cluster(cluster)
-            c.confidence = self:confidence(c)
-            approved.clusters = approved.clusters or {}
-            approved.clusters[#approved.clusters + 1] = c
-            approved.profile_kind = "GHOST_CLUSTER"
-            approved.ready = true
-            approved.suspect_contacts = (tonumber(approved.suspect_contacts) or 0) + (tonumber(c.count) or 0)
+            local copied = copy_cluster(cluster)
+            copied.confidence = self:confidence(copied)
+            staged.clusters[#staged.clusters + 1] = copied
+            staged.profile_kind = "GHOST_CLUSTER"
+            staged.ready = true
+            staged.suspect_contacts = (tonumber(staged.suspect_contacts) or 0)
+                + (tonumber(copied.count) or 0)
             promoted = promoted + 1
-            self.promotions = self.promotions + 1
         else
             keep[#keep + 1] = cluster
         end
     end
 
-    if promoted > 0 then
-        self.clusters = keep
-        table.sort(approved.clusters, function(a, b)
-            local ca, cb = tonumber(a.confidence) or 0, tonumber(b.confidence) or 0
-            if ca == cb then return (tonumber(a.count) or 0) > (tonumber(b.count) or 0) end
-            return ca > cb
-        end)
-        local ok, err = self.storage:writeAtomic(profiles.approved_path, profiles:serialize(approved, "APPROVED"))
-        if not ok then
-            self.last_error = "adaptive promotion save failed: " .. tostring(err)
-        elseif self.guard.session then
-            pcall(self.guard.session.writeAction, self.guard.session,
-                { timestamp_us = os.time() * 1000000, frame = -1, slot = -1, score = 0 },
-                "ADAPTIVE_PROFILE_PROMOTE", "regions=" .. tostring(promoted))
-            pcall(self.guard.session.flush, self.guard.session)
-        end
-        self:save(true)
+    if promoted == 0 then return 0 end
+    table.sort(staged.clusters, function(a, b)
+        local ca, cb = tonumber(a.confidence) or 0, tonumber(b.confidence) or 0
+        if ca == cb then return (tonumber(a.count) or 0) > (tonumber(b.count) or 0) end
+        return ca > cb
+    end)
+
+    local payload = profiles:serialize(staged, "APPROVED")
+    local ok, err = self.storage:writeAtomic(profiles.approved_path, payload)
+    if not ok then
+        self.last_error = "adaptive promotion save failed: " .. tostring(err)
+        return 0
     end
+
+    profiles.approved = staged
+    self.clusters = keep
+    self.promotions = self.promotions + promoted
+    self.last_error = nil
+    if self.guard.session then
+        pcall(self.guard.session.writeAction, self.guard.session,
+            { timestamp_us = os.time() * 1000000, frame = -1, slot = -1, score = 0 },
+            "ADAPTIVE_PROFILE_PROMOTE", "regions=" .. tostring(promoted))
+        pcall(self.guard.session.flush, self.guard.session)
+    end
+    self:save(true)
     return promoted
 end
 
@@ -442,7 +463,9 @@ function Adaptive:beginSession()
     self.session_seq = self.session_seq + 1
     self.storage:touch(self.native_pause,
         "PAUSE=KOREADER_PROTECT\nUTC=" .. os.date("!%Y-%m-%dT%H:%M:%SZ") .. "\n")
-    self:importNativeCandidates()
+    if self.config.adaptive_import_native_shadow == true then
+        self:importNativeCandidates()
+    end
     self:patchObserver()
     self:save(false)
     return true
@@ -486,6 +509,7 @@ function Adaptive:install()
     local original_stop = guard.stop
     local original_status = guard.statusText
     local original_reset = guard.resetProfile
+    local original_raw = guard.onRawEvent
 
     guard.adaptive = self
 
@@ -499,13 +523,25 @@ function Adaptive:install()
     end
 
     guard.stop = function(g, reason)
+        local ok, result = original_stop(g, reason)
         if self.active then pcall(self.endSession, self) end
-        return original_stop(g, reason)
+        return ok, result
     end
 
     guard.statusText = function(g, ...)
         local base = original_status(g, ...)
         return tostring(base or "GhostGuard") .. "\n" .. self:statusText()
+    end
+
+    guard.onRawEvent = function(g, event)
+        if not self.active and type(g.isProtecting) == "function" and g:isProtecting()
+            and g.profiles and g.profiles:hasApproved() then
+            local adaptive_ok, adaptive_err = pcall(self.beginSession, self)
+            if not adaptive_ok then
+                self.last_error = "adaptive lazy begin error: " .. tostring(adaptive_err)
+            end
+        end
+        return original_raw(g, event)
     end
 
     guard.resetProfile = function(g, ...)
