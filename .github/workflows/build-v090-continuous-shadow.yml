@@ -1,0 +1,181 @@
+name: GhostGuard v0.9.0 continuous learning + native shadow
+
+on:
+  push:
+    branches: [v0.9.0-continuous-shadow]
+
+permissions:
+  contents: write
+
+jobs:
+  build-v090:
+    if: ${{ !contains(github.event.head_commit.message, '[artifact-v090]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LuaJIT
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq luajit
+
+      - name: Prepare v0.9 source
+        run: |
+          python3 -m py_compile scripts/prepare_v090.py
+          python3 scripts/prepare_v090.py
+
+      - name: Validate syntax and safety boundary
+        run: |
+          set -eu
+          P=packages/ghostguard/source/payload/dcghostguardpro.koplugin
+          S=packages/ghostguard/source/system
+          grep -q 'version = "0.9.0"' "$P/defaults.lua"
+          grep -q 'runtime_revision = "continuous-learning-shadow-v1"' "$P/defaults.lua"
+          grep -q 'adaptive_checkpoint_samples = 8' "$P/defaults.lua"
+          grep -q 'adaptive_checkpoint_seconds = 120' "$P/defaults.lua"
+          grep -q 'adaptive_promotion_min_cluster = 6' "$P/defaults.lua"
+          grep -q 'adaptive_import_native_shadow = false' "$P/defaults.lua"
+          grep -q 'continuous learning v0.9 loaded' "$P/main.lua"
+          grep -q 'ADAPTIVE_PROFILE_PROMOTE' "$P/adaptive_bootstrap.lua"
+          grep -q 'profiles.approved = staged' "$P/adaptive_bootstrap.lua"
+          grep -q 'MODE=READ_ONLY_SHADOW' "$S/ghostguard-native-shadow.lua"
+          grep -q 'NATIVE_FILTER=SHADOW_ONLY' "$S/ghostguard-service.sh"
+          grep -q 'INPUT_GRAB=OFF' "$S/ghostguard-service.sh"
+          grep -q 'EVENT_INJECTION=OFF' "$S/ghostguard-service.sh"
+          ! grep -Eq '/dev/uinput|EVIOCGRAB' "$S/ghostguard-service.sh"
+          ! grep -Eq '/dev/uinput|EVIOCGRAB' "$S/ghostguard-native-shadow.lua"
+          grep -q 'PACKAGE_VERSION=0.9.0' packages/ghostguard/source/install.sh
+          grep -q 'NATIVE_FILTER=SHADOW_ONLY' packages/ghostguard/source/install.sh
+          sh -n packages/ghostguard/source/install.sh
+          sh -n "$S/ghostguard-service.sh"
+          sh -n scripts/build_ghostguard_v080.sh
+          luajit -b "$S/ghostguard-native-shadow.lua" /dev/null
+          for f in "$P"/*.lua "$P"/keys/*.lua; do luajit -b "$f" /dev/null; done
+
+      - name: Test continuous learning and atomic fail-open
+        run: |
+          luajit - <<'LUA'
+          local mem = {}
+          local fail_approved = false
+          local storage = {}
+          function storage:readFile(p) return mem[p] end
+          function storage:writeAtomic(p, t)
+              if fail_approved and p == "approved.profile" then return false, "simulated flash fault" end
+              mem[p] = t
+              return true
+          end
+          function storage:touch(p, t) mem[p] = t or ""; return true end
+          function storage:removeExact(p) mem[p] = nil; return true end
+
+          local approved = {
+              ready=true, profile_kind="BASELINE", clusters={}, suspect_contacts=0,
+              learning_seconds=180, total_contacts=200,
+          }
+          local profiles = { approved=approved, approved_path="approved.profile" }
+          function profiles:hasApproved() return self.approved and self.approved.ready == true end
+          function profiles:match(x, y)
+              if x == nil or y == nil then return nil end
+              for i,c in ipairs(self.approved.clusters or {}) do
+                  if c.x_min and c.x_max and c.y_min and c.y_max
+                      and x >= c.x_min - 36 and x <= c.x_max + 36
+                      and y >= c.y_min - 56 and y <= c.y_max + 56 then
+                      return {index=i, confidence=c.confidence, count=c.count}
+                  end
+              end
+              return nil
+          end
+          function profiles:serialize(p, status)
+              return "STATUS=" .. tostring(status) .. "\nCLUSTERS=" .. tostring(#(p.clusters or {})) .. "\n"
+          end
+
+          local guard = {
+              storage=storage, profiles=profiles,
+              config={protect_mode="PROTECT_PROFILE"}, session=nil,
+          }
+          function guard:start(mode)
+              self.mode = mode
+              self.protecting = mode == self.config.protect_mode
+              self.observer = {evaluateProtect=function() return nil end}
+              return true, "session"
+          end
+          function guard:stop() self.protecting=false; self.observer=nil; return true, "stopped" end
+          function guard:statusText() return "status" end
+          function guard:resetProfile() return true, "reset" end
+          function guard:onRawEvent() return true end
+          function guard:isProtecting() return self.protecting == true end
+
+          local cfg = {
+              data_dir="/tmp/gg-v090", protect_mode="PROTECT_PROFILE",
+              adaptive_profiles_enabled=true,
+              adaptive_learning_during_protect=true,
+              adaptive_import_native_shadow=false,
+              adaptive_min_base_score=7,
+              adaptive_checkpoint_samples=8,
+              adaptive_checkpoint_seconds=120,
+              adaptive_promotion_min_cluster=6,
+              adaptive_promotion_min_confidence=0.72,
+              adaptive_promotion_min_age_seconds=30,
+              adaptive_max_clusters=32,
+              adaptive_max_candidate_clusters=32,
+              adaptive_cluster_radius_px=96,
+          }
+          local bootstrap = dofile('packages/ghostguard/source/payload/dcghostguardpro.koplugin/adaptive_bootstrap.lua')
+          local ok, adaptive = bootstrap(guard, cfg)
+          assert(ok, adaptive)
+          assert(guard:start(cfg.protect_mode))
+
+          -- Ordinary touches must remain effectively free of learning/write work.
+          local normal = {x=500,y=600,base_score=1,learnable=false,short=false,
+              low_major=false,incomplete=false,extreme_edge=false}
+          for i=1,100 do guard.observer:evaluateProtect(normal) end
+          assert(#profiles.approved.clusters == 0, 'normal touches must not be learned')
+          assert(adaptive.total_samples == 0, 'normal touches must not enter adaptive samples')
+
+          -- Ten repeated strong anomalies at a new location are enough to prove
+          -- a region without relying on coordinate alone.
+          local ghost = {x=500,y=600,base_score=7,learnable=true,short=true,
+              low_major=true,incomplete=false,extreme_edge=false,timestamp_us=1}
+          for i=1,10 do guard.observer:evaluateProtect(ghost) end
+          assert(#profiles.approved.clusters == 1, 'strong repeated anomaly should promote')
+          assert(profiles.approved.profile_kind == 'GHOST_CLUSTER')
+          assert(mem['approved.profile'], 'approved profile must be atomically persisted')
+
+          -- A simulated flash fault must keep both the live approved profile and
+          -- the candidate data intact: no half-applied learned region.
+          fail_approved = true
+          local ghost2 = {x=900,y=900,base_score=7,learnable=true,short=true,
+              low_major=true,incomplete=false,extreme_edge=false,timestamp_us=2}
+          for i=1,10 do guard.observer:evaluateProtect(ghost2) end
+          assert(#profiles.approved.clusters == 1, 'failed persistence must not mutate live approved profile')
+          assert(#adaptive.clusters >= 1, 'failed persistence must retain candidate for retry')
+          assert(adaptive.last_error and adaptive.last_error:find('promotion save failed', 1, true),
+              'flash failure must be visible in status')
+          fail_approved = false
+
+          assert(guard:stop('test'))
+          print('continuous learning + atomic fail-open: OK')
+          LUA
+
+      - name: Build and inspect KPM artifact
+        run: |
+          chmod +x scripts/build_ghostguard_v080.sh
+          scripts/build_ghostguard_v080.sh
+          A=packages/ghostguard/artifacts/ghostguard_0.9.0_kindle5-kindlepw2-kindlehf.kpkg
+          test -s "$A"
+          tar -tzf "$A" | grep -q 'system/ghostguard-native-shadow.lua'
+          tar -xOf "$A" payload/dcghostguardpro.koplugin/defaults.lua | grep -q 'version = "0.9.0"'
+          tar -xOf "$A" payload/dcghostguardpro.koplugin/defaults.lua | grep -q 'adaptive_import_native_shadow = false'
+          tar -xOf "$A" system/ghostguard-service.sh | grep -q 'NATIVE_FILTER=SHADOW_ONLY'
+          tar -xOf "$A" install.sh | grep -q 'PACKAGE_VERSION=0.9.0'
+
+      - name: Materialize v0.9.0 source manifests and artifact
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/ghostguard/source scripts/build_ghostguard_v080.sh \
+            manifest.json manifest.v2.json manifest.mirror.json \
+            packages/ghostguard/artifacts/ghostguard_0.9.0_kindle5-kindlepw2-kindlehf.kpkg
+          if ! git diff --cached --quiet; then
+            git commit -m '[artifact-v090] continuous learning + native shadow'
+            git push origin HEAD:v0.9.0-continuous-shadow
+          fi
