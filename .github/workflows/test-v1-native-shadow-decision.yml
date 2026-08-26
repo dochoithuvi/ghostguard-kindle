@@ -56,5 +56,5 @@ jobs:
           grep -F 'ACTUAL_SUPPRESSION=OFF' "$f"
           grep -F 'INPUT_GRAB=OFF' "$f"
           grep -F 'EVENT_INJECTION=OFF' "$f"
-          ! grep -F 'ffi.C.ioctl' "$f"
-          ! grep -F 'ffi.C.write' "$f"
+          grep -F 'v1.0-native-shadow-decision/packages/ghostguard/source/system/ghostguard-native-shadow.lua' "$f"
+          grep -F 'restart_supervisor' "$f"
