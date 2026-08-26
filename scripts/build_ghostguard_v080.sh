@@ -3,7 +3,9 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 SRC="$ROOT/packages/ghostguard/source"
 OUT="$ROOT/packages/ghostguard/artifacts"
-VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' "$SRC/manifest.json" | head -1 | tr -d ' ' | tr ',' '.')
+# Source manifests are pretty-printed in newer releases, so normalize newlines
+# before extracting the JSON version tuple. Keep this POSIX-shell-only.
+VERSION=$(tr -d '\n\r' < "$SRC/manifest.json" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' | head -1 | tr -d ' ' | tr ',' '.')
 [ -n "$VERSION" ] || VERSION=0.8.0
 PKG="$OUT/ghostguard_${VERSION}_kindle5-kindlepw2-kindlehf.kpkg"
 TMP=$(mktemp -d)
@@ -19,6 +21,7 @@ cp "$SRC/scriptlets/DCPRO_GhostGuard.sh" "$TMP/scriptlets/DCPRO_GhostGuard.sh"
 cp "$SRC/assets/ghostguard_library_600x960.jpg" "$TMP/assets/ghostguard_library_600x960.jpg"
 cp "$SRC/system/ghostguard-service.sh" "$TMP/system/ghostguard-service.sh"
 cp "$SRC/system/ghostguard-native-capture.sh" "$TMP/system/ghostguard-native-capture.sh"
+cp "$SRC/system/ghostguard-native-shadow.lua" "$TMP/system/ghostguard-native-shadow.lua"
 cp "$SRC/system/dcpro-ghostguard.conf" "$TMP/system/dcpro-ghostguard.conf"
 
 chmod +x "$TMP/install.sh" "$TMP/uninstall.sh" "$TMP/launch.sh" \
@@ -32,9 +35,9 @@ for f in _meta.lua main.lua ghostguard.lua ghostguard_core.lua defaults.lua prof
     test -f "$PLUGIN/$f"
 done
 
-grep -q 'version = "0.8.0"' "$PLUGIN/defaults.lua"
-grep -q 'runtime_revision = "system-service-v1"' "$PLUGIN/defaults.lua"
-grep -q 'GhostGuard v0.8.0' "$PLUGIN/_meta.lua"
+grep -q 'version = "0.9.0"' "$PLUGIN/defaults.lua"
+grep -q 'runtime_revision = "continuous-learning-shadow-v1"' "$PLUGIN/defaults.lua"
+grep -q 'GhostGuard v0.9.0' "$PLUGIN/_meta.lua"
 grep -q 'controller fingerprint changed; fail-open' "$PLUGIN/ghostguard.lua"
 grep -q 'system_service_resume_retry_delays' "$PLUGIN/defaults.lua"
 grep -q 'controller identity unavailable after wake' "$PLUGIN/system_service.lua"
@@ -43,13 +46,16 @@ grep -q 'pid_is_ghostguard_service' "$TMP/system/ghostguard-service.sh"
 grep -q 'marker is sticky until profile approval' "$TMP/system/ghostguard-service.sh"
 grep -q 'pid_is_ghostguard_service' "$TMP/uninstall.sh"
 grep -q 'INPUT_GRAB=OFF' "$TMP/system/ghostguard-service.sh"
+grep -q 'NATIVE_FILTER=SHADOW_ONLY' "$TMP/system/ghostguard-service.sh"
+grep -q 'READ_ONLY_SHADOW' "$TMP/system/ghostguard-native-shadow.lua"
+grep -q 'continuous learning v0.9 loaded' "$PLUGIN/main.lua"
 grep -q 'EVENT_INJECTION=OFF' "$TMP/system/ghostguard-service.sh"
 grep -q 'start on mounted_userstore' "$TMP/system/dcpro-ghostguard.conf"
 grep -q 'respawn limit 3 60' "$TMP/system/dcpro-ghostguard.conf"
 ! grep -Eq 'EVIOCGRAB|/dev/uinput|uinput' "$TMP/system/ghostguard-service.sh"
 
 if command -v luajit >/dev/null 2>&1; then
-    for f in "$PLUGIN"/*.lua "$PLUGIN"/keys/*.lua; do
+    for f in "$PLUGIN"/*.lua "$PLUGIN"/keys/*.lua "$TMP/system/ghostguard-native-shadow.lua"; do
         luajit -b "$f" /dev/null
     done
 fi

@@ -46,6 +46,22 @@ function DCPROGhostGuard:loadRuntime()
     if not ok then return false, "GhostGuard:new: " .. tostring(guard_or_err) end
     self.config, self.guard = config, guard_or_err
 
+    -- v0.9: continuous adaptive learning. A fault in this optional layer must
+    -- never prevent the proven core protection path from loading.
+    local AdaptiveBootstrap, adaptive_err = load_local("adaptive_bootstrap.lua")
+    if AdaptiveBootstrap then
+        local call_ok, install_ok, adaptive_or_err = pcall(AdaptiveBootstrap, self.guard, config)
+        if call_ok and install_ok == true then
+            self.adaptive = adaptive_or_err
+            logger.info("DCPRO GhostGuard continuous learning v0.9 loaded")
+        else
+            logger.warn("DCPRO GhostGuard adaptive learning unavailable:",
+                call_ok and adaptive_or_err or install_ok)
+        end
+    else
+        logger.warn("DCPRO GhostGuard adaptive bootstrap missing:", adaptive_err)
+    end
+
     -- SimpleUI and ZenUI integrations are optional UI bridges. Never fail
     -- GhostGuard runtime if either host UI is absent or exposes an older API.
     local SimpleUIBridge, bridge_err = load_local("simpleui_bridge.lua")
@@ -376,8 +392,8 @@ function DCPROGhostGuard:addToMainMenu(menu_items)
         sub_items[#sub_items + 1] = { text = _("Xóa profile và hiệu chuẩn lại"), enabled_func = function() return not self.guard:isRunning() end, callback = function() UIManager:show(ConfirmBox:new{ text = _("Xóa profile chờ duyệt và profile đã duyệt? Báo cáo cũ không bị xóa."), ok_text = _("Xóa profile"), ok_callback = function() local ok, result = self.guard:resetProfile(); show(ok and _("Đã xóa profile. Hãy hiệu chuẩn lại.") or tostring(result), 5) end }) end }
         sub_items[#sub_items + 1] = { text = _("License GhostGuard"), keep_menu_open = true, callback = function() show(self.guard:licenseStatusText() .. "\n\n" .. self.guard:licenseHelpText(), 14) end }
         sub_items[#sub_items + 1] = { text = _("Đồng bộ license online"), keep_menu_open = true, callback = function() self:syncOnlineLicense(true) end }
-        sub_items[#sub_items + 1] = { text = _("Dừng và tạo báo cáo báo cáo Cloud"), callback = function() self:cloudUploadFlow("manual-cloud") end }
-        sub_items[#sub_items + 1] = { text = _("Trạng thái Cloud"), keep_menu_open = true, callback = function() show(self.guard:cloudStatusText(), 15) end }
+        sub_items[#sub_items + 1] = { text = _("Tạo báo cáo GhostGuard"), callback = function() self:cloudUploadFlow("manual-cloud") end }
+        sub_items[#sub_items + 1] = { text = _("Trạng thái báo cáo GhostGuard"), keep_menu_open = true, callback = function() show(self.guard:cloudStatusText(), 15) end }
         sub_items[#sub_items + 1] = { text = _("Tích hợp SimpleUI"), keep_menu_open = true, callback = function() self:registerSimpleUI(1); show(_("SimpleUI:\n") .. self.simpleui:statusText() .. _("\n\nTab Tools được tự đặt ngay bên phải Home. Quick Actions cũ vẫn có thể dùng nếu cần."), 12) end }
         sub_items[#sub_items + 1] = { text = _("Trạng thái"), keep_menu_open = true, callback = function() self:showStatus() end }
         sub_items[#sub_items + 1] = { text = _("Bật SAFE_MODE"), checked_func = function() return self.guard:isSafeMode() end, callback = function()
