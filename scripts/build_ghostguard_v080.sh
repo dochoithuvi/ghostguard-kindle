@@ -3,7 +3,9 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 SRC="$ROOT/packages/ghostguard/source"
 OUT="$ROOT/packages/ghostguard/artifacts"
-VERSION=$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' "$SRC/manifest.json" | head -1 | tr -d ' ' | tr ',' '.')
+# Source manifests are pretty-printed in newer releases, so normalize newlines
+# before extracting the JSON version tuple. Keep this POSIX-shell-only.
+VERSION=$(tr -d '\n\r' < "$SRC/manifest.json" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*\[\([^]]*\)\].*/\1/p' | head -1 | tr -d ' ' | tr ',' '.')
 [ -n "$VERSION" ] || VERSION=0.8.0
 PKG="$OUT/ghostguard_${VERSION}_kindle5-kindlepw2-kindlehf.kpkg"
 TMP=$(mktemp -d)
