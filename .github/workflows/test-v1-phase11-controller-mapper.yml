@@ -1,0 +1,73 @@
+name: GhostGuard v1.0 Phase 1.1 Controller Mapper
+
+on:
+  push:
+    branches: [v1.0-phase1.1-controller-mapper]
+  pull_request:
+    paths:
+      - 'packages/ghostguard/source/system/ghostguard-controller-mapper.lua'
+      - 'DCPRO_GhostGuard_v1.0_Phase1.1_ControllerMapper_Installer.sh'
+      - '.github/workflows/test-v1-phase11-controller-mapper.yml'
+
+jobs:
+  mapper-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LuaJIT
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y luajit
+
+      - name: Syntax checks
+        run: |
+          set -eu
+          sh -n DCPRO_GhostGuard_v1.0_Phase1.1_ControllerMapper_Installer.sh
+          luajit -e 'assert(loadfile("packages/ghostguard/source/system/ghostguard-controller-mapper.lua"))'
+
+      - name: Validate read-only safety contract
+        run: |
+          set -eu
+          M=packages/ghostguard/source/system/ghostguard-controller-mapper.lua
+          grep -Fq 'local O_RDONLY = 0' "$M"
+          grep -Fq 'local O_NONBLOCK = 0x800' "$M"
+          grep -Fq 'ffi.C.open(device, O_RDONLY + O_NONBLOCK)' "$M"
+          grep -Fq 'EVIOCGABS' "$M"
+          grep -Fq 'ACTUAL_SUPPRESSION=OFF' "$M"
+          grep -Fq 'INPUT_GRAB=OFF' "$M"
+          grep -Fq 'EVENT_INJECTION=OFF' "$M"
+          ! grep -Fq 'int write(' "$M"
+          ! grep -Fq 'O_RDWR' "$M"
+          ! grep -Fq 'O_WRONLY' "$M"
+          ! grep -Fq 'ffi.C.write' "$M"
+
+      - name: Validate conservative mapping state machine
+        run: |
+          set -eu
+          M=packages/ghostguard/source/system/ghostguard-controller-mapper.lua
+          grep -Fq 'mapping_state = "AXES_DETECTED"' "$M"
+          grep -Fq 'ORIENTATION_STATE=UNVERIFIED' "$M"
+          grep -Fq 'ORIENTATION_CALIBRATION_REQUIRED' "$M"
+          grep -Fq 'FINGERPRINT_OR_EVENT_MISMATCH' "$M"
+          grep -Fq 'RAW_SAMPLE_CAP = 512' "$M"
+          ! grep -Fq 'mapping_state = "READY"' "$M"
+
+      - name: Validate Linux EVIOCGABS request encoding
+        run: |
+          python3 - <<'PY'
+          IOC_NRBITS=8; IOC_TYPEBITS=8; IOC_SIZEBITS=14
+          nrshift=0; typeshift=8; sizeshift=16; dirshift=30
+          req=(2<<dirshift) | (ord('E')<<typeshift) | ((0x40+53)<<nrshift) | (24<<sizeshift)
+          assert req == 0x80184575, hex(req)
+          print('EVIOCGABS(ABS_MT_POSITION_X)=', hex(req))
+          PY
+
+      - name: Validate installer fail-open behavior
+        run: |
+          set -eu
+          I=DCPRO_GhostGuard_v1.0_Phase1.1_ControllerMapper_Installer.sh
+          grep -Fq 'Native blocking remains OFF.' "$I"
+          grep -Fq 'rm -f "$PAUSE"' "$I"
+          grep -Fq 'controller.fingerprint missing' "$I"
+          grep -Fq 'orientation safety marker missing' "$I"
