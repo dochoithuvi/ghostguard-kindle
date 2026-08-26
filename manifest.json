@@ -7,8 +7,9 @@
     "ghostguard": {
       "name": "DCPRO GhostGuard",
       "author": "Do Choi Thu Vi",
-      "description": "GhostGuard v0.8.1 - system supervisor/native diagnostics plus Library icon re-index fix.",
+      "description": "GhostGuard v0.8.2 - system supervisor/native diagnostics, Library icon fix, local-only public reporting with no Cloud .conf dependency.",
       "artifacts": [
+        {"url":"packages/ghostguard/artifacts/ghostguard_0.8.2_kindle5-kindlepw2-kindlehf.kpkg","version":[0,8,2],"dependencies":[],"supported_platforms":["kindle5","kindlepw2","kindlehf"]},
         {"url":"packages/ghostguard/artifacts/ghostguard_0.8.1_kindle5-kindlepw2-kindlehf.kpkg","version":[0,8,1],"dependencies":[],"supported_platforms":["kindle5","kindlepw2","kindlehf"]},
         {"url":"packages/ghostguard/artifacts/ghostguard_0.8.0_kindle5-kindlepw2-kindlehf.kpkg","version":[0,8,0],"dependencies":[],"supported_platforms":["kindle5","kindlepw2","kindlehf"]},
         {"url":"packages/ghostguard/artifacts/ghostguard_0.6.17_kindle5-kindlepw2-kindlehf.kpkg","version":[0,6,17],"dependencies":[],"supported_platforms":["kindle5","kindlepw2","kindlehf"]}
