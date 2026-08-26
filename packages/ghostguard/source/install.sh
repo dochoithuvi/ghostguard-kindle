@@ -25,6 +25,29 @@ SERVICE_CONFIG="$SERVICE_DIR/config.env"
 UPSTART_JOB="/etc/upstart/dcpro-ghostguard.conf"
 
 fail() { echo "GhostGuard install: $1" >&2; rm -rf "$STAGING" 2>/dev/null || true; exit 1; }
+
+# Some Kindle /mnt/us filesystems reject metadata-preserving cp -p even when a
+# normal content copy is valid. KPM install must not fail merely because the
+# filesystem cannot preserve timestamps/ownership. Always verify content after
+# the fallback copy.
+copy_file_compat() {
+    src="$1"; dst="$2"
+    if cp -p "$src" "$dst" 2>/dev/null; then :
+    elif cp "$src" "$dst" 2>/dev/null; then :
+    elif cat "$src" > "$dst" 2>/dev/null; then :
+    else return 1
+    fi
+    cmp "$src" "$dst" >/dev/null 2>&1
+}
+
+copy_tree_compat() {
+    src="$1"; dst="$2"
+    rm -rf "$dst" 2>/dev/null || true
+    if cp -Rp "$src" "$dst" 2>/dev/null; then return 0; fi
+    rm -rf "$dst" 2>/dev/null || true
+    cp -R "$src" "$dst" 2>/dev/null
+}
+
 [ -f "payload/dcghostguardpro.koplugin/main.lua" ] || fail "package payload incomplete"
 [ -f "payload/dcghostguardpro.koplugin/adaptive_bootstrap.lua" ] || fail "adaptive runtime missing"
 [ -f "payload/dcghostguardpro.koplugin/system_service.lua" ] || fail "system-service bridge missing"
@@ -33,13 +56,12 @@ fail() { echo "GhostGuard install: $1" >&2; rm -rf "$STAGING" 2>/dev/null || tru
 [ -f "system/ghostguard-native-shadow.lua" ] || fail "native shadow observer missing"
 [ -f "system/dcpro-ghostguard.conf" ] || fail "Upstart job missing"
 mkdir -p "$DATA" || fail "cannot create data directory"
-rm -rf "$STAGING"
-cp -Rp "payload/dcghostguardpro.koplugin" "$STAGING" || fail "cannot stage plugin"
+copy_tree_compat "payload/dcghostguardpro.koplugin" "$STAGING" || fail "cannot stage plugin"
 
 if [ -s "$TARGET/license.key" ]; then
-    cp -p "$TARGET/license.key" "$STAGING/license.key" || fail "cannot preserve legacy license.key"
+    copy_file_compat "$TARGET/license.key" "$STAGING/license.key" || fail "cannot preserve legacy license.key"
 elif [ -s "$LICENSE_BACKUP" ]; then
-    cp -p "$LICENSE_BACKUP" "$STAGING/license.key" || fail "cannot restore legacy license.key"
+    copy_file_compat "$LICENSE_BACKUP" "$STAGING/license.key" || fail "cannot restore legacy license.key"
 fi
 
 rm -rf "$BACKUP"
@@ -59,9 +81,9 @@ fi
 rm -rf "$BACKUP"
 
 mkdir -p "$SERVICE_DIR" || fail "cannot create service directory"
-cp -p "system/ghostguard-service.sh" "$SERVICE_SCRIPT" || fail "cannot install system supervisor"
-cp -p "system/ghostguard-native-capture.sh" "$NATIVE_CAPTURE" || fail "cannot install native diagnostic capture"
-cp -p "system/ghostguard-native-shadow.lua" "$NATIVE_SHADOW" || fail "cannot install native shadow observer"
+copy_file_compat "system/ghostguard-service.sh" "$SERVICE_SCRIPT" || fail "cannot install system supervisor"
+copy_file_compat "system/ghostguard-native-capture.sh" "$NATIVE_CAPTURE" || fail "cannot install native diagnostic capture"
+copy_file_compat "system/ghostguard-native-shadow.lua" "$NATIVE_SHADOW" || fail "cannot install native shadow observer"
 chmod 755 "$SERVICE_SCRIPT" "$NATIVE_CAPTURE" 2>/dev/null || true
 chmod 644 "$NATIVE_SHADOW" 2>/dev/null || true
 if [ ! -f "$SERVICE_CONFIG" ]; then
@@ -83,7 +105,7 @@ install_upstart_job() {
     elif mount -o remount,rw / >/dev/null 2>&1; then method="mount"
     else return 1; fi
     tmp="${UPSTART_JOB}.new.$$"; ok=0
-    cp -p "system/dcpro-ghostguard.conf" "$tmp" 2>/dev/null || ok=1
+    copy_file_compat "system/dcpro-ghostguard.conf" "$tmp" || ok=1
     if [ "$ok" = "0" ]; then chmod 644 "$tmp" 2>/dev/null || true; mv -f "$tmp" "$UPSTART_JOB" 2>/dev/null || ok=1; fi
     rm -f "$tmp" 2>/dev/null || true
     if [ "$method" = "mntroot" ]; then mntroot ro >/dev/null 2>&1 || true
@@ -100,10 +122,10 @@ if [ "$UPSTART_OK" = "1" ] && command -v initctl >/dev/null 2>&1; then
 fi
 if [ "$SERVICE_STARTED" = "0" ]; then /bin/sh "$SERVICE_SCRIPT" >/dev/null 2>&1 & SERVICE_STARTED=1; fi
 
-# v0.8.1 Library icon fix retained in v0.8.2.
+# v0.8.1 Library icon fix retained in v0.9.x.
 [ -f "assets/ghostguard_library_600x960.jpg" ] || fail "library cover missing from package"
 mkdir -p "$ASSET_DIR" || fail "cannot create library cover directory"
-cp -p "assets/ghostguard_library_600x960.jpg" "$LIBRARY_COVER" || fail "cannot install library cover"
+copy_file_compat "assets/ghostguard_library_600x960.jpg" "$LIBRARY_COVER" || fail "cannot install library cover"
 chmod 666 "$LIBRARY_COVER" 2>/dev/null || true
 sync 2>/dev/null || true
 
@@ -120,7 +142,7 @@ rm -f "$LAUNCHER" 2>/dev/null || true
 rm -rf "$LAUNCHER_SDR" 2>/dev/null || true
 sync 2>/dev/null || true
 sleep 2
-cp -p "$LAUNCHER_TMP" "$LAUNCHER" || fail "cannot install launcher"
+copy_file_compat "$LAUNCHER_TMP" "$LAUNCHER" || fail "cannot install launcher"
 rm -f "$LAUNCHER_TMP" 2>/dev/null || true
 chmod 755 "$LAUNCHER" 2>/dev/null || true
 touch "$LAUNCHER" 2>/dev/null || true
@@ -128,11 +150,11 @@ sync 2>/dev/null || true
 
 find "$TARGET/bin" -type f -name '*.sh' -exec chmod 755 {} \; 2>/dev/null || true
 
-printf 'PACKAGE_ID=ghostguard\nPACKAGE_VERSION=0.9.0\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nSYSTEM_SERVICE=1\nSYSTEM_SERVICE_STARTED=%s\nUPSTART_INSTALLED=%s\nUPSTART_JOB=%s\nNATIVE_INTEGRATED=1\nNATIVE_SHADOW=1\nNATIVE_FILTER=SHADOW_ONLY\nINPUT_GRAB=OFF\nEVENT_INJECTION=OFF\nLIBRARY_LAUNCHER=%s\nLIBRARY_COVER=%s\nLIBRARY_ICON_MODE=FILE_PATH_FORCE_REINDEX\nREPORT_MODE=LOCAL_ONLY\nCLOUD_UPLOAD=DISABLED_PUBLIC_BUILD\nINSTALL_MODE=ATOMIC_REPLACE_FAIL_OPEN_SERVICE\nINSTALLED_UTC=%s\n' \
+printf 'PACKAGE_ID=ghostguard\nPACKAGE_VERSION=0.9.1\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nSYSTEM_SERVICE=1\nSYSTEM_SERVICE_STARTED=%s\nUPSTART_INSTALLED=%s\nUPSTART_JOB=%s\nNATIVE_INTEGRATED=1\nNATIVE_SHADOW=1\nNATIVE_FILTER=SHADOW_ONLY\nINPUT_GRAB=OFF\nEVENT_INJECTION=OFF\nLIBRARY_LAUNCHER=%s\nLIBRARY_COVER=%s\nLIBRARY_ICON_MODE=FILE_PATH_FORCE_REINDEX\nREPORT_MODE=LOCAL_ONLY\nCLOUD_UPLOAD=DISABLED_PUBLIC_BUILD\nINSTALL_MODE=ATOMIC_REPLACE_FAIL_OPEN_SERVICE\nCOPY_MODE=PRESERVE_WITH_CONTENT_FALLBACK\nINSTALLED_UTC=%s\n' \
     "$KO_ROOT" "$TARGET" "$SERVICE_STARTED" "$UPSTART_OK" "$UPSTART_JOB" "$LAUNCHER" "$LIBRARY_COVER" \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" > "$DATA/KPM_INSTALL_OK"
 
-echo "GhostGuard v0.9.0 installed. KOReader root: $KO_ROOT"
+echo "GhostGuard v0.9.1 installed. KOReader root: $KO_ROOT"
 echo "GhostGuard plugin: $TARGET"
 echo "GhostGuard system supervisor: $SERVICE_SCRIPT"
 echo "GhostGuard Native diagnostics integrated: $NATIVE_CAPTURE"
@@ -141,6 +163,7 @@ echo "GhostGuard Library icon: $LIBRARY_COVER (forced clean re-index)"
 echo "Reports: local-only in public build; no Cloud .conf file is required."
 if [ "$UPSTART_OK" = "1" ]; then echo "Auto-start on Kindle boot: enabled via $UPSTART_JOB"
 else echo "Auto-start on Kindle boot: Upstart install unavailable; current-boot supervisor started fail-open."; fi
+echo "KPM copy compatibility: metadata-preserving copy falls back to verified content copy on /mnt/us."
 echo "Safety: Native filter is SHADOW_ONLY; input grab/injection are OFF; actual blocking remains in the tested KOReader bridge."
-echo "Restart KOReader once after upgrading to v0.9.0."
+echo "Restart KOReader once after upgrading to v0.9.1."
 exit 0
