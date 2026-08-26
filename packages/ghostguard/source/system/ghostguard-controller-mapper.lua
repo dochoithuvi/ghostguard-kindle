@@ -13,6 +13,7 @@
 
 local ok_ffi, ffi = pcall(require, "ffi")
 if not ok_ffi then os.exit(2) end
+local bit = require("bit")
 
 ffi.cdef[[
 typedef long ssize_t;
