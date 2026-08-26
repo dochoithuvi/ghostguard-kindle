@@ -1,0 +1,46 @@
+name: Test v1 Native Shadow Decision
+
+on:
+  push:
+    branches: [v1.0-native-shadow-decision]
+  pull_request:
+    paths:
+      - packages/ghostguard/source/system/ghostguard-native-shadow.lua
+      - .github/workflows/test-v1-native-shadow-decision.yml
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LuaJIT
+        run: sudo apt-get update && sudo apt-get install -y luajit
+      - name: Compile Lua source
+        run: luajit -e 'assert(loadfile("packages/ghostguard/source/system/ghostguard-native-shadow.lua"))'
+      - name: Verify decision telemetry
+        run: |
+          set -eu
+          f=packages/ghostguard/source/system/ghostguard-native-shadow.lua
+          grep -F 'MODE=READ_ONLY_SHADOW_DECISION' "$f"
+          grep -F 'DECISION_POLICY=STRONG_EVIDENCE_V1' "$f"
+          grep -F 'ACTUAL_SUPPRESSION=OFF' "$f"
+          grep -F 'WOULD_SUPPRESS' "$f"
+          grep -F 'PASS_SAMPLE' "$f"
+          grep -F 'INPUT_GRAB=OFF' "$f"
+          grep -F 'EVENT_INJECTION=OFF' "$f"
+          grep -F 'FAIL_OPEN=YES' "$f"
+      - name: Enforce read-only input path
+        run: |
+          set -eu
+          f=packages/ghostguard/source/system/ghostguard-native-shadow.lua
+          ! grep -F 'ffi.C.ioctl' "$f"
+          ! grep -F 'ffi.C.write' "$f"
+          ! grep -F 'O_RDWR' "$f"
+          ! grep -F 'O_WRONLY' "$f"
+          grep -F 'local O_RDONLY = 0' "$f"
+      - name: Preserve v0.9 candidate spool format
+        run: |
+          set -eu
+          f=packages/ghostguard/source/system/ghostguard-native-shadow.lua
+          grep -F 'Preserve the v0.9 candidate spool format exactly.' "$f"
+          grep -F '"CANDIDATE"' "$f"
