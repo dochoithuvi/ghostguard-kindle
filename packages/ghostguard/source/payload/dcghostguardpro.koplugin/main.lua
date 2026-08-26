@@ -115,19 +115,19 @@ end
 function DCPROGhostGuard:stopAndShow(reason)
     if not self.guard:isRunning() then show(_("GhostGuard đang dừng."), 3); return end
     local _, result = self.guard:stop(reason or "manual")
-    show(_("GhostGuard đã dừng.\nBáo cáo đã đưa vào cloud_outbox.\n") .. tostring(result), 6)
+    show(_("GhostGuard đã dừng.\nBáo cáo GhostGuard đã được tạo và lưu trên Kindle.\n") .. tostring(result), 6)
 end
 
 function DCPROGhostGuard:startCloudUpload()
     local ok, result = self.guard:startCloudUpload()
-    show((ok and _("Đã bắt đầu gửi báo cáo Cloud ở nền.\n") or _("Không thể gửi Cloud:\n")) .. tostring(result), 8)
+    show((ok and _("Tạo báo cáo GhostGuard.\n") or _("Không thể tạo báo cáo GhostGuard:\n")) .. tostring(result), 8)
 end
 
 function DCPROGhostGuard:cloudUploadFlow(reason)
     if self.guard:isRunning() then
         UIManager:show(ConfirmBox:new{
-            text = _("Để gửi đủ report, GhostGuard cần dừng và đóng phiên hiện tại trước. Dừng rồi gửi Cloud ngay?"),
-            ok_text = _("Dừng và gửi"),
+            text = _("Để tạo báo cáo đầy đủ, GhostGuard cần dừng và đóng phiên hiện tại trước. Dừng rồi tạo báo cáo GhostGuard ngay?"),
+            ok_text = _("Dừng và tạo báo cáo"),
             ok_callback = function()
                 self.guard:stop(reason or "stop-and-cloud")
                 self:startCloudUpload()
@@ -245,7 +245,7 @@ function DCPROGhostGuard:showToolsPanel()
                 { text = _("Trạng thái GhostGuard"), callback = function() self:showStatus() end },
                 { text = _("Đồng bộ license online"), callback = function() self:syncOnlineLicense(true); ctx.repaint() end },
                 { text = _("Dừng và đóng báo cáo"), enabled_func = function() return self.guard:isRunning() end, callback = function() self:stopAndShow("simpleui-tools-stop"); ctx.repaint() end },
-                { text = _("Gửi báo cáo Cloud"), callback = function() self:cloudUploadFlow("simpleui-tools-cloud") end },
+                { text = _("Tạo báo cáo GhostGuard"), callback = function() self:cloudUploadFlow("simpleui-tools-cloud") end },
                 { text = _("SAFE_MODE"), checked_func = function() return self.guard:isSafeMode() end, callback = function()
                     local safe = self.guard:isSafeMode()
                     if safe then
@@ -376,7 +376,7 @@ function DCPROGhostGuard:addToMainMenu(menu_items)
         sub_items[#sub_items + 1] = { text = _("Xóa profile và hiệu chuẩn lại"), enabled_func = function() return not self.guard:isRunning() end, callback = function() UIManager:show(ConfirmBox:new{ text = _("Xóa profile chờ duyệt và profile đã duyệt? Báo cáo cũ không bị xóa."), ok_text = _("Xóa profile"), ok_callback = function() local ok, result = self.guard:resetProfile(); show(ok and _("Đã xóa profile. Hãy hiệu chuẩn lại.") or tostring(result), 5) end }) end }
         sub_items[#sub_items + 1] = { text = _("License GhostGuard"), keep_menu_open = true, callback = function() show(self.guard:licenseStatusText() .. "\n\n" .. self.guard:licenseHelpText(), 14) end }
         sub_items[#sub_items + 1] = { text = _("Đồng bộ license online"), keep_menu_open = true, callback = function() self:syncOnlineLicense(true) end }
-        sub_items[#sub_items + 1] = { text = _("Dừng và gửi báo cáo Cloud"), callback = function() self:cloudUploadFlow("manual-cloud") end }
+        sub_items[#sub_items + 1] = { text = _("Dừng và tạo báo cáo báo cáo Cloud"), callback = function() self:cloudUploadFlow("manual-cloud") end }
         sub_items[#sub_items + 1] = { text = _("Trạng thái Cloud"), keep_menu_open = true, callback = function() show(self.guard:cloudStatusText(), 15) end }
         sub_items[#sub_items + 1] = { text = _("Tích hợp SimpleUI"), keep_menu_open = true, callback = function() self:registerSimpleUI(1); show(_("SimpleUI:\n") .. self.simpleui:statusText() .. _("\n\nTab Tools được tự đặt ngay bên phải Home. Quick Actions cũ vẫn có thể dùng nếu cần."), 12) end }
         sub_items[#sub_items + 1] = { text = _("Trạng thái"), keep_menu_open = true, callback = function() self:showStatus() end }
