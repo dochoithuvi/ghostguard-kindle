@@ -3,12 +3,8 @@
   "id": "ghostguard",
   "name": "DCPRO GhostGuard",
   "author": "Do Choi Thu Vi",
-  "description": "GhostGuard v0.8.0 - integrated fail-open Kindle system supervisor, native controller diagnostics, cumulative profile learning and KOReader protection bridge.",
-  "version": [0, 8, 0],
+  "description": "GhostGuard v0.8.1 - v0.8 system supervisor/native integration plus reliable file-backed Kindle Library icon re-indexing.",
+  "version": [0, 8, 1],
   "dependencies": [],
-  "supported_platforms": [
-    "kindle5",
-    "kindlepw2",
-    "kindlehf"
-  ]
+  "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
 }

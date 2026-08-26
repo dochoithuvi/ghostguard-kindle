@@ -7,8 +7,14 @@
     "ghostguard": {
       "name": "DCPRO GhostGuard",
       "author": "Do Choi Thu Vi",
-      "description": "GhostGuard v0.8.0 - integrated fail-open Kindle system supervisor, native controller diagnostics, cumulative profile learning and KOReader protection bridge.",
+      "description": "GhostGuard v0.8.1 - v0.8 system supervisor/native integration plus reliable file-backed Kindle Library icon re-indexing.",
       "artifacts": [
+        {
+          "url": "packages/ghostguard/artifacts/ghostguard_0.8.1_kindle5-kindlepw2-kindlehf.kpkg",
+          "version": [0, 8, 1],
+          "dependencies": [],
+          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
+        },
         {
           "url": "packages/ghostguard/artifacts/ghostguard_0.8.0_kindle5-kindlepw2-kindlehf.kpkg",
           "version": [0, 8, 0],
@@ -27,27 +33,13 @@
       "name": "KindleForge",
       "author": "Penguins184 / KindleTweaks",
       "description": "KindleForge upstream 4.1.0 with KPM integration revision 4.1.1; installs the official release bundle and preserves in-app Update KForge compatibility.",
-      "artifacts": [
-        {
-          "url": "packages/kindleforge/artifacts/kindleforge_4.1.1_kindle5-kindlepw2-kindlehf.kpkg",
-          "version": [4, 1, 1],
-          "dependencies": [],
-          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
-        }
-      ]
+      "artifacts": [{"url":"packages/kindleforge/artifacts/kindleforge_4.1.1_kindle5-kindlepw2-kindlehf.kpkg","version":[4,1,1],"dependencies":[],"supported_platforms":["kindle5","kindlepw2","kindlehf"]}]
     },
     "ghostguard-native": {
       "name": "DCPRO GhostGuard Native (Legacy Standalone)",
       "author": "Do Choi Thu Vi",
-      "description": "Legacy standalone passive native watcher. GhostGuard v0.8.0 already integrates native controller diagnostics and passive capture, so new installs do not need this package separately.",
-      "artifacts": [
-        {
-          "url": "packages/ghostguard-native/artifacts/ghostguard-native_0.2.2_kindle5-kindlepw2-kindlehf.kpkg",
-          "version": [0, 2, 2],
-          "dependencies": [],
-          "supported_platforms": ["kindle5", "kindlepw2", "kindlehf"]
-        }
-      ]
+      "description": "Legacy standalone passive native watcher. GhostGuard v0.8.x already integrates native controller diagnostics and passive capture.",
+      "artifacts": [{"url":"packages/ghostguard-native/artifacts/ghostguard-native_0.2.2_kindle5-kindlepw2-kindlehf.kpkg","version":[0,2,2],"dependencies":[],"supported_platforms":["kindle5","kindlepw2","kindlehf"]}]
     }
   }
 }
