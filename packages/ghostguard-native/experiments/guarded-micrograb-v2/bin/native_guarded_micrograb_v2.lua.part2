@@ -1,0 +1,317 @@
+    h:write("RAW_EVENTS="..raw_events.."\n")
+    h:write("COMPLETED_CONTACTS="..completed.."\n")
+    h:write("GRAB_SUCCEEDED="..grab_success.."\n")
+    h:write("ACTIVE_ENABLED="..(active_enabled and "YES" or "NO").."\n")
+    h:close()
+  end
+end
+
+local last_grab_end=0
+local function micro_grab(trigger_key,rep)
+  if not active_enabled then return end
+  local now=mono_us()
+
+  if active_count()~=0 then
+    safety_skip_active=safety_skip_active+1
+    append({"SKIP_ACTIVE",tostring(os.time()),trigger_key,tostring(rep)})
+    return
+  end
+  if now-last_grab_end<COOLDOWN_US then
+    safety_skip_cooldown=safety_skip_cooldown+1
+    append({"SKIP_COOLDOWN",tostring(os.time()),trigger_key,tostring(rep)})
+    return
+  end
+  if grab_success>=MAX_GRABS then
+    safety_skip_limit=safety_skip_limit+1
+    active_enabled=false
+    active_disabled_reason="MAX_GRABS_REACHED"
+    phase="PASSIVE_AFTER_LIMIT"
+    append({"ACTIVE_DISABLED",tostring(os.time()),active_disabled_reason})
+    return
+  end
+
+  grab_attempts=grab_attempts+1
+  local one=ffi.new("int[1]",1)
+  if ffi.C.ioctl(fd,EVIOCGRAB,one)<0 then
+    grab_fail=grab_fail+1
+    append({"GRAB_FAIL",tostring(os.time()),trigger_key,tostring(rep)})
+    return
+  end
+
+  grab_success=grab_success+1
+  local gs=mono_us()
+  local acquire_deadline=gs+ACQUIRE_US
+  local hard_deadline=gs+BOUNDARY_CAP_US
+  local local_events=0
+  local local_frames=0
+  local local_starts=0
+  local local_ends=0
+  local local_complete=0
+  local boundary_cap_hit=false
+
+  -- Contacts that BEGIN while EVIOCGRAB is active must be swallowed as whole
+  -- contacts whenever possible. We therefore use 60 ms only as the initial
+  -- burst-acquisition window. Once a tracking ID begins, keep the grab until
+  -- all contacts started inside the window have ended, with a 750 ms hard cap.
+  local gslot=0
+  local gactive={}
+  local gx,gy={},{}
+  local opened_inside=0
+
+  local function grabbed_active_count()
+    local n=0
+    for _,v in pairs(gactive) do if v then n=n+1 end end
+    return n
+  end
+
+  while true do
+    local tnow=mono_us()
+    if exists(rescue) then
+      end_reason="RESCUE_MARKER"
+      break
+    end
+
+    local gac=grabbed_active_count()
+    if opened_inside==0 and tnow>=acquire_deadline then
+      break
+    end
+    if opened_inside>0 and gac==0 then
+      break
+    end
+    if tnow>=hard_deadline then
+      if gac>0 then
+        boundary_cap_hit=true
+        boundary_cap_hits=boundary_cap_hits+1
+      end
+      break
+    end
+
+    local deadline = (opened_inside==0) and acquire_deadline or hard_deadline
+    local remain=deadline-tnow
+    local timeout=math.floor(remain/1000)
+    if timeout<0 then timeout=0 elseif timeout>10 then timeout=10 end
+
+    local pr=ffi.C.poll(p,1,timeout)
+    if pr>0 and bit.band(tonumber(p[0].revents),POLLIN)~=0 then
+      while true do
+        local n=ffi.C.read(fd,ev,evsize)
+        if tonumber(n)~=evsize then break end
+        local_events=local_events+1
+        grabbed_events=grabbed_events+1
+        local e=ev[0]
+
+        if e.type==EV_SYN and e.code==SYN_REPORT then
+          local_frames=local_frames+1
+          grabbed_frames=grabbed_frames+1
+
+        elseif e.type==EV_ABS then
+          if e.code==SLOT then
+            gslot=e.value
+
+          elseif e.code==TID then
+            if e.value>=0 then
+              if not gactive[gslot] then
+                opened_inside=opened_inside+1
+                local_starts=local_starts+1
+                grabbed_tracking_starts=grabbed_tracking_starts+1
+              end
+              gactive[gslot]=true
+              gx[gslot]=nil
+              gy[gslot]=nil
+            else
+              if gactive[gslot] then
+                if gx[gslot]~=nil and gy[gslot]~=nil then
+                  local_complete=local_complete+1
+                end
+                local_ends=local_ends+1
+                grabbed_tracking_ends=grabbed_tracking_ends+1
+              end
+              gactive[gslot]=false
+            end
+
+          elseif gactive[gslot] then
+            if e.code==XCODE then gx[gslot]=e.value end
+            if e.code==YCODE then gy[gslot]=e.value end
+          end
+        end
+      end
+    end
+  end
+
+  local zero=ffi.new("int[1]",0)
+  ffi.C.ioctl(fd,EVIOCGRAB,zero)
+
+  local actual=mono_us()-gs
+  grab_total_us=grab_total_us+actual
+  if actual>max_grab_us then max_grab_us=actual end
+  last_grab_end=mono_us()
+
+  append({
+    "MICRO_GRAB",tostring(os.time()),trigger_key,tostring(rep),
+    tostring(math.floor(actual/1000)),tostring(local_events),
+    tostring(local_frames),tostring(local_starts),tostring(local_ends),
+    tostring(local_complete),boundary_cap_hit and "BOUNDARY_CAP" or "BOUNDARY_OK"
+  })
+
+  -- A complete X+Y contact inside a suppression window may have been a real
+  -- user touch. Swallow this one whole contact, then permanently disable active
+  -- blocking for the remainder of the qualification.
+  if local_complete>0 then
+    grab_hit_complete_contacts=grab_hit_complete_contacts+local_complete
+    active_enabled=false
+    active_disabled_reason="GRAB_CAUGHT_COMPLETE_CONTACT"
+    phase="PASSIVE_AFTER_CIRCUIT_BREAKER"
+    append({"CIRCUIT_BREAKER",tostring(os.time()),active_disabled_reason,tostring(local_complete)})
+  elseif boundary_cap_hit then
+    -- We refuse additional active grabs after any boundary we could not close
+    -- safely inside the 750 ms cap.
+    active_enabled=false
+    active_disabled_reason="BOUNDARY_CAP_HIT"
+    phase="PASSIVE_AFTER_BOUNDARY_CAP"
+    append({"CIRCUIT_BREAKER",tostring(os.time()),active_disabled_reason})
+  end
+end
+
+write_progress("RUNNING","PASSIVE_BASELINE_STARTED")
+last_hb=mono_us()
+
+while true do
+  local now=mono_us()
+  local elapsed=now-started
+
+  if exists(rescue) then end_reason="RESCUE_MARKER"; break end
+  if elapsed>=TOTAL_US then break end
+
+  if not phase2_started and elapsed>=BASELINE_US then
+    phase2_started=true
+    baseline_pass=(raw_events>=BASELINE_MIN_RAW and completed>=BASELINE_MIN_CONTACTS)
+    history={}
+    if baseline_pass then
+      active_enabled=true
+      phase="ARMED_MICROGRAB"
+      append({"PHASE_CHANGE",tostring(os.time()),"ARMED_MICROGRAB",
+              "raw="..raw_events,"contacts="..completed})
+    else
+      active_enabled=false
+      active_disabled_reason="BASELINE_LOW_SAMPLE"
+      phase="PASSIVE_ONLY_LOW_SAMPLE"
+      append({"PHASE_CHANGE",tostring(os.time()),"PASSIVE_ONLY_LOW_SAMPLE",
+              "raw="..raw_events,"contacts="..completed})
+    end
+  end
+
+  if now-last_hb>=5000000 then
+    write_progress("RUNNING","IN_PROGRESS")
+    last_hb=now
+  end
+
+  local pr=ffi.C.poll(p,1,50)
+  if pr>0 and bit.band(tonumber(p[0].revents),POLLIN)~=0 then
+    while true do
+      local n=ffi.C.read(fd,ev,evsize)
+      if tonumber(n)~=evsize then break end
+
+      raw_events=raw_events+1
+      local e=ev[0]
+      local eus=event_us(e)
+
+      if e.type==EV_ABS then
+        if e.code==SLOT then
+          current_slot=e.value
+
+        elseif e.code==TID then
+          if e.value>=0 then
+            active[current_slot]=true
+            contacts[current_slot]={
+              slot=current_slot,start_us=eus,x=nil,y=nil,major=nil,path=0,
+              last_x=nil,last_y=nil,ended=false
+            }
+          else
+            active[current_slot]=false
+            local c=contacts[current_slot]
+            if c then
+              c.end_us=eus
+              c.ended=true
+            end
+          end
+
+        else
+          local c=contacts[current_slot]
+          if c and active[current_slot] then
+            if e.code==XCODE then
+              if c.last_x~=nil then c.path=c.path+math.abs(e.value-c.last_x) end
+              c.x=e.value
+              c.last_x=e.value
+            elseif e.code==YCODE then
+              if c.last_y~=nil then c.path=c.path+math.abs(e.value-c.last_y) end
+              c.y=e.value
+              c.last_y=e.value
+            elseif e.code==MAJOR then
+              if c.major==nil or e.value<c.major then c.major=e.value end
+            end
+          end
+        end
+
+      elseif e.type==EV_SYN and e.code==SYN_REPORT then
+        syn_frames=syn_frames+1
+        local ended={}
+        for slot,c in pairs(contacts) do
+          if c.ended then ended[#ended+1]=slot end
+        end
+
+        for _,slot in ipairs(ended) do
+          local c=contacts[slot]
+          contacts[slot]=nil
+          completed=completed+1
+
+          local dur=(c.end_us or c.start_us)-c.start_us
+          local exactly_one=(c.x~=nil) ~= (c.y~=nil)
+
+          if c.x~=nil and c.y~=nil then
+            complete_contacts=complete_contacts+1
+
+          elseif c.x==nil and c.y==nil then
+            noxy_contacts=noxy_contacts+1
+
+          else
+            incomplete_contacts=incomplete_contacts+1
+            local k=key_for(c)
+            local strict=exactly_one and k~=nil
+              and dur>=0 and dur<=MAX_DUR_US
+              and c.major~=nil and c.major<=MAX_MAJOR
+              and (c.path or 0)<=MAX_PATH
+
+            if strict then
+              eligible=eligible+1
+              local rep=bump(k,c.end_us or eus)
+              append({
+                "STRICT_CANDIDATE",tostring(os.time()),phase,k,tostring(rep),
+                tostring(dur),
+                c.x==nil and "" or tostring(c.x),
+                c.y==nil and "" or tostring(c.y),
+                c.major==nil and "" or tostring(c.major),
+                tostring(c.path or 0)
+              })
+
+              if rep>=TRIGGER_REPEAT then
+                if phase=="PASSIVE_BASELINE" then
+                  passive_shadow_triggers=passive_shadow_triggers+1
+                  append({"SHADOW_TRIGGER",tostring(os.time()),k,tostring(rep)})
+                elseif active_enabled then
+                  armed_triggers=armed_triggers+1
+                  micro_grab(k,rep)
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+active_enabled=false
+phase="FINISHED"
+write_progress("COMPLETED",end_reason)
+ffi.C.close(fd)
+os.exit(0)
