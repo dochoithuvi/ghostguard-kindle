@@ -1,0 +1,50 @@
+{
+  "items": [
+    {
+      "name": "GhostGuard Native Guarded Micro-Grab v2",
+      "priority": 24,
+      "items": [
+        {
+          "name": "1. Preflight - ZERO Grab",
+          "priority": 1,
+          "action": "./bin/kual_action.sh",
+          "params": "check",
+          "exitmenu": false,
+          "refresh": false
+        },
+        {
+          "name": "2. ONE QUALIFICATION - 30 min",
+          "priority": 2,
+          "action": "./bin/kual_action.sh",
+          "params": "test30m",
+          "exitmenu": true,
+          "refresh": false
+        },
+        {
+          "name": "3. Emergency Rescue",
+          "priority": 3,
+          "action": "./bin/kual_action.sh",
+          "params": "rescue",
+          "exitmenu": false,
+          "refresh": false
+        },
+        {
+          "name": "4. Refresh Status",
+          "priority": 4,
+          "action": "./bin/kual_action.sh",
+          "params": "status",
+          "exitmenu": false,
+          "refresh": false
+        },
+        {
+          "name": "5. Export Full Report",
+          "priority": 5,
+          "action": "./bin/kual_action.sh",
+          "params": "export",
+          "exitmenu": false,
+          "refresh": false
+        }
+      ]
+    }
+  ]
+}
