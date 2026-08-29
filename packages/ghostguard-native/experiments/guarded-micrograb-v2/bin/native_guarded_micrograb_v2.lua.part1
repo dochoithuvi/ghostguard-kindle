@@ -1,0 +1,333 @@
+local ffi=require("ffi")
+local bit=require("bit")
+
+ffi.cdef[[
+typedef long ssize_t;
+typedef unsigned long size_t;
+typedef long time_t;
+typedef long suseconds_t;
+struct timeval { time_t tv_sec; suseconds_t tv_usec; };
+struct timespec { long tv_sec; long tv_nsec; };
+struct input_event { struct timeval time; unsigned short type; unsigned short code; int value; };
+struct pollfd { int fd; short events; short revents; };
+struct input_absinfo { int value; int minimum; int maximum; int fuzz; int flat; int resolution; };
+
+int open(const char*,int,...);
+int close(int);
+ssize_t read(int,void*,size_t);
+int ioctl(int,unsigned long,...);
+int poll(struct pollfd*,unsigned long,int);
+int clock_gettime(int, struct timespec*);
+int getpid(void);
+]]
+
+local mode=arg[1] or "check"
+local rescue=arg[2]
+local report=arg[3]
+local actions=arg[4]
+local heartbeat=arg[5]
+
+local O_RDONLY,O_NONBLOCK=0,2048
+local POLLIN=0x001
+local EV_SYN,EV_ABS=0,3
+local SYN_REPORT=0
+local SLOT,MAJOR,TID=47,48,57
+local XCODE,YCODE=53,54
+
+-- Calibrated Goodix controller gate from this Kindle.
+local EXPECT_NAME="goodix-ts"
+local XMIN,XMAX=0,1072
+local YMIN,YMAX=0,1448
+
+local IOC_WRITE,IOC_READ=1,2
+local E=string.byte("E")
+local function IOC(dir,tp,nr,size)
+  return dir*1073741824 + tp*256 + nr + size*65536
+end
+local function EVIOCGBIT(ev,len) return IOC(IOC_READ,E,0x20+ev,len) end
+local function EVIOCGNAME(len) return IOC(IOC_READ,E,0x06,len) end
+local function EVIOCGABS(abs) return IOC(IOC_READ,E,0x40+abs,24) end
+local EVIOCGRAB=IOC(IOC_WRITE,E,0x90,4)
+
+local CLOCK_MONOTONIC=1
+local ts=ffi.new("struct timespec[1]")
+local function mono_us()
+  if ffi.C.clock_gettime(CLOCK_MONOTONIC,ts)<0 then return os.time()*1000000 end
+  return tonumber(ts[0].tv_sec)*1000000 + math.floor(tonumber(ts[0].tv_nsec)/1000)
+end
+local function event_us(e)
+  return tonumber(e.time.tv_sec)*1000000 + tonumber(e.time.tv_usec)
+end
+local function exists(path)
+  local f=io.open(path,"rb")
+  if not f then return false end
+  f:close()
+  return true
+end
+local function bitset_has(buf,code)
+  local byte=math.floor(code/8)
+  local mask=bit.lshift(1,code%8)
+  return bit.band(tonumber(buf[byte]),mask)~=0
+end
+local function get_bits(fd,ev,maxcode)
+  local len=math.floor(maxcode/8)+1
+  local b=ffi.new("uint8_t[?]",len)
+  if ffi.C.ioctl(fd,EVIOCGBIT(ev,len),b)<0 then return nil end
+  return b
+end
+local function get_name(fd)
+  local b=ffi.new("char[80]")
+  if ffi.C.ioctl(fd,EVIOCGNAME(79),b)<0 then return "UNKNOWN" end
+  local s=ffi.string(b)
+  return s~="" and s or "UNKNOWN"
+end
+local function is_touch(fd)
+  local a=get_bits(fd,EV_ABS,63)
+  return a and bitset_has(a,SLOT) and bitset_has(a,XCODE)
+     and bitset_has(a,YCODE) and bitset_has(a,TID)
+end
+local function find_touch()
+  for i=0,31 do
+    local path="/dev/input/event"..i
+    local fd=ffi.C.open(path,O_RDONLY+O_NONBLOCK)
+    if fd>=0 then
+      local name=get_name(fd)
+      if not name:find("DCPRO GhostGuard",1,true) and is_touch(fd) then
+        return fd,path,name
+      end
+      ffi.C.close(fd)
+    end
+  end
+end
+local function hardware_gate(fd,name)
+  if name~=EXPECT_NAME then return false,"NAME_MISMATCH:"..tostring(name) end
+  local ax=ffi.new("struct input_absinfo[1]")
+  local ay=ffi.new("struct input_absinfo[1]")
+  if ffi.C.ioctl(fd,EVIOCGABS(XCODE),ax)<0 or ffi.C.ioctl(fd,EVIOCGABS(YCODE),ay)<0 then
+    return false,"ABSINFO_UNAVAILABLE"
+  end
+  if tonumber(ax[0].minimum)~=XMIN or tonumber(ax[0].maximum)~=XMAX then
+    return false,"X_RANGE_MISMATCH:"..tonumber(ax[0].minimum)..".."..tonumber(ax[0].maximum)
+  end
+  if tonumber(ay[0].minimum)~=YMIN or tonumber(ay[0].maximum)~=YMAX then
+    return false,"Y_RANGE_MISMATCH:"..tonumber(ay[0].minimum)..".."..tonumber(ay[0].maximum)
+  end
+  return true,"GOODIX_VERIFIED"
+end
+
+local fd,physical,name=find_touch()
+if not fd then
+  local f=io.open(report,"wb")
+  if f then
+    f:write("DCPRO_GHOSTGUARD_NATIVE_GUARDED_MICROGRAB_V2\nVERDICT=PREFLIGHT_FAIL\nDETAIL=TOUCH_DEVICE_NOT_FOUND\nEVIOCGRAB_ATTEMPTED=NO\nFAIL_OPEN=YES\n")
+    f:close()
+  end
+  os.exit(20)
+end
+
+local gate_ok,gate_detail=hardware_gate(fd,name)
+if not gate_ok then
+  local f=io.open(report,"wb")
+  if f then
+    f:write("DCPRO_GHOSTGUARD_NATIVE_GUARDED_MICROGRAB_V2\nVERDICT=PREFLIGHT_FAIL\nDETAIL="..gate_detail.."\nPHYSICAL_DEVICE="..physical.."\nPHYSICAL_NAME="..name.."\nEVIOCGRAB_ATTEMPTED=NO\nFAIL_OPEN=YES\n")
+    f:close()
+  end
+  ffi.C.close(fd)
+  os.exit(21)
+end
+
+if mode=="check" then
+  local f=io.open(report,"wb")
+  if f then
+    f:write(table.concat({
+      "DCPRO_GHOSTGUARD_NATIVE_GUARDED_MICROGRAB_V2",
+      "VERDICT=PREFLIGHT_PASS",
+      "DETAIL=GOODIX_VERIFIED_NO_GRAB",
+      "PHYSICAL_DEVICE="..physical,
+      "PHYSICAL_NAME="..name,
+      "RAW_X_CODE=53",
+      "RAW_X_RANGE=0..1072",
+      "RAW_Y_CODE=54",
+      "RAW_Y_RANGE=0..1448",
+      "TOTAL_TEST_SECONDS=1800",
+      "PASSIVE_BASELINE_SECONDS=600",
+      "MICROGRAB_ACQUIRE_MS=60",
+      "MICROGRAB_BOUNDARY_CAP_MS=750",
+      "ACTIVE_TRIGGER_REPEAT=4",
+      "MAX_GRABS=6",
+      "UINPUT=OFF",
+      "EVIOCGRAB_ATTEMPTED=NO",
+      "FAIL_OPEN=YES",
+      "",
+    },"\n"))
+    f:close()
+  end
+  ffi.C.close(fd)
+  os.exit(0)
+end
+
+-- Test policy.
+local TOTAL_US=1800*1000000
+local BASELINE_US=600*1000000
+local BIN=0.02
+local CLUSTER_US=500000
+local TRIGGER_REPEAT=4
+local MAX_DUR_US=60000
+local MAX_MAJOR=15
+local MAX_PATH=20
+local ACQUIRE_US=60000
+local BOUNDARY_CAP_US=750000
+local COOLDOWN_US=3000000
+local MAX_GRABS=6
+local BASELINE_MIN_RAW=150
+local BASELINE_MIN_CONTACTS=15
+
+local ev=ffi.new("struct input_event[1]")
+local evsize=ffi.sizeof("struct input_event")
+local p=ffi.new("struct pollfd[1]")
+p[0].fd=fd
+p[0].events=POLLIN
+
+local active={}
+local current_slot=0
+local contacts={}
+local history={}
+
+local started=mono_us()
+local phase="PASSIVE_BASELINE"
+local phase2_started=false
+local baseline_pass=false
+local active_enabled=false
+local active_disabled_reason="NONE"
+local last_hb=0
+local seq=0
+
+local raw_events=0
+local syn_frames=0
+local completed=0
+local complete_contacts=0
+local incomplete_contacts=0
+local noxy_contacts=0
+local eligible=0
+local passive_shadow_triggers=0
+local armed_triggers=0
+local grab_attempts=0
+local grab_success=0
+local grab_fail=0
+local grab_total_us=0
+local max_grab_us=0
+local grabbed_events=0
+local grabbed_frames=0
+local grab_hit_complete_contacts=0
+local grabbed_tracking_starts=0
+local grabbed_tracking_ends=0
+local boundary_cap_hits=0
+local safety_skip_active=0
+local safety_skip_cooldown=0
+local safety_skip_limit=0
+local parser_resets=0
+local end_reason="TTL_EXPIRED"
+
+local function norm(v,lo,hi)
+  local n=(v-lo)/(hi-lo)
+  if n<0 then n=0 elseif n>1 then n=1 end
+  return n
+end
+local function active_count()
+  local n=0
+  for _,v in pairs(active) do if v then n=n+1 end end
+  return n
+end
+local function append(fields)
+  local f=io.open(actions,"ab")
+  if f then f:write(table.concat(fields,"|"),"\n"); f:close() end
+end
+local function key_for(c)
+  if c.x~=nil and c.y==nil then
+    return "IX:"..math.floor(norm(c.x,XMIN,XMAX)/BIN)..":S"..c.slot
+  elseif c.y~=nil and c.x==nil then
+    return "IY:"..math.floor(norm(c.y,YMIN,YMAX)/BIN)..":S"..c.slot
+  end
+  return nil
+end
+local function bump(k,now)
+  local old=history[k] or {}
+  local keep={}
+  for _,t in ipairs(old) do
+    if now-t<=CLUSTER_US then keep[#keep+1]=t end
+  end
+  keep[#keep+1]=now
+  history[k]=keep
+  return #keep
+end
+
+local function write_progress(verdict,detail)
+  local now=mono_us()
+  local elapsed=math.floor((now-started)/1000000)
+  local f=io.open(report,"wb")
+  if f then
+    f:write(table.concat({
+      "DCPRO_GHOSTGUARD_NATIVE_GUARDED_MICROGRAB_V2",
+      "VERDICT="..verdict,
+      "DETAIL="..detail,
+      "PID="..tostring(ffi.C.getpid()),
+      "PHYSICAL_DEVICE="..physical,
+      "PHYSICAL_NAME="..name,
+      "ELAPSED_SECONDS="..elapsed,
+      "PHASE="..phase,
+      "BASELINE_PASS="..(baseline_pass and "YES" or "NO"),
+      "ACTIVE_ENABLED="..(active_enabled and "YES" or "NO"),
+      "ACTIVE_DISABLED_REASON="..active_disabled_reason,
+      "RAW_EVENTS="..raw_events,
+      "SYN_REPORT_FRAMES="..syn_frames,
+      "COMPLETED_CONTACTS="..completed,
+      "COMPLETE_CONTACTS="..complete_contacts,
+      "INCOMPLETE_CONTACTS="..incomplete_contacts,
+      "NOXY_CONTACTS="..noxy_contacts,
+      "ELIGIBLE_STRICT_AXIS_ONLY="..eligible,
+      "PASSIVE_SHADOW_TRIGGERS="..passive_shadow_triggers,
+      "ARMED_TRIGGERS="..armed_triggers,
+      "GRAB_ATTEMPTS="..grab_attempts,
+      "GRAB_SUCCEEDED="..grab_success,
+      "GRAB_FAILED="..grab_fail,
+      "GRAB_TOTAL_MS="..math.floor(grab_total_us/1000),
+      "MAX_GRAB_MS="..math.floor(max_grab_us/1000),
+      "GRABBED_EVENTS_DROPPED="..grabbed_events,
+      "GRABBED_SYN_FRAMES_DROPPED="..grabbed_frames,
+      "GRAB_HIT_COMPLETE_CONTACTS="..grab_hit_complete_contacts,
+      "GRABBED_TRACKING_STARTS="..grabbed_tracking_starts,
+      "GRABBED_TRACKING_ENDS="..grabbed_tracking_ends,
+      "BOUNDARY_CAP_HITS="..boundary_cap_hits,
+      "SAFETY_SKIP_ACTIVE="..safety_skip_active,
+      "SAFETY_SKIP_COOLDOWN="..safety_skip_cooldown,
+      "SAFETY_SKIP_LIMIT="..safety_skip_limit,
+      "PARSER_RESETS="..parser_resets,
+      "PASSIVE_BASELINE_SECONDS=600",
+      "ACTIVE_TEST_SECONDS=1200",
+      "MICROGRAB_ACQUIRE_MS=60",
+      "MICROGRAB_BOUNDARY_CAP_MS=750",
+      "CLUSTER_WINDOW_MS=500",
+      "ACTIVE_TRIGGER_REPEAT=4",
+      "STRICT_DURATION_MS=60",
+      "STRICT_TOUCH_MAJOR_MAX=15",
+      "STRICT_PATH_MAX=20",
+      "BIN_PERCENT=2",
+      "COOLDOWN_MS=3000",
+      "MAX_GRABS=6",
+      "UINPUT=OFF",
+      "LONG_LIVED_GRAB=OFF",
+      "AUTOSTART=OFF",
+      "FAIL_OPEN=YES",
+      "",
+    },"\n"))
+    f:close()
+  end
+
+  seq=seq+1
+  local h=io.open(heartbeat,"wb")
+  if h then
+    h:write("PID="..tostring(ffi.C.getpid()).."\n")
+    h:write("SEQ="..seq.."\n")
+    h:write("UPDATED_WALL="..tostring(os.time()).."\n")
+    h:write("ELAPSED_SECONDS="..elapsed.."\n")
+    h:write("PHASE="..phase.."\n")
