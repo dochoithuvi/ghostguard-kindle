@@ -1,14 +1,12 @@
 #!/bin/sh
 # DCPRO GhostGuard OneClick v14
-# Bootstrap KOReader + SimpleUI when needed via proven v13, then install GhostGuard 0.9.2.
+# Install GhostGuard 0.9.2 on an existing KOReader installation.
 set -u
 ROOT="${DCPRO_ONECLICK_ROOT:-/mnt/us}"
 DATA="$ROOT/.dcpro_ghostguard"
 TMP="${DCPRO_ONECLICK_TMP:-$DATA/oneclick-v14}"
 REPORT_DIR="$ROOT/GhostGuard_Reports"
 LOG="${DCPRO_ONECLICK_LOG:-$REPORT_DIR/OneClick_v14.log}"
-V13_PRIMARY="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/DCPRO_GhostGuard_OneClick_Installer_v13.sh"
-V13_MIRROR="https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/DCPRO_GhostGuard_OneClick_Installer_v13.sh"
 GG_NAME="ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg"
 GG_SHA256="b5112ba60f745032d60fcfc443709e374f61c587d3dc5215a17d14aaf81d1eeb"
 GG_PRIMARY="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/$GG_NAME"
@@ -46,24 +44,11 @@ verify_sha256(){
 log "DCPRO GhostGuard OneClick v14"
 log "Root: $ROOT"
 
-# Reuse v13 only when KOReader/SimpleUI bootstrap is actually needed.
 KO_ROOT=""
 for candidate in "$ROOT/koreader" "$ROOT/extensions/koreader"; do
     if [ -d "$candidate/plugins" ]; then KO_ROOT="$candidate"; break; fi
 done
-if [ -z "$KO_ROOT" ]; then
-    V13="$TMP/oneclick-v13.sh"
-    log "KOReader not detected; bootstrapping with OneClick v13."
-    download_pair "$V13_PRIMARY" "$V13_MIRROR" "$V13" || fail "cannot download OneClick v13"
-    chmod 755 "$V13" 2>/dev/null || true
-    DCPRO_ONECLICK_ROOT="$ROOT" DCPRO_ONECLICK_LOG="$LOG" sh "$V13" >>"$LOG" 2>&1 || fail "OneClick v13 bootstrap failed"
-fi
-
-KO_ROOT=""
-for candidate in "$ROOT/koreader" "$ROOT/extensions/koreader"; do
-    if [ -d "$candidate/plugins" ]; then KO_ROOT="$candidate"; break; fi
-done
-[ -n "$KO_ROOT" ] || fail "KOReader plugins directory not found after bootstrap"
+[ -n "$KO_ROOT" ] || fail "KOReader is required. Install KOReader first, then run OneClick v14 again."
 
 KPKG="$TMP/$GG_NAME"
 log "Downloading GhostGuard 0.9.2 package."
@@ -79,7 +64,6 @@ tar -xzf "$KPKG" -C "$TMP/pkg" >>"$LOG" 2>&1 || fail "cannot extract GhostGuard 
     GHOSTGUARD_US_ROOT="$ROOT" sh ./install.sh
 ) >>"$LOG" 2>&1 || fail "GhostGuard 0.9.2 install failed"
 
-# Keep SimpleUI integration enabled if the proven bootstrap installed it.
 SIMPLEUI_OK=0
 for p in "$KO_ROOT/plugins/simpleui.koplugin" "$KO_ROOT/plugins/simpleui.koplugin/main.lua"; do
     if [ -e "$p" ]; then SIMPLEUI_OK=1; break; fi
