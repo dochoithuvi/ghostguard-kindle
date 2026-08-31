@@ -1,4 +1,4 @@
-name: Test OneClick v14
+name: Test OneClick v14 MTGuard5 Golden
 
 on:
   push:
@@ -6,11 +6,13 @@ on:
     paths:
       - DCPRO_GhostGuard_OneClick_Installer_v14.sh
       - bootstrap/koreader-simpleui-v14.sh
+      - packages/ghostguard/artifacts/ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg
       - .github/workflows/test-oneclick-v14.yml
   pull_request:
     paths:
       - DCPRO_GhostGuard_OneClick_Installer_v14.sh
       - bootstrap/koreader-simpleui-v14.sh
+      - packages/ghostguard/artifacts/ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg
       - .github/workflows/test-oneclick-v14.yml
 
 jobs:
@@ -18,18 +20,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Shell syntax
         run: |
           sh -n DCPRO_GhostGuard_OneClick_Installer_v14.sh
           sh -n bootstrap/koreader-simpleui-v14.sh
-      - name: Verify fresh-device flow
+
+      - name: Verify golden artifact and fresh-device contract
         run: |
           set -eu
           f=DCPRO_GhostGuard_OneClick_Installer_v14.sh
           b=bootstrap/koreader-simpleui-v14.sh
+          a=packages/ghostguard/artifacts/ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg
+          want=92fd6914205719d19fc243728d347ff76b6f29787ec4dc50cbf1b842055f4fdd
+
+          test -s "$a"
+          got="$(sha256sum "$a" | awk '{print $1}')"
+          echo "Golden artifact SHA-256: $got"
+          test "$got" = "$want"
+
           grep -F 'bootstrap/koreader-simpleui-v14.sh' "$f"
-          grep -F 'ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg' "$f"
-          grep -F 'b5112ba60f745032d60fcfc443709e374f61c587d3dc5215a17d14aaf81d1eeb' "$f"
+          grep -F 'GG_NAME="ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg"' "$f"
+          grep -F "GG_SHA256=\"$want\"" "$f"
+          grep -F 'GHOSTGUARD_VERSION=0.9.1-local-mtguard5' "$f"
+          grep -F 'RUNTIME=mtguard1-adaptive-v3-approved-cover-nocloud' "$f"
+
           grep -F 'ensure_koreader' "$b"
           grep -F 'install_koreader_kpm' "$b"
           grep -F 'install_koreader_official' "$b"
@@ -37,6 +52,14 @@ jobs:
           grep -F 'features/sui_quickactions.lua' "$b"
           grep -F 'infra/sui_config.lua' "$b"
           grep -F 'engines/sui_window.lua' "$b"
+
+          rm -rf /tmp/gg-fresh && mkdir -p /tmp/gg-fresh
+          tar -xzf "$a" -C /tmp/gg-fresh
+          test -f /tmp/gg-fresh/install.sh
+          sh -n /tmp/gg-fresh/install.sh
+          grep -F 'version = "0.9.1-local-mtguard5"' /tmp/gg-fresh/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -F 'runtime_revision = "mtguard1-adaptive-v3-approved-cover-nocloud"' /tmp/gg-fresh/payload/dcghostguardpro.koplugin/defaults.lua
+
       - name: Enforce safe native mode
         run: |
           set -eu
