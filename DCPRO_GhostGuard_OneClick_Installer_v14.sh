@@ -1,12 +1,14 @@
 #!/bin/sh
 # DCPRO GhostGuard OneClick v14
-# Install GhostGuard 0.9.2 on an existing KOReader installation.
+# Bootstrap KOReader + SimpleUI when needed via repository bootstrap, then install GhostGuard 0.9.2.
 set -u
 ROOT="${DCPRO_ONECLICK_ROOT:-/mnt/us}"
 DATA="$ROOT/.dcpro_ghostguard"
 TMP="${DCPRO_ONECLICK_TMP:-$DATA/oneclick-v14}"
 REPORT_DIR="$ROOT/GhostGuard_Reports"
 LOG="${DCPRO_ONECLICK_LOG:-$REPORT_DIR/OneClick_v14.log}"
+BOOTSTRAP_PRIMARY="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/bootstrap/DCPRO_GhostGuard_OneClick_Installer.sh"
+BOOTSTRAP_MIRROR="https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/bootstrap/DCPRO_GhostGuard_OneClick_Installer.sh"
 GG_NAME="ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg"
 GG_SHA256="b5112ba60f745032d60fcfc443709e374f61c587d3dc5215a17d14aaf81d1eeb"
 GG_PRIMARY="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/$GG_NAME"
@@ -48,7 +50,19 @@ KO_ROOT=""
 for candidate in "$ROOT/koreader" "$ROOT/extensions/koreader"; do
     if [ -d "$candidate/plugins" ]; then KO_ROOT="$candidate"; break; fi
 done
-[ -n "$KO_ROOT" ] || fail "KOReader is required. Install KOReader first, then run OneClick v14 again."
+if [ -z "$KO_ROOT" ]; then
+    BOOTSTRAP="$TMP/oneclick-bootstrap.sh"
+    log "KOReader not detected; running repository bootstrap."
+    download_pair "$BOOTSTRAP_PRIMARY" "$BOOTSTRAP_MIRROR" "$BOOTSTRAP" || fail "cannot download OneClick bootstrap"
+    chmod 755 "$BOOTSTRAP" 2>/dev/null || true
+    DCPRO_ONECLICK_ROOT="$ROOT" DCPRO_ONECLICK_LOG="$LOG" sh "$BOOTSTRAP" >>"$LOG" 2>&1 || fail "OneClick bootstrap failed"
+fi
+
+KO_ROOT=""
+for candidate in "$ROOT/koreader" "$ROOT/extensions/koreader"; do
+    if [ -d "$candidate/plugins" ]; then KO_ROOT="$candidate"; break; fi
+done
+[ -n "$KO_ROOT" ] || fail "KOReader plugins directory not found after bootstrap"
 
 KPKG="$TMP/$GG_NAME"
 log "Downloading GhostGuard 0.9.2 package."
