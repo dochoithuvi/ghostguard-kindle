@@ -1,3 +1,4 @@
+# Release-gate recheck: publisher bot commits do not self-trigger Actions.
 name: Test OneClick v14 MTGuard5 Golden
 
 on:
