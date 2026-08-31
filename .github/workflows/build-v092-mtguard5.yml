@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths:
       - .github/workflows/build-v092-mtguard5.yml
+      - packages/ghostguard/source/**
+      - scripts/build_ghostguard_v092.sh
+      - scripts/test_goodix_crashshield.lua
 
 permissions:
   contents: write
@@ -18,7 +21,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate MTGuard5 golden runtime identity
+      - name: Install Lua 5.1 test runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y lua5.1
+
+      - name: Validate MTGuard5 golden runtime identity and Goodix shield
         run: |
           set -eu
           S='packages/ghostguard/source'
@@ -29,10 +37,23 @@ jobs:
           grep -F 'function GhostGuard:guardMalformedMtFrame' "$P/ghostguard_core.lua"
           grep -F 'function Adaptive:fastTrackEligible' "$P/adaptive_bootstrap.lua"
           test -f "$P/LOCAL_MT_GUARD5_README.txt"
+          test -f "$P/goodix_crashshield.lua"
           test ! -e "$P/cloud_manager.lua"
           test ! -e "$P/zenui_bridge.lua"
           test ! -e "$P/PUBLIC_V4_README.txt"
 
+          lua5.1 scripts/test_goodix_crashshield.lua "$P/goodix_crashshield.lua"
+          grep -F 'local CrashShield = dofile(plugin_dir .. "goodix_crashshield.lua")' "$P/ghostguard.lua"
+          grep -F 'MT_GUARD_DROP_CORRUPT_CONTACT' "$P/goodix_crashshield.lua"
+          grep -F 'PASS_THROUGH_SAFE' "$P/goodix_crashshield.lua"
+          grep -F 'self.config.protect_wrapper_all_modes = true' "$P/goodix_crashshield.lua"
+          ! grep -F 'EVIOCGRAB' "$P/goodix_crashshield.lua"
+          ! grep -F '/dev/uinput' "$P/goodix_crashshield.lua"
+
+          grep -F 'GOODIX_CRASH_SHIELD=1' "$S/install.sh"
+          grep -F 'TOUCH_SHIELD_MODE=PASS_THROUGH_SAFE' "$S/install.sh"
+          grep -F 'LIBRARY_ICON_MODE=EMBEDDED_PNG_FORCE_REINDEX' "$S/install.sh"
+          ! grep -F 'awk -v icon=' "$S/install.sh"
           grep -F 'NATIVE_FILTER=SHADOW_ONLY' "$S/install.sh"
           grep -F 'INPUT_GRAB=OFF' "$S/install.sh"
           grep -F 'EVENT_INJECTION=OFF' "$S/install.sh"
@@ -59,7 +80,7 @@ jobs:
           echo "artifact_sha=$first" >> "$GITHUB_OUTPUT"
           echo "Golden artifact SHA-256: $first"
 
-      - name: Validate packaged runtime, installer and exact MTGuard5 artwork
+      - name: Validate packaged runtime, crash shield, installer and exact artwork
         run: |
           set -eu
           S='packages/ghostguard/source'
@@ -67,18 +88,27 @@ jobs:
           ART="$S/assets/ghostguard_library_600x960.jpg"
           rm -rf /tmp/mtguard5 && mkdir -p /tmp/mtguard5
           tar -xzf "$SRC" -C /tmp/mtguard5
+          P=/tmp/mtguard5/payload/dcghostguardpro.koplugin
 
-          grep -F 'version = "0.9.1-local-mtguard5"' /tmp/mtguard5/payload/dcghostguardpro.koplugin/defaults.lua
-          grep -F 'runtime_revision = "mtguard1-adaptive-v3-approved-cover-nocloud"' /tmp/mtguard5/payload/dcghostguardpro.koplugin/defaults.lua
-          test ! -e /tmp/mtguard5/payload/dcghostguardpro.koplugin/cloud_manager.lua
-          test ! -e /tmp/mtguard5/payload/dcghostguardpro.koplugin/zenui_bridge.lua
+          grep -F 'version = "0.9.1-local-mtguard5"' "$P/defaults.lua"
+          grep -F 'runtime_revision = "mtguard1-adaptive-v3-approved-cover-nocloud"' "$P/defaults.lua"
+          test -f "$P/goodix_crashshield.lua"
+          grep -F 'goodix_crashshield.lua' "$P/ghostguard.lua"
+          grep -F 'MT_GUARD_DROP_CORRUPT_CONTACT' "$P/goodix_crashshield.lua"
+          grep -F 'PASS_THROUGH_SAFE' "$P/goodix_crashshield.lua"
+          test ! -e "$P/cloud_manager.lua"
+          test ! -e "$P/zenui_bridge.lua"
           sh -n /tmp/mtguard5/install.sh
+          grep -F 'GOODIX_CRASH_SHIELD=1' /tmp/mtguard5/install.sh
+          grep -F 'TOUCH_SHIELD_MODE=PASS_THROUGH_SAFE' /tmp/mtguard5/install.sh
+          grep -F 'LIBRARY_ICON_MODE=EMBEDDED_PNG_FORCE_REINDEX' /tmp/mtguard5/install.sh
+          ! grep -F 'awk -v icon=' /tmp/mtguard5/install.sh
 
           test -s "$ART"
           test -s /tmp/mtguard5/assets/ghostguard_library_600x960.jpg
-          test -s /tmp/mtguard5/payload/dcghostguardpro.koplugin/assets/ghostguard_library_600x960.jpg
+          test -s "$P/assets/ghostguard_library_600x960.jpg"
           cmp "$ART" /tmp/mtguard5/assets/ghostguard_library_600x960.jpg
-          cmp "$ART" /tmp/mtguard5/payload/dcghostguardpro.koplugin/assets/ghostguard_library_600x960.jpg
+          cmp "$ART" "$P/assets/ghostguard_library_600x960.jpg"
           art_sha="$(sha256sum "$ART" | awk '{print $1}')"
           echo "MTGuard5 artwork SHA-256: $art_sha"
 
@@ -150,6 +180,6 @@ jobs:
                   packages/ghostguard/artifacts/ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg \
                   DCPRO_GhostGuard_OneClick_Installer_v14.sh
           if ! git diff --cached --quiet; then
-            git commit -m 'release: switch OneClick to MTGuard5 golden build'
+            git commit -m 'release: publish MTGuard5 Goodix crash-shield golden build'
             git push origin HEAD:main
           fi
