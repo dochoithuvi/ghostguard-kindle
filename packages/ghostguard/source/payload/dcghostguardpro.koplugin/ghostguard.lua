@@ -23,6 +23,19 @@ if type(GhostGuard) ~= "table" or type(GhostGuard.onRawEvent) ~= "function" then
     error("DCPRO GhostGuard: ghostguard_core.lua is invalid")
 end
 
+-- KindleBasic4/Goodix can deliver malformed MT frames that crash KOReader's
+-- GestureDetector before normal GhostGuard decisions run. Install the narrow
+-- compatibility shield before capturing any core methods below, so every v0.9
+-- lifecycle wrapper uses the shielded MTGuard5 methods.
+local CrashShield = dofile(plugin_dir .. "goodix_crashshield.lua")
+if type(CrashShield) ~= "table" or type(CrashShield.install) ~= "function" then
+    error("DCPRO GhostGuard: goodix_crashshield.lua is invalid")
+end
+local shield_ok, shield_result = CrashShield.install(GhostGuard)
+if not shield_ok then
+    error("DCPRO GhostGuard: Goodix crash shield unavailable: " .. tostring(shield_result))
+end
+
 local SystemService = nil
 do
     local ok, result = pcall(dofile, plugin_dir .. "system_service.lua")
