@@ -1,0 +1,33 @@
+name: Validate exact field-tested MTGuard5
+on:
+  push:
+    branches: [hotfix/mtguard5-exact]
+  workflow_dispatch:
+
+jobs:
+  compare-golden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare plugin source with field-tested MTGuard5 hashes
+        shell: bash
+        run: |
+          set -eu
+          P=packages/ghostguard/source/payload/dcghostguardpro.koplugin
+          check(){ got="$(sha256sum "$P/$2" | awk '{print $1}')"; printf '%s  %s\n' "$got" "$2"; [ "$got" = "$1" ]; }
+          check 11e711420a0cf06685fb25440ce0758ac5f3620af0c24e03454c312396224fb2 _meta.lua
+          check 54245e36fca08055f314c23162772659b44a60850a951285c584fd3ee90813da adaptive_bootstrap.lua
+          check a9aa301edad3662884bab83da5f0148c92f50878a4ed9005d8c38a2371e79f01 defaults.lua
+          check b8789c5632b4e1d8f462a02fcc580b64863042d9a8445210d38e4ae20fab324d exit_diagnostics.lua
+          check 2cf1593cbe969446b0dd56b6f17db0bd0bce1daa9b2748be40a563b7163cbb35 ghostguard.lua
+          check 01eb6d4b977aeff25e50e691a955e7b38b601a74e2381e409ac58630be118fe9 ghostguard_core.lua
+          check c612c3f1b0cbc2343d6507a8e964b65ff52ca1eaaab2af9f09e30fd54f91f088 keys/keyring.lua
+          check 9563d4759fad70378922116c4339679c326fee23c7104bfd08a54f27cd3dce42 license_crypto.lua
+          check 1e8ecaadf1247dc73e7f05b1a12089237a8ee56a874e228825d3582d4c1fdf6b license_manager.lua
+          check d2d8e351ba8fe06a0cc01c3bd50fdb88cbc2175ba0a369c48c2ed622f00bbe8e main.lua
+          check 25dcf58d8b8d48c31758eb5f7da3cb5a5ac56efcc01ed4549147b635ce30c424 online_license.lua
+          check 1aef2af97a2ff84d8a55ce0e5e10899ed741c9d53741c788ee7496b58c692460 profile_manager.lua
+          check f4d62ce81920960ed5be6529f05334db728d56f53f9ad88d05ea88129cc31a45 simpleui_bridge.lua
+          check 9e5fb761755b03f7e9b75cb72413c37d3a3a9c17fb6b983bc54794d3e597e586 storage.lua
+          check b1dd2c3169182cdbaf737f4cc8de54494a941581285e1c82a380f49fd08e9c5b system_service.lua
+          check 318224dee3d914ec29c82b5edf7a334e7ab637aed60583ab7ab6bacc120a19f5 touch_observer.lua
