@@ -1,9 +1,10 @@
--- Legacy OneClick compatibility anchors. Comments only; 0.9.2 is the active runtime:
+-- OneClick v12.1 compatibility anchors. These are comments only; v0.8 is the
+-- active runtime. Keep until the legacy OneClick bootstrap is retired:
 -- version = "0.6.17"
 -- runtime_revision = "calibration-flow-v2"
 return {
-    version = "0.9.2",
-    runtime_revision = "mtguard5-adaptive-v3-stable",
+    version = "0.9.1-local-mtguard5",
+    runtime_revision = "mtguard1-adaptive-v3-approved-cover-nocloud",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
     protect_mode = "PROTECT_PROFILE",
