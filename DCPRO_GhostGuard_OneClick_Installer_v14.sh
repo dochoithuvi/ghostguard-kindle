@@ -16,7 +16,30 @@ GG_MIRROR="https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packag
 mkdir -p "$TMP" "$REPORT_DIR" 2>/dev/null || exit 1
 : > "$LOG" 2>/dev/null || true
 log(){ printf '%s\n' "$*" >> "$LOG" 2>/dev/null || true; }
-fail(){ log "ERROR: $*"; exit 1; }
+
+# Visible progress on Kindle, matching the proven v13 behavior.
+FBINK="$(command -v fbink 2>/dev/null || true)"
+[ -n "$FBINK" ] || for x in /var/local/kmc/bin/fbink /var/local/kmc/kindlehf/bin/fbink /var/local/kmc/kindlepw2/bin/fbink; do
+    [ -x "$x" ] && FBINK="$x" && break
+done
+say(){
+    row="$1"; shift
+    text="$*"
+    log "UI: $text"
+    [ -n "$FBINK" ] && "$FBINK" -S 2 -x 1 -y "$row" -r "$text" >/dev/null 2>&1 || true
+}
+finish_delay(){
+    # Keep the final result visible long enough to read when launched from KUAL/launcher.
+    sleep "${DCPRO_ONECLICK_FINISH_DELAY:-8}" 2>/dev/null || true
+}
+fail(){
+    log "ERROR: $*"
+    say 14 "LOI: $*"
+    say 15 "Xem GhostGuard_Reports/OneClick_v14.log"
+    finish_delay
+    exit 1
+}
+
 download(){
     url="$1"; out="$2"; rm -f "$out" 2>/dev/null || true
     if command -v curl >/dev/null 2>&1; then
@@ -45,38 +68,49 @@ verify_sha256(){
 
 log "DCPRO GhostGuard OneClick v14"
 log "Root: $ROOT"
+say 1 "GhostGuard OneClick v14"
+say 2 "KOReader + SimpleUI + GhostGuard 0.9.2"
 
 BOOTSTRAP="$TMP/koreader-simpleui-v14.sh"
+say 4 "[1/7] Tai bootstrap KOReader/SimpleUI..."
 log "Ensuring KOReader + SimpleUI."
-download_pair "$BOOTSTRAP_PRIMARY" "$BOOTSTRAP_MIRROR" "$BOOTSTRAP" || fail "cannot download KOReader/SimpleUI bootstrap"
+download_pair "$BOOTSTRAP_PRIMARY" "$BOOTSTRAP_MIRROR" "$BOOTSTRAP" || fail "khong tai duoc bootstrap"
 chmod 755 "$BOOTSTRAP" 2>/dev/null || true
+
+say 6 "[2/7] Kiem tra/cai KOReader + SimpleUI..."
 DCPRO_ONECLICK_ROOT="$ROOT" DCPRO_ONECLICK_LOG="$LOG" sh "$BOOTSTRAP" >>"$LOG" 2>&1 || fail "KOReader/SimpleUI bootstrap failed"
 
 KO_ROOT=""
 for candidate in "$ROOT/koreader" "$ROOT/extensions/koreader"; do
     if [ -d "$candidate/plugins" ]; then KO_ROOT="$candidate"; break; fi
 done
-[ -n "$KO_ROOT" ] || fail "KOReader plugins directory not found after bootstrap"
+[ -n "$KO_ROOT" ] || fail "khong tim thay KOReader sau bootstrap"
+say 8 "[3/7] KOReader + SimpleUI... OK"
 
 KPKG="$TMP/$GG_NAME"
+say 9 "[4/7] Tai GhostGuard 0.9.2..."
 log "Downloading GhostGuard 0.9.2 package."
-download_pair "$GG_PRIMARY" "$GG_MIRROR" "$KPKG" || fail "cannot download GhostGuard 0.9.2 package"
-verify_sha256 "$KPKG" "$GG_SHA256" || fail "GhostGuard 0.9.2 SHA-256 mismatch"
+download_pair "$GG_PRIMARY" "$GG_MIRROR" "$KPKG" || fail "khong tai duoc GhostGuard 0.9.2"
 
+say 10 "[5/7] Kiem tra SHA-256..."
+verify_sha256 "$KPKG" "$GG_SHA256" || fail "GhostGuard SHA-256 mismatch"
+
+say 11 "[6/7] Giai nen + cai GhostGuard..."
 rm -rf "$TMP/pkg" 2>/dev/null || true
-mkdir -p "$TMP/pkg" || fail "cannot create package staging directory"
-tar -xzf "$KPKG" -C "$TMP/pkg" >>"$LOG" 2>&1 || fail "cannot extract GhostGuard 0.9.2 package"
-[ -f "$TMP/pkg/install.sh" ] || fail "GhostGuard package install.sh missing"
+mkdir -p "$TMP/pkg" || fail "khong tao duoc thu muc staging"
+tar -xzf "$KPKG" -C "$TMP/pkg" >>"$LOG" 2>&1 || fail "khong giai nen duoc GhostGuard"
+[ -f "$TMP/pkg/install.sh" ] || fail "GhostGuard package thieu install.sh"
 (
     cd "$TMP/pkg" || exit 1
     GHOSTGUARD_US_ROOT="$ROOT" sh ./install.sh
 ) >>"$LOG" 2>&1 || fail "GhostGuard 0.9.2 install failed"
 
+say 12 "[7/7] Xac minh cai dat..."
 SIMPLEUI_OK=0
 for p in "$KO_ROOT/plugins/simpleui.koplugin" "$KO_ROOT/plugins/simpleui.koplugin/main.lua"; do
     if [ -e "$p" ]; then SIMPLEUI_OK=1; break; fi
 done
-[ "$SIMPLEUI_OK" = "1" ] || fail "SimpleUI verification failed after bootstrap"
+[ "$SIMPLEUI_OK" = "1" ] || fail "SimpleUI verification failed"
 
 cat >> "$LOG" <<EOF
 GhostGuard 0.9.2 install complete.
@@ -90,6 +124,10 @@ printf 'ONECLICK_VERSION=14\nGHOSTGUARD_VERSION=0.9.2\nRUNTIME=MTGUARD5_ADAPTIVE
     "$GG_SHA256" "$KO_ROOT" "$SIMPLEUI_OK" "$REPORT_DIR" > "$DATA/ONECLICK_V14_OK"
 
 sync 2>/dev/null || true
+log "SUCCESS"
+say 14 "THANH CONG! GhostGuard 0.9.2 da cai dat"
+say 15 "Khoi dong lai KOReader 1 lan"
 echo "GhostGuard 0.9.2 installed successfully."
 echo "Restart KOReader once."
+finish_delay
 exit 0
