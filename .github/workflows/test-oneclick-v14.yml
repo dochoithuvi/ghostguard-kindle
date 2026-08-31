@@ -1,4 +1,4 @@
-# Release-gate recheck: publisher bot commits do not self-trigger Actions.
+# Release-gate recheck: validate the publisher-pinned KOReader-only faster-learning golden build.
 name: Test OneClick v14 MTGuard5 Golden
 
 on:
