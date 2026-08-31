@@ -19,32 +19,43 @@ jobs:
           set -eu
           S=packages/ghostguard/source
           P="$S/payload/dcghostguardpro.koplugin"
-          CORE_WANT=01eb6d4b977aeff25e50e691a955e7b38b601a74e2381e409ac58630be118fe9
-          ADAPT_WANT=54245e36fca08055f314c23162772659b44a60850a951285c584fd3ee90813da
-          CORE_HAVE="$(sha256sum "$P/ghostguard_core.lua" | awk '{print $1}')"
-          ADAPT_HAVE="$(sha256sum "$P/adaptive_bootstrap.lua" | awk '{print $1}')"
+          BUNDLE_WANT=883134244eaccedd17cc7d3eed5fd239852cc1c594fb0f03e8abd368620b76f6
 
-          if [ "$CORE_HAVE" != "$CORE_WANT" ]; then
-            test -d .release-patch
-            cat .release-patch/runtime_patch_092.b64.* | tr -d '\r\n' | base64 -d > /tmp/gg092-runtime.patch.gz
-            gzip -t /tmp/gg092-runtime.patch.gz
-            gzip -dc /tmp/gg092-runtime.patch.gz > /tmp/gg092-runtime.patch
-            grep -q '^diff --git ' /tmp/gg092-runtime.patch
-            git apply --check /tmp/gg092-runtime.patch
-            git apply /tmp/gg092-runtime.patch
+          exact_source_ready() {
+            test "$(sha256sum "$S/install.sh" | awk '{print $1}')" = "e8f19294553ccb732eede3703d792a1e773dc0e23fce163c3fef5d62ccbb08da" &&
+            test "$(sha256sum "$S/manifest.json" | awk '{print $1}')" = "b9372e8637ae0788e92dd4387a01471995db1d9f4094350309a891881bc7f0f2" &&
+            test "$(sha256sum "$P/adaptive_bootstrap.lua" | awk '{print $1}')" = "54245e36fca08055f314c23162772659b44a60850a951285c584fd3ee90813da" &&
+            test "$(sha256sum "$P/defaults.lua" | awk '{print $1}')" = "134af061c0abf4b5a94602ea241af724244cc717fee4d0e84d8513be9e843db8" &&
+            test "$(sha256sum "$P/ghostguard_core.lua" | awk '{print $1}')" = "01eb6d4b977aeff25e50e691a955e7b38b601a74e2381e409ac58630be118fe9" &&
+            test "$(sha256sum "$P/main.lua" | awk '{print $1}')" = "d2d8e351ba8fe06a0cc01c3bd50fdb88cbc2175ba0a369c48c2ed622f00bbe8e" &&
+            test "$(sha256sum "$P/simpleui_bridge.lua" | awk '{print $1}')" = "f4d62ce81920960ed5be6529f05334db728d56f53f9ad88d05ea88129cc31a45" &&
+            test "$(sha256sum "$P/storage.lua" | awk '{print $1}')" = "9e5fb761755b03f7e9b75cb72413c37d3a3a9c17fb6b983bc54794d3e597e586"
+          }
+
+          if exact_source_ready; then
+            echo "Exact MTGuard5 + Adaptive V3 source already materialized."
           else
-            echo "Exact MTGuard5 runtime patch already materialized."
+            test -d .release-exact
+            cat \
+              .release-exact/runtime_bundle.b64.00 \
+              .release-exact/runtime_bundle.b64.01a \
+              .release-exact/runtime_bundle.b64.01b \
+              .release-exact/runtime_bundle.b64.01c \
+              .release-exact/runtime_bundle.b64.01d \
+              .release-exact/runtime_bundle.b64.02 \
+              .release-exact/runtime_bundle.b64.03a \
+              .release-exact/runtime_bundle.b64.03b \
+              .release-exact/runtime_bundle.b64.03c \
+              | tr -d '\r\n' | base64 -d > /tmp/gg092-exact.tar.gz
+
+            test "$(sha256sum /tmp/gg092-exact.tar.gz | awk '{print $1}')" = "$BUNDLE_WANT"
+            gzip -t /tmp/gg092-exact.tar.gz
+            tar -tzf /tmp/gg092-exact.tar.gz | grep -q '^packages/ghostguard/source/'
+            tar -xzf /tmp/gg092-exact.tar.gz -C .
+            exact_source_ready
           fi
 
-          if [ "$ADAPT_HAVE" != "$ADAPT_WANT" ]; then
-            test -f .release-v092/adaptive.gz.b64
-            cat .release-v092/adaptive.gz.b64 | tr -d '\r\n' | base64 -d > /tmp/gg092-adaptive.gz
-            gzip -t /tmp/gg092-adaptive.gz
-            gzip -dc /tmp/gg092-adaptive.gz > "$P/adaptive_bootstrap.lua"
-          else
-            echo "Exact Adaptive V3 source already materialized."
-          fi
-
+          # Public 0.9.2 remains local-only; legacy Cloud/ZenUI modules must not ship.
           rm -f "$P/cloud_manager.lua" "$P/zenui_bridge.lua" "$P/PUBLIC_V4_README.txt"
 
       - name: Install LuaJIT
@@ -85,7 +96,7 @@ jobs:
           else
             test -s "$S/assets/ghostguard_library_600x960.jpg"
             cp "$S/assets/ghostguard_library_600x960.jpg" /tmp/gg092-cover.jpg
-            python3 -c "from pathlib import Path; p=Path('/tmp/gg092-cover.jpg').read_bytes(); assert len(p)>=10000, len(p); assert p[:2]==b'\\xff\\xd8', p[:2]; print('Cover: stable existing public JPEG fallback', len(p))"
+            python3 -c "from pathlib import Path; p=Path('/tmp/gg092-cover.jpg').read_bytes(); assert len(p)>=10000; assert p[:2]==b'\\xff\\xd8'; print('Cover: stable existing public JPEG fallback', len(p))"
           fi
 
           grep -q 'NATIVE_FILTER=SHADOW_ONLY' "$S/install.sh"
@@ -149,11 +160,12 @@ jobs:
           set -eu
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -rf .release-patch .release-v092
-          git add -A packages/ghostguard/source \
-                     packages/ghostguard/artifacts/ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg \
-                     DCPRO_GhostGuard_OneClick_Installer_v14.sh \
-                     .release-patch .release-v092
+          rm -rf .release-exact .release-patch .release-v092
+          git add -A -- \
+            packages/ghostguard/source \
+            packages/ghostguard/artifacts/ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg \
+            DCPRO_GhostGuard_OneClick_Installer_v14.sh \
+            .release-exact .release-patch .release-v092
           if ! git diff --cached --quiet; then
             git commit -m "[release-v092] materialize verified MTGuard5 source and artifact"
             git push origin HEAD:v0.9.2-mtguard5-final
