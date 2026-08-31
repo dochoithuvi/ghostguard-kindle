@@ -1,4 +1,4 @@
-name: GhostGuard license and icon regression
+name: GhostGuard license and Library-entry regression
 
 on:
   pull_request:
@@ -6,7 +6,9 @@ on:
       - packages/ghostguard/source/payload/dcghostguardpro.koplugin/license_manager.lua
       - packages/ghostguard/source/payload/dcghostguardpro.koplugin/online_license.lua
       - packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
-      - packages/ghostguard/source/scriptlets/DCPRO_GhostGuard.sh
+      - packages/ghostguard/source/install.sh
+      - packages/ghostguard/source/scriptlets/**
+      - scripts/build_ghostguard_v092.sh
       - .github/workflows/ghostguard-license-icon-regression.yml
   workflow_dispatch:
 
@@ -54,8 +56,6 @@ jobs:
           end
           os.time = function() return fake_time end
 
-          -- Online-only licensing must advance the same calendar floor used by
-          -- local license.key checks, then fail closed if the date moves back.
           local storage = Storage:new()
           local lm = setmetatable({
               config = config,
@@ -86,8 +86,6 @@ jobs:
           ok, detail = lm:check(true)
           assert(not ok and tostring(detail):match("CLOCK_ROLLBACK_DETECTED"), tostring(detail))
 
-          -- The signed-cache age itself must never become fresh after a wall
-          -- clock rollback. Small NTP corrections within five minutes remain OK.
           local storage2 = Storage:new()
           storage2.files[config.online_license_sync_state] = "SYNC_EPOCH=2000\nSYNC_UTC=2026-08-20T12:00:00Z\nSOURCE=TEST\n"
           local online = OnlineLicense:new(config, storage2, root, "TEST", {})
@@ -100,7 +98,6 @@ jobs:
           age, age_detail = online:cacheAgeSeconds()
           assert(age == 0 and age_detail == "ONLINE_CACHE_AGE_OK")
 
-          -- An online trial cannot be used before its signed issue date.
           fake_date = "2026-08-19"
           local allowed, policy = online:evaluateEntry({
               license_id = "TRIAL",
@@ -116,19 +113,15 @@ jobs:
           LUA
           luajit /tmp/test_license_clock.lua | grep -q LICENSE_CLOCK_ROLLBACK_PASS
 
-      - name: Validate KindleForge-style embedded icon
+      - name: Validate KOReader-only Library entry
         run: |
-          LAUNCHER=packages/ghostguard/source/scriptlets/DCPRO_GhostGuard.sh
-          head -n 6 "$LAUNCHER" | grep -q '^# Name: DCPRO GhostGuard$'
-          head -n 6 "$LAUNCHER" | grep -q '^# Icon: data:image/png;base64,iVBORw0KGgo'
-          ! head -n 6 "$LAUNCHER" | grep -q '# Icon: /mnt/us/'
-          python3 - "$LAUNCHER" <<'PY'
-          import base64, pathlib, re, sys
-          text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8")
-          m = re.search(r'^# Icon: data:image/png;base64,([^\r\n]+)$', text, re.M)
-          assert m, "embedded icon header missing"
-          raw = base64.b64decode(m.group(1), validate=True)
-          assert raw.startswith(b'\x89PNG\r\n\x1a\n'), "embedded icon is not PNG"
-          assert len(raw) >= 1024, "embedded icon unexpectedly small"
-          print("EMBEDDED_ICON_PASS", len(raw))
-          PY
+          set -eu
+          S=packages/ghostguard/source
+          test ! -e "$S/scriptlets/DCPRO_GhostGuard.sh"
+          grep -F 'LIBRARY_ENTRY=KO_READER_ONLY' "$S/install.sh"
+          grep -F 'GHOSTGUARD_LIBRARY_LAUNCHER=REMOVED' "$S/install.sh"
+          grep -F 'GHOSTGUARD_LIBRARY_ICON=REMOVED' "$S/install.sh"
+          grep -F 'rm -f "$LEGACY_LAUNCHER"' "$S/install.sh"
+          grep -F 'rm -rf "$LEGACY_LAUNCHER_SDR"' "$S/install.sh"
+          ! grep -F 'copy_file_compat "scriptlets/DCPRO_GhostGuard.sh"' "$S/install.sh"
+          ! grep -F 'scriptlets' scripts/build_ghostguard_v092.sh

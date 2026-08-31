@@ -9,7 +9,9 @@ cleanup(){ rm -rf "$TMP"; }
 trap cleanup EXIT INT TERM
 mkdir -p "$TMP/pkg" "$(dirname "$OUT")"
 
-for item in manifest.json install.sh uninstall.sh launch.sh payload scriptlets system RELEASE_NOTES_0.9.2.md; do
+# GhostGuard is a KOReader-only plugin now. Do not package the old Kindle
+# Library scriptlet/icon; KOReader remains the single Library entry point.
+for item in manifest.json install.sh uninstall.sh launch.sh payload system RELEASE_NOTES_0.9.2.md; do
     cp -R "$SRC/$item" "$TMP/pkg/$item"
 done
 
@@ -31,15 +33,14 @@ PY
 elif [ -s "$SRC/assets/ghostguard_library_600x960.jpg" ]; then
     cp "$SRC/assets/ghostguard_library_600x960.jpg" "$TMP/pkg/assets/ghostguard_library_600x960.jpg"
 else
-    echo "Missing GhostGuard library cover" >&2
+    echo "Missing GhostGuard compatibility artwork" >&2
     exit 1
 fi
 
 cp "$TMP/pkg/assets/ghostguard_library_600x960.jpg" \
    "$TMP/pkg/payload/dcghostguardpro.koplugin/assets/ghostguard_library_600x960.jpg"
 
-chmod 755 "$TMP/pkg/install.sh" "$TMP/pkg/uninstall.sh" "$TMP/pkg/launch.sh" \
-    "$TMP/pkg/scriptlets/DCPRO_GhostGuard.sh" 2>/dev/null || true
+chmod 755 "$TMP/pkg/install.sh" "$TMP/pkg/uninstall.sh" "$TMP/pkg/launch.sh" 2>/dev/null || true
 chmod 755 "$TMP/pkg/system/ghostguard-service.sh" \
     "$TMP/pkg/system/ghostguard-native-capture.sh" 2>/dev/null || true
 
@@ -47,7 +48,7 @@ chmod 755 "$TMP/pkg/system/ghostguard-service.sh" \
     cd "$TMP/pkg"
     tar --sort=name --mtime='UTC 2026-08-31 00:00:00' \
         --owner=0 --group=0 --numeric-owner -cf - \
-        manifest.json install.sh uninstall.sh launch.sh payload scriptlets assets system RELEASE_NOTES_0.9.2.md
+        manifest.json install.sh uninstall.sh launch.sh payload assets system RELEASE_NOTES_0.9.2.md
 ) | gzip -n -9 > "$OUT"
 
 echo "$OUT"

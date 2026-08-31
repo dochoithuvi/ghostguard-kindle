@@ -56,22 +56,49 @@ jobs:
           ! grep -F 'EVIOCGRAB' "$P/goodix_crashshield.lua"
           ! grep -F '/dev/uinput' "$P/goodix_crashshield.lua"
 
-      - name: Validate direct KOReader launch and reboot autostart contract
+      - name: Validate KOReader-only entry and disabled reboot auto-open
         run: |
           set -eu
           f=DCPRO_GhostGuard_OneClick_Installer_v14.sh
+          i=packages/ghostguard/source/install.sh
           l=packages/ghostguard/source/launch.sh
-          grep -F 'AUTOSTART_JOB="/etc/upstart/dcpro-koreader-autostart.conf"' "$f"
-          grep -F 'start on mounted_userstore' "$f"
-          grep -F 'No respawn loop' "$f"
+
+          grep -F 'disable_koreader_boot_autostart' "$f"
+          grep -F 'LEGACY_AUTOSTART_JOB="/etc/upstart/dcpro-koreader-autostart.conf"' "$f"
           grep -F 'KO_READER_DIRECT_LAUNCH=1' "$f"
-          grep -F 'KO_READER_BOOT_AUTOSTART=%s' "$f"
+          grep -F 'KO_READER_BOOT_AUTOSTART=0' "$f"
+          grep -F 'KO_READER_LIBRARY_ENTRY=PRIMARY' "$f"
+          grep -F 'GHOSTGUARD_LIBRARY_ICON=REMOVED' "$f"
           grep -F 'LEGACY_LAUNCH_ONCE=DISABLED' "$f"
           grep -F 'rm -f "$DATA/LAUNCH_ONCE"' "$f"
+          ! grep -F 'install_koreader_autostart' "$f"
+          ! grep -F 'start on mounted_userstore' "$f"
+
+          grep -F 'LIBRARY_ENTRY=KO_READER_ONLY' "$i"
+          grep -F 'GHOSTGUARD_LIBRARY_LAUNCHER=REMOVED' "$i"
+          grep -F 'GHOSTGUARD_LIBRARY_ICON=REMOVED' "$i"
+          grep -F 'rm -f "$LEGACY_LAUNCHER"' "$i"
+          grep -F 'rm -rf "$LEGACY_LAUNCHER_SDR"' "$i"
+          ! grep -F 'copy_file_compat "scriptlets/DCPRO_GhostGuard.sh"' "$i"
+
           grep -F 'Direct KOReader launch only' "$l"
           grep -F 'rm -f "$DATA/LAUNCH_ONCE"' "$l"
           grep -F 'koreader.sh" --asap' "$l"
           ! grep -F "printf 'REQUEST=KPM" "$l"
+
+      - name: Validate faster continuous-learning cadence
+        run: |
+          set -eu
+          d=packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -F 'adaptive_checkpoint_samples = 4' "$d"
+          grep -F 'adaptive_checkpoint_seconds = 30' "$d"
+          grep -F 'adaptive_promotion_min_cluster = 4' "$d"
+          grep -F 'adaptive_promotion_min_age_seconds = 15' "$d"
+          grep -F 'adaptive_external_report_seconds = 5' "$d"
+          grep -F 'adaptive_min_base_score = 7' "$d"
+          grep -F 'adaptive_promotion_min_confidence = 0.72' "$d"
+          grep -F 'adaptive_fast_promotion_min_confidence = 0.80' "$d"
+          grep -F 'protect_drop_score = 8' "$d"
 
       - name: Build and inspect candidate MTGuard5 package
         run: |
@@ -88,27 +115,20 @@ jobs:
           test -f "$P/goodix_crashshield.lua"
           grep -F 'version = "0.9.1-local-mtguard5"' "$P/defaults.lua"
           grep -F 'runtime_revision = "mtguard1-adaptive-v3-approved-cover-nocloud"' "$P/defaults.lua"
+          grep -F 'adaptive_checkpoint_samples = 4' "$P/defaults.lua"
+          grep -F 'adaptive_checkpoint_seconds = 30' "$P/defaults.lua"
+          grep -F 'adaptive_promotion_min_cluster = 4' "$P/defaults.lua"
+          grep -F 'adaptive_external_report_seconds = 5' "$P/defaults.lua"
           grep -F 'goodix_crashshield.lua' "$P/ghostguard.lua"
           sh -n /tmp/gg-candidate/install.sh
           sh -n /tmp/gg-candidate/launch.sh
           grep -F 'Direct KOReader launch only' /tmp/gg-candidate/launch.sh
           grep -F 'GOODIX_CRASH_SHIELD=1' /tmp/gg-candidate/install.sh
           grep -F 'TOUCH_SHIELD_MODE=PASS_THROUGH_SAFE' /tmp/gg-candidate/install.sh
-          grep -F 'LIBRARY_ICON_MODE=EMBEDDED_PNG_FORCE_REINDEX' /tmp/gg-candidate/install.sh
-          grep -F "grep -q '^# Icon: data:image/png;base64,iVBORw0KGgo'" /tmp/gg-candidate/install.sh
-          ! grep -F 'awk -v icon=' /tmp/gg-candidate/install.sh
-
-          launcher=/tmp/gg-candidate/scriptlets/DCPRO_GhostGuard.sh
-          python3 - "$launcher" <<'PY'
-          import base64, pathlib, re, sys
-          text = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8')
-          m = re.search(r'^# Icon: data:image/png;base64,([^\r\n]+)$', text, re.M)
-          assert m, 'embedded icon header missing'
-          raw = base64.b64decode(m.group(1), validate=True)
-          assert raw.startswith(b'\x89PNG\r\n\x1a\n'), 'embedded icon is not PNG'
-          assert len(raw) >= 1024, 'embedded icon unexpectedly small'
-          print('Embedded launcher icon OK:', len(raw), 'bytes')
-          PY
+          grep -F 'LIBRARY_ENTRY=KO_READER_ONLY' /tmp/gg-candidate/install.sh
+          grep -F 'GHOSTGUARD_LIBRARY_ICON=REMOVED' /tmp/gg-candidate/install.sh
+          ! grep -F 'LIBRARY_ICON_MODE=EMBEDDED_PNG_FORCE_REINDEX' /tmp/gg-candidate/install.sh
+          ! grep -F 'copy_file_compat "scriptlets/DCPRO_GhostGuard.sh"' /tmp/gg-candidate/install.sh
 
       - name: Verify published golden artifact and fresh-device contract
         run: |
@@ -130,6 +150,8 @@ jobs:
           grep -F "GG_SHA256=\"$want\"" "$f"
           grep -F 'GHOSTGUARD_VERSION=0.9.1-local-mtguard5' "$f"
           grep -F 'RUNTIME=mtguard1-adaptive-v3-approved-cover-nocloud' "$f"
+          grep -F 'KO_READER_BOOT_AUTOSTART=0' "$f"
+          grep -F 'GHOSTGUARD_LIBRARY_ICON=REMOVED' "$f"
 
           grep -F 'ensure_koreader' "$b"
           grep -F 'install_koreader_kpm' "$b"

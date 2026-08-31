@@ -14,10 +14,10 @@ BACKUP="$KO_ROOT/plugins/.dcghostguardpro.kpm-old"
 DATA="$ROOT/.dcpro_ghostguard"
 REPORT_DIR="$ROOT/GhostGuard_Reports"
 LICENSE_BACKUP="$DATA/license.key.kpm-backup"
-LAUNCHER="$ROOT/documents/DCPRO_GhostGuard.sh"
-LAUNCHER_SDR="$LAUNCHER.sdr"
-ASSET_DIR="$ROOT/dcpro/ghostguard/assets"
-LIBRARY_COVER="$ASSET_DIR/ghostguard_library_600x960.jpg"
+LEGACY_LAUNCHER="$ROOT/documents/DCPRO_GhostGuard.sh"
+LEGACY_LAUNCHER_SDR="$LEGACY_LAUNCHER.sdr"
+LEGACY_ASSET_DIR="$ROOT/dcpro/ghostguard/assets"
+LEGACY_LIBRARY_COVER="$LEGACY_ASSET_DIR/ghostguard_library_600x960.jpg"
 SERVICE_DIR="$DATA/service"
 SERVICE_SCRIPT="$SERVICE_DIR/ghostguard-service.sh"
 NATIVE_CAPTURE="$SERVICE_DIR/ghostguard-native-capture.sh"
@@ -27,10 +27,6 @@ UPSTART_JOB="/etc/upstart/dcpro-ghostguard.conf"
 
 fail() { echo "GhostGuard install: $1" >&2; rm -rf "$STAGING" 2>/dev/null || true; exit 1; }
 
-# Some Kindle /mnt/us filesystems reject metadata-preserving cp -p even when a
-# normal content copy is valid. KPM install must not fail merely because the
-# filesystem cannot preserve timestamps/ownership. Always verify content after
-# the fallback copy.
 copy_file_compat() {
     src="$1"; dst="$2"
     if cp -p "$src" "$dst" 2>/dev/null; then :
@@ -83,9 +79,9 @@ fi
 }
 rm -rf "$BACKUP"
 
-# 0.9.2 local-first cleanup. Reports are deliberately outside /documents so
-# Kindle Library does not index them as books. Remove obsolete public Cloud /
-# ZenUI leftovers without touching learned profiles or online-license cache.
+# Local-first cleanup. Reports stay outside /documents so Kindle Library does
+# not index them as books. Remove obsolete Cloud/ZenUI leftovers without
+# touching learned profiles or online-license cache.
 rm -f \
   "$ROOT/documents/GhostGuard_ContinuousLearning_Status.txt" \
   "$ROOT/documents/GhostGuard_ContinuousLearning_Changes.log" \
@@ -100,6 +96,16 @@ rm -rf "$DATA/cloud_outbox" 2>/dev/null || true
 rm -f "$DATA/cloud_target.txt" "$DATA/CLOUD_UPLOAD_STATUS.txt" \
       "$DATA/CLOUD_UPLOAD.lock" "$ROOT/documents/dochoithuvi_drive_token.conf" \
       2>/dev/null || true
+
+# KOReader is now the only Library entry point. Remove the old DC-GhostGuard
+# document launcher, SH_Integration cache and standalone cover from older builds.
+# GhostGuard remains installed only as a KOReader plugin.
+rm -f "$LEGACY_LAUNCHER" 2>/dev/null || true
+rm -rf "$LEGACY_LAUNCHER_SDR" 2>/dev/null || true
+rm -f "$LEGACY_LIBRARY_COVER" 2>/dev/null || true
+rmdir "$LEGACY_ASSET_DIR" 2>/dev/null || true
+rmdir "$ROOT/dcpro/ghostguard" 2>/dev/null || true
+sync 2>/dev/null || true
 
 mkdir -p "$SERVICE_DIR" || fail "cannot create service directory"
 copy_file_compat "system/ghostguard-service.sh" "$SERVICE_SCRIPT" || fail "cannot install system supervisor"
@@ -143,42 +149,10 @@ if [ "$UPSTART_OK" = "1" ] && command -v initctl >/dev/null 2>&1; then
 fi
 if [ "$SERVICE_STARTED" = "0" ]; then /bin/sh "$SERVICE_SCRIPT" >/dev/null 2>&1 & SERVICE_STARTED=1; fi
 
-# Library launcher / icon refresh.
-#
-# SH_Integration extracts the icon from the .sh header into DCPRO_GhostGuard.sh.sdr.
-# Keep the tested embedded PNG data URI intact instead of replacing it with a
-# filesystem path: older sh_integration builds had blank-icon/path handling bugs.
-# We still install the approved JPEG as a standalone asset, then remove the old
-# launcher + .sdr cache and recreate the launcher to force a clean scanner pass.
-[ -f "assets/ghostguard_library_600x960.jpg" ] || fail "library cover missing from package"
-mkdir -p "$ASSET_DIR" || fail "cannot create library cover directory"
-copy_file_compat "assets/ghostguard_library_600x960.jpg" "$LIBRARY_COVER" || fail "cannot install library cover"
-chmod 666 "$LIBRARY_COVER" 2>/dev/null || true
-sync 2>/dev/null || true
-
-LAUNCHER_TMP="$DATA/DCPRO_GhostGuard.launcher.$$"
-rm -f "$LAUNCHER_TMP" 2>/dev/null || true
-copy_file_compat "scriptlets/DCPRO_GhostGuard.sh" "$LAUNCHER_TMP" || fail "cannot stage launcher"
-head -n 6 "$LAUNCHER_TMP" | grep -q '^# Icon: data:image/png;base64,iVBORw0KGgo' || fail "embedded PNG icon header missing"
-chmod 755 "$LAUNCHER_TMP" 2>/dev/null || true
-
-rm -f "$LAUNCHER" 2>/dev/null || true
-rm -rf "$LAUNCHER_SDR" 2>/dev/null || true
-sync 2>/dev/null || true
-sleep 2
-copy_file_compat "$LAUNCHER_TMP" "$LAUNCHER" || fail "cannot install launcher"
-rm -f "$LAUNCHER_TMP" 2>/dev/null || true
-chmod 755 "$LAUNCHER" 2>/dev/null || true
-touch "$LAUNCHER" "$LIBRARY_COVER" 2>/dev/null || true
-sync 2>/dev/null || true
-sleep 2
-touch "$LAUNCHER" 2>/dev/null || true
-sync 2>/dev/null || true
-
 find "$TARGET/bin" -type f -name '*.sh' -exec chmod 755 {} \; 2>/dev/null || true
 
-printf 'PACKAGE_ID=ghostguard\nPACKAGE_VERSION=0.9.2\nRUNTIME=MTGUARD5_ADAPTIVE_V3\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nADAPTIVE_AUTO_PROMOTE=1\nMT_GUARD=1\nGOODIX_CRASH_SHIELD=1\nTOUCH_SHIELD_MODE=PASS_THROUGH_SAFE\nSYSTEM_SERVICE=1\nSYSTEM_SERVICE_STARTED=%s\nUPSTART_INSTALLED=%s\nUPSTART_JOB=%s\nNATIVE_INTEGRATED=1\nNATIVE_SHADOW=1\nNATIVE_FILTER=SHADOW_ONLY\nINPUT_GRAB=OFF\nEVENT_INJECTION=OFF\nLIBRARY_LAUNCHER=%s\nLIBRARY_COVER=%s\nLIBRARY_ICON_MODE=EMBEDDED_PNG_FORCE_REINDEX\nREPORT_DIR=%s\nREPORT_MODE=LOCAL_ONLY_NON_LIBRARY\nCLOUD_UPLOAD=REMOVED\nZENUI=REMOVED\nINSTALL_MODE=ATOMIC_REPLACE_FAIL_OPEN_SERVICE\nCOPY_MODE=PRESERVE_WITH_CONTENT_FALLBACK\nINSTALLED_UTC=%s\n' \
-    "$KO_ROOT" "$TARGET" "$SERVICE_STARTED" "$UPSTART_OK" "$UPSTART_JOB" "$LAUNCHER" "$LIBRARY_COVER" "$REPORT_DIR" \
+printf 'PACKAGE_ID=ghostguard\nPACKAGE_VERSION=0.9.2\nRUNTIME=MTGUARD5_ADAPTIVE_V3\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nADAPTIVE_AUTO_PROMOTE=1\nADAPTIVE_CHECKPOINT_SAMPLES=4\nADAPTIVE_CHECKPOINT_SECONDS=30\nADAPTIVE_EXTERNAL_REPORT_SECONDS=5\nADAPTIVE_PROMOTION_MIN_CLUSTER=4\nADAPTIVE_PROMOTION_MIN_AGE_SECONDS=15\nMT_GUARD=1\nGOODIX_CRASH_SHIELD=1\nTOUCH_SHIELD_MODE=PASS_THROUGH_SAFE\nSYSTEM_SERVICE=1\nSYSTEM_SERVICE_STARTED=%s\nUPSTART_INSTALLED=%s\nUPSTART_JOB=%s\nNATIVE_INTEGRATED=1\nNATIVE_SHADOW=1\nNATIVE_FILTER=SHADOW_ONLY\nINPUT_GRAB=OFF\nEVENT_INJECTION=OFF\nLIBRARY_ENTRY=KO_READER_ONLY\nGHOSTGUARD_LIBRARY_LAUNCHER=REMOVED\nGHOSTGUARD_LIBRARY_ICON=REMOVED\nREPORT_DIR=%s\nREPORT_MODE=LOCAL_ONLY_NON_LIBRARY\nCLOUD_UPLOAD=REMOVED\nZENUI=REMOVED\nINSTALL_MODE=ATOMIC_REPLACE_FAIL_OPEN_SERVICE\nCOPY_MODE=PRESERVE_WITH_CONTENT_FALLBACK\nINSTALLED_UTC=%s\n' \
+    "$KO_ROOT" "$TARGET" "$SERVICE_STARTED" "$UPSTART_OK" "$UPSTART_JOB" "$REPORT_DIR" \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" > "$DATA/KPM_INSTALL_OK"
 
 echo "GhostGuard v0.9.2 package installed. KOReader root: $KO_ROOT"
@@ -187,12 +161,12 @@ echo "GhostGuard Goodix crash shield: enabled (pass-through safe outside Protect
 echo "GhostGuard system supervisor: $SERVICE_SCRIPT"
 echo "GhostGuard Native diagnostics integrated: $NATIVE_CAPTURE"
 echo "GhostGuard Native shadow observer: $NATIVE_SHADOW (read-only, event-driven)"
-echo "GhostGuard Library launcher: $LAUNCHER (embedded PNG icon; forced clean re-index)"
-echo "GhostGuard approved cover asset: $LIBRARY_COVER"
+echo "Kindle Library entry: KOReader only; legacy DC-GhostGuard icon removed."
+echo "Continuous learning: faster checkpoint/report/promotion cadence with unchanged Protect thresholds."
 echo "Reports: $REPORT_DIR (local-only; kept outside Kindle Library indexing)."
-if [ "$UPSTART_OK" = "1" ]; then echo "Auto-start on Kindle boot: enabled via $UPSTART_JOB"
-else echo "Auto-start on Kindle boot: Upstart install unavailable; current-boot supervisor started fail-open."; fi
+if [ "$UPSTART_OK" = "1" ]; then echo "GhostGuard supervisor on Kindle boot: enabled via $UPSTART_JOB"
+else echo "GhostGuard supervisor Upstart unavailable; current-boot supervisor started fail-open."; fi
 echo "KPM copy compatibility: metadata-preserving copy falls back to verified content copy on /mnt/us."
 echo "Safety: Native filter is SHADOW_ONLY; input grab/injection are OFF; actual blocking remains in the tested KOReader bridge."
-echo "Restart KOReader once after upgrading the MTGuard5 golden build."
+echo "Use the KOReader icon to enter GhostGuard."
 exit 0

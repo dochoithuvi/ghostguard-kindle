@@ -121,15 +121,15 @@ return {
     adaptive_candidate_min_suspects = 8,
     adaptive_candidate_min_cluster = 3,
     adaptive_learning_during_protect = true,
-    -- v0.9 continuous learning is event-driven. Normal touches do only a few
-    -- arithmetic checks; flash is checkpointed only after strong anomalies.
+    -- v0.9 continuous learning is event-driven. Keep classifier strength the
+    -- same, but checkpoint/report/promote confirmed regions more promptly.
     adaptive_min_base_score = 7,
     adaptive_cluster_radius_px = 96,
-    adaptive_checkpoint_samples = 8,
-    adaptive_checkpoint_seconds = 120,
-    adaptive_promotion_min_cluster = 6,
+    adaptive_checkpoint_samples = 4,
+    adaptive_checkpoint_seconds = 30,
+    adaptive_promotion_min_cluster = 4,
     adaptive_promotion_min_confidence = 0.72,
-    adaptive_promotion_min_age_seconds = 30,
+    adaptive_promotion_min_age_seconds = 15,
     adaptive_max_clusters = 32,
     adaptive_max_candidate_clusters = 32,
     -- Native shadow coordinates are raw evdev coordinates. Keep them as
@@ -141,7 +141,7 @@ return {
     adaptive_external_status_path = "/mnt/us/GhostGuard_Reports/ContinuousLearning_Status.txt",
     adaptive_external_changes_path = "/mnt/us/GhostGuard_Reports/ContinuousLearning_Changes.log",
     adaptive_external_profile_snapshot_path = "/mnt/us/GhostGuard_Reports/ActiveProfile_AutoLearned.txt",
-    adaptive_external_report_seconds = 10,
+    adaptive_external_report_seconds = 5,
     adaptive_fast_promotion_enabled = true,
     adaptive_fast_promotion_min_cluster = 3,
     adaptive_fast_promotion_min_confidence = 0.80,
