@@ -65,18 +65,11 @@ function Storage:ensureLayout()
         self.config.data_dir,
         self.config.report_dir,
         self.config.profile_dir,
-        self.config.cloud_outbox_dir,
         "/mnt/us/koreader/dcpro",
+        "/mnt/us/GhostGuard_Reports",
     }) do
         local ok, err = mkdir_p(path)
         if not ok then return false, err end
-    end
-    if not self:fileExists(self.config.cloud_target_file) then
-        self:writeAtomic(self.config.cloud_target_file,
-            "DCPRO_GHOSTGUARD_CLOUD_TARGET_V1\n" ..
-            "DRIVE_ROOT_FOLDER_ID=" .. tostring(self.config.drive_root_folder_id or "") .. "\n" ..
-            "DRIVE_ROOT_FOLDER_URL=" .. tostring(self.config.drive_root_folder_url or "") .. "\n" ..
-            "TRANSPORT=OUTBOX_REQUIRES_AUTHENTICATED_BRIDGE\n")
     end
     return true
 end
@@ -293,7 +286,6 @@ function Storage:copyRuntimeDiagnostics(folder)
         { "/mnt/us/koreader/reader.log", "KOReader_reader.log", 1048576 },
         { "/mnt/us/extensions/koreader/crash.log", "KOReader_extensions_crash.log", 2097152 },
         { self.config.data_dir .. "/RUNTIME_FAULT.txt", "GhostGuard_RUNTIME_FAULT.txt", 262144 },
-        { self.config.cloud_status_file, "GhostGuard_CLOUD_STATUS.txt", 262144 },
     }
     for _, item in ipairs(candidates) do
         local source, name, max_size = item[1], item[2], item[3]
@@ -306,64 +298,5 @@ function Storage:copyRuntimeDiagnostics(folder)
     return copied
 end
 
-function Storage:prepareStaleOutbox(stale_report, options)
-    if not stale_report or not self:fileExists(stale_report) then return false, "missing stale report" end
-    options = options or {}
-    local session_id = "STALE_" .. os.date("%Y%m%d_%H%M%S")
-    local folder = self.config.cloud_outbox_dir .. "/" .. tostring(options.device_id or "unknown") .. "_" .. session_id
-    local ok, err = mkdir_p(folder)
-    if not ok then return false, err end
-    local name = stale_report:match("([^/]+)$") or "STALE_SESSION.txt"
-    local copied = self:copyFile(stale_report, folder .. "/" .. name) and 1 or 0
-    copied = copied + self:copyRuntimeDiagnostics(folder)
-    if copied == 0 then lfs.rmdir(folder); return false, "no stale diagnostics copied" end
-    local manifest_ok, manifest_err = self:writeAtomic(folder .. "/UPLOAD_MANIFEST.txt",
-        "DCPRO_GHOSTGUARD_UPLOAD_V2\n" ..
-        "DEVICE_ID=" .. tostring(options.device_id or "unknown") .. "\n" ..
-        "MODEL=" .. tostring(options.model or "unknown") .. "\n" ..
-        "SESSION=" .. session_id .. "\n" ..
-        "DATE=" .. os.date("!%Y-%m-%d") .. "\n" ..
-        "FILES_COPIED=" .. tostring(copied) .. "\n" ..
-        "TYPE=STALE_CRASH_DIAGNOSTICS\nSTATUS=PENDING_AUTHENTICATED_UPLOAD\n")
-    if not manifest_ok then return false, manifest_err end
-    return true, folder
-end
-
-function Storage:prepareCloudOutbox(session, options)
-    if not session then return false, "missing session" end
-    options = options or {}
-    local folder = self.config.cloud_outbox_dir .. "/" .. tostring(options.device_id or "unknown") ..
-        "_" .. tostring(session.metadata.session_id or os.date("%Y%m%d_%H%M%S"))
-    local ok, err = mkdir_p(folder)
-    if not ok then return false, err end
-
-    local copied = 0
-    for _, source in ipairs(session:paths()) do
-        if self:fileExists(source) then
-            local name = source:match("([^/]+)$")
-            local copied_ok = self:copyFile(source, folder .. "/" .. name)
-            if copied_ok then copied = copied + 1 end
-        end
-    end
-    if options.profile_path and self:fileExists(options.profile_path) then
-        if self:copyFile(options.profile_path, folder .. "/ACTIVE_PROFILE.profile") then copied = copied + 1 end
-    end
-    copied = copied + self:copyRuntimeDiagnostics(folder)
-    if copied == 0 then
-        lfs.rmdir(folder)
-        return false, "cloud outbox refused: no report or diagnostic files copied"
-    end
-    local manifest_ok, manifest_err = self:writeAtomic(folder .. "/UPLOAD_MANIFEST.txt",
-        "DCPRO_GHOSTGUARD_UPLOAD_V2\n" ..
-        "DEVICE_ID=" .. tostring(options.device_id or "unknown") .. "\n" ..
-        "MODEL=" .. tostring(options.model or "unknown") .. "\n" ..
-        "SESSION=" .. tostring(session.metadata.session_id or "unknown") .. "\n" ..
-        "DATE=" .. os.date("!%Y-%m-%d") .. "\n" ..
-        "DRIVE_ROOT_FOLDER_ID=" .. tostring(self.config.drive_root_folder_id or "") .. "\n" ..
-        "FILES_COPIED=" .. tostring(copied) .. "\n" ..
-        "STATUS=PENDING_AUTHENTICATED_UPLOAD\n")
-    if not manifest_ok then return false, manifest_err end
-    return true, folder
-end
 
 return Storage
