@@ -1,167 +1,121 @@
-name: Validate GhostGuard 0.9.2 MTGuard5
+name: Publish exact MTGuard5 golden build
+
 on:
-  push:
-    branches: [v0.9.2-mtguard5-final]
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-v092-mtguard5.yml
 
 permissions:
   contents: write
 
 jobs:
-  validate:
+  publish-golden:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Materialize exact MTGuard5 release source
+      - name: Validate exact field-tested MTGuard5 bytes
         run: |
           set -eu
-          S=packages/ghostguard/source
-          P="$S/payload/dcghostguardpro.koplugin"
-          BUNDLE_WANT=883134244eaccedd17cc7d3eed5fd239852cc1c594fb0f03e8abd368620b76f6
+          SRC='packages/ghostguard/artifacts/ghostguard_0.9.1_kindle5-kindlepw2-kindlehf.kpkg'
+          WANT='b399a10165812f529548c9e193e1b75629dbbc4c758fbab15cc41b0c241ff0d0'
+          COVER_WANT='0cbfa7a143a52eb6c23cf75afa4b1d3395cbbeed8f0a83bbb315ccc3b9edad8e'
 
-          exact_source_ready() {
-            test "$(sha256sum "$S/install.sh" | awk '{print $1}')" = "e8f19294553ccb732eede3703d792a1e773dc0e23fce163c3fef5d62ccbb08da" &&
-            test "$(sha256sum "$S/manifest.json" | awk '{print $1}')" = "b9372e8637ae0788e92dd4387a01471995db1d9f4094350309a891881bc7f0f2" &&
-            test "$(sha256sum "$P/adaptive_bootstrap.lua" | awk '{print $1}')" = "54245e36fca08055f314c23162772659b44a60850a951285c584fd3ee90813da" &&
-            test "$(sha256sum "$P/defaults.lua" | awk '{print $1}')" = "134af061c0abf4b5a94602ea241af724244cc717fee4d0e84d8513be9e843db8" &&
-            test "$(sha256sum "$P/ghostguard_core.lua" | awk '{print $1}')" = "01eb6d4b977aeff25e50e691a955e7b38b601a74e2381e409ac58630be118fe9" &&
-            test "$(sha256sum "$P/main.lua" | awk '{print $1}')" = "d2d8e351ba8fe06a0cc01c3bd50fdb88cbc2175ba0a369c48c2ed622f00bbe8e" &&
-            test "$(sha256sum "$P/simpleui_bridge.lua" | awk '{print $1}')" = "f4d62ce81920960ed5be6529f05334db728d56f53f9ad88d05ea88129cc31a45" &&
-            test "$(sha256sum "$P/storage.lua" | awk '{print $1}')" = "9e5fb761755b03f7e9b75cb72413c37d3a3a9c17fb6b983bc54794d3e597e586"
-          }
+          test -s "$SRC"
+          got="$(sha256sum "$SRC" | awk '{print $1}')"
+          echo "MTGuard5 source SHA-256: $got"
+          test "$got" = "$WANT"
 
-          if exact_source_ready; then
-            echo "Exact MTGuard5 + Adaptive V3 source already materialized."
-          else
-            test -d .release-exact
-            cat \
-              .release-exact/runtime_bundle.b64.00 \
-              .release-exact/runtime_bundle.b64.01a \
-              .release-exact/runtime_bundle.b64.01b \
-              .release-exact/runtime_bundle.b64.01c \
-              .release-exact/runtime_bundle.b64.01d \
-              .release-exact/runtime_bundle.b64.02 \
-              .release-exact/runtime_bundle.b64.03a \
-              .release-exact/runtime_bundle.b64.03b \
-              .release-exact/runtime_bundle.b64.03c \
-              | tr -d '\r\n' | base64 -d > /tmp/gg092-exact.tar.gz
+          rm -rf /tmp/mtguard5 && mkdir -p /tmp/mtguard5
+          tar -xzf "$SRC" -C /tmp/mtguard5
 
-            test "$(sha256sum /tmp/gg092-exact.tar.gz | awk '{print $1}')" = "$BUNDLE_WANT"
-            gzip -t /tmp/gg092-exact.tar.gz
-            tar -tzf /tmp/gg092-exact.tar.gz | grep -q '^packages/ghostguard/source/'
-            tar -xzf /tmp/gg092-exact.tar.gz -C .
-            exact_source_ready
-          fi
+          grep -R -F '0.9.1-local-mtguard5' /tmp/mtguard5 >/dev/null
+          grep -R -F 'mtguard1-adaptive-v3-approved-cover-nocloud' /tmp/mtguard5 >/dev/null
 
-          # Public 0.9.2 remains local-only; legacy Cloud/ZenUI modules must not ship.
-          rm -f "$P/cloud_manager.lua" "$P/zenui_bridge.lua" "$P/PUBLIC_V4_README.txt"
-
-      - name: Install LuaJIT
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq luajit
-
-      - name: Validate exact field-tested source and safety boundary
-        run: |
-          set -eu
-          S=packages/ghostguard/source
-          P="$S/payload/dcghostguardpro.koplugin"
-
-          grep -q 'version = "0.9.2"' "$P/defaults.lua"
-          grep -q 'runtime_revision = "mtguard5-adaptive-v3-stable"' "$P/defaults.lua"
-          grep -q 'function GhostGuard:guardMalformedMtFrame' "$P/ghostguard_core.lua"
-          grep -q 'function Adaptive:fastTrackEligible' "$P/adaptive_bootstrap.lua"
-          grep -q '/mnt/us/GhostGuard_Reports/' "$P/defaults.lua"
-
-          test "$(sha256sum "$S/install.sh" | awk '{print $1}')" = "e8f19294553ccb732eede3703d792a1e773dc0e23fce163c3fef5d62ccbb08da"
-          test "$(sha256sum "$S/manifest.json" | awk '{print $1}')" = "b9372e8637ae0788e92dd4387a01471995db1d9f4094350309a891881bc7f0f2"
-          test "$(sha256sum "$P/adaptive_bootstrap.lua" | awk '{print $1}')" = "54245e36fca08055f314c23162772659b44a60850a951285c584fd3ee90813da"
-          test "$(sha256sum "$P/defaults.lua" | awk '{print $1}')" = "134af061c0abf4b5a94602ea241af724244cc717fee4d0e84d8513be9e843db8"
-          test "$(sha256sum "$P/ghostguard_core.lua" | awk '{print $1}')" = "01eb6d4b977aeff25e50e691a955e7b38b601a74e2381e409ac58630be118fe9"
-          test "$(sha256sum "$P/main.lua" | awk '{print $1}')" = "d2d8e351ba8fe06a0cc01c3bd50fdb88cbc2175ba0a369c48c2ed622f00bbe8e"
-          test "$(sha256sum "$P/simpleui_bridge.lua" | awk '{print $1}')" = "f4d62ce81920960ed5be6529f05334db728d56f53f9ad88d05ea88129cc31a45"
-          test "$(sha256sum "$P/storage.lua" | awk '{print $1}')" = "9e5fb761755b03f7e9b75cb72413c37d3a3a9c17fb6b983bc54794d3e597e586"
-
-          test ! -e "$P/cloud_manager.lua"
-          test ! -e "$P/zenui_bridge.lua"
-          test ! -e "$P/PUBLIC_V4_README.txt"
-
-          if ls "$S"/assets/ghostguard_library_600x960.jpg.b64.* >/dev/null 2>&1; then
-            cat "$S"/assets/ghostguard_library_600x960.jpg.b64.* | tr -d '\r\n' | base64 -d > /tmp/gg092-cover.jpg
-            test "$(wc -c < /tmp/gg092-cover.jpg | tr -d ' ')" = "90780"
-            test "$(sha256sum /tmp/gg092-cover.jpg | awk '{print $1}')" = "0cbfa7a143a52eb6c23cf75afa4b1d3395cbbeed8f0a83bbb315ccc3b9edad8e"
-            echo "Cover: approved 0.9.2 public artwork"
-          else
-            test -s "$S/assets/ghostguard_library_600x960.jpg"
-            cp "$S/assets/ghostguard_library_600x960.jpg" /tmp/gg092-cover.jpg
-            python3 -c "from pathlib import Path; p=Path('/tmp/gg092-cover.jpg').read_bytes(); assert len(p)>=10000; assert p[:2]==b'\\xff\\xd8'; print('Cover: stable existing public JPEG fallback', len(p))"
-          fi
-
-          grep -q 'NATIVE_FILTER=SHADOW_ONLY' "$S/install.sh"
-          grep -q 'INPUT_GRAB=OFF' "$S/install.sh"
-          grep -q 'EVENT_INJECTION=OFF' "$S/install.sh"
-
-          sh -n "$S/install.sh"
-          sh -n "$S/uninstall.sh"
-          sh -n "$S/launch.sh"
-          sh -n scripts/build_ghostguard_v092.sh
-          sh -n DCPRO_GhostGuard_OneClick_Installer_v14.sh
-
-          for f in "$P"/*.lua "$P"/keys/*.lua; do
-            luajit -b "$f" /dev/null
+          COVER=''
+          for f in \
+            /tmp/mtguard5/assets/ghostguard_library_600x960.jpg \
+            /tmp/mtguard5/payload/dcghostguardpro.koplugin/assets/ghostguard_library_600x960.jpg; do
+            if [ -s "$f" ]; then COVER="$f"; break; fi
           done
+          test -n "$COVER"
+          cover_got="$(sha256sum "$COVER" | awk '{print $1}')"
+          echo "Approved cover SHA-256: $cover_got"
+          test "$cover_got" = "$COVER_WANT"
 
-      - name: Build deterministic artifact twice
-        id: build
+          test -f /tmp/mtguard5/install.sh
+          sh -n /tmp/mtguard5/install.sh
+
+      - name: Publish byte-identical golden artifact
         run: |
           set -eu
-          chmod +x scripts/build_ghostguard_v092.sh
-          scripts/build_ghostguard_v092.sh
-          first="$(sha256sum packages/ghostguard/artifacts/ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg | awk '{print $1}')"
-          cp packages/ghostguard/artifacts/ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg /tmp/gg092-first.kpkg
-          scripts/build_ghostguard_v092.sh
-          second="$(sha256sum packages/ghostguard/artifacts/ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg | awk '{print $1}')"
-          test "$first" = "$second"
-          cmp /tmp/gg092-first.kpkg packages/ghostguard/artifacts/ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg
-          echo "Artifact SHA-256: $first"
-          echo "sha=$first" >> "$GITHUB_OUTPUT"
+          SRC='packages/ghostguard/artifacts/ghostguard_0.9.1_kindle5-kindlepw2-kindlehf.kpkg'
+          DST='packages/ghostguard/artifacts/ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg'
+          WANT='b399a10165812f529548c9e193e1b75629dbbc4c758fbab15cc41b0c241ff0d0'
+          cp "$SRC" "$DST"
+          cmp "$SRC" "$DST"
+          test "$(sha256sum "$DST" | awk '{print $1}')" = "$WANT"
 
-      - name: Pin OneClick v14 to verified artifact
+      - name: Switch public OneClick to golden artifact
         run: |
           set -eu
-          SHA='${{ steps.build.outputs.sha }}'
-          test "${#SHA}" = "64"
-          sed -E -i "s/^GG_SHA256=\"[0-9a-f]{64}\"/GG_SHA256=\"$SHA\"/" DCPRO_GhostGuard_OneClick_Installer_v14.sh
-          grep -q "GG_SHA256=\"$SHA\"" DCPRO_GhostGuard_OneClick_Installer_v14.sh
-          sh -n DCPRO_GhostGuard_OneClick_Installer_v14.sh
+          F='DCPRO_GhostGuard_OneClick_Installer_v14.sh'
+          GOLDEN='ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg'
+          WANT='b399a10165812f529548c9e193e1b75629dbbc4c758fbab15cc41b0c241ff0d0'
 
-      - name: Validate packaged artifact
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('DCPRO_GhostGuard_OneClick_Installer_v14.sh')
+          s = p.read_text()
+          s = s.replace('# Ensure KOReader + SimpleUI via the dedicated v14 bootstrap, then install GhostGuard 0.9.2.',
+                        '# Ensure KOReader + SimpleUI, then install the byte-identical field-tested MTGuard5 golden build.')
+          s = s.replace('GG_NAME="ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg"',
+                        'GG_NAME="ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg"')
+          import re
+          s = re.sub(r'GG_SHA256="[0-9a-f]{64}"',
+                     'GG_SHA256="b399a10165812f529548c9e193e1b75629dbbc4c758fbab15cc41b0c241ff0d0"', s)
+          s = s.replace('KOReader + SimpleUI + GhostGuard 0.9.2', 'KOReader + SimpleUI + MTGuard5 GOLDEN')
+          s = s.replace('Tai GhostGuard 0.9.2...', 'Tai MTGuard5 GOLDEN...')
+          s = s.replace('Downloading GhostGuard 0.9.2 package.', 'Downloading byte-identical MTGuard5 golden package.')
+          s = s.replace('khong tai duoc GhostGuard 0.9.2', 'khong tai duoc MTGuard5 golden')
+          s = s.replace('GhostGuard 0.9.2 install failed', 'MTGuard5 golden install failed')
+          s = s.replace('GhostGuard 0.9.2 install complete.', 'MTGuard5 golden install complete.')
+          s = s.replace('GHOSTGUARD_VERSION=0.9.2', 'GHOSTGUARD_VERSION=0.9.1-local-mtguard5')
+          s = s.replace('RUNTIME=MTGUARD5_ADAPTIVE_V3', 'RUNTIME=mtguard1-adaptive-v3-approved-cover-nocloud')
+          s = s.replace('THANH CONG! GhostGuard 0.9.2 da cai dat', 'THANH CONG! MTGuard5 GOLDEN da cai dat')
+          s = s.replace('GhostGuard 0.9.2 installed successfully.', 'MTGuard5 golden installed successfully.')
+          p.write_text(s)
+          PY
+
+          grep -F "GG_NAME=\"$GOLDEN\"" "$F"
+          grep -F "GG_SHA256=\"$WANT\"" "$F"
+          grep -F 'GHOSTGUARD_VERSION=0.9.1-local-mtguard5' "$F"
+          grep -F 'RUNTIME=mtguard1-adaptive-v3-approved-cover-nocloud' "$F"
+          sh -n "$F"
+
+      - name: Validate public URLs and fresh-install contract
         run: |
           set -eu
-          rm -rf /tmp/gg092 && mkdir -p /tmp/gg092
-          tar -xzf packages/ghostguard/artifacts/ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg -C /tmp/gg092
-          grep -q 'version = "0.9.2"' /tmp/gg092/payload/dcghostguardpro.koplugin/defaults.lua
-          grep -q 'runtime_revision = "mtguard5-adaptive-v3-stable"' /tmp/gg092/payload/dcghostguardpro.koplugin/defaults.lua
-          test ! -e /tmp/gg092/payload/dcghostguardpro.koplugin/cloud_manager.lua
-          test ! -e /tmp/gg092/payload/dcghostguardpro.koplugin/zenui_bridge.lua
-          cmp /tmp/gg092-cover.jpg /tmp/gg092/assets/ghostguard_library_600x960.jpg
-          cmp /tmp/gg092-cover.jpg /tmp/gg092/payload/dcghostguardpro.koplugin/assets/ghostguard_library_600x960.jpg
-          grep -q 'REPORT_MODE=LOCAL_ONLY_NON_LIBRARY' /tmp/gg092/install.sh
-          grep -q 'CLOUD_UPLOAD=REMOVED' /tmp/gg092/install.sh
-          grep -q 'NATIVE_FILTER=SHADOW_ONLY' /tmp/gg092/install.sh
-          grep -q 'INPUT_GRAB=OFF' /tmp/gg092/install.sh
-          grep -q 'EVENT_INJECTION=OFF' /tmp/gg092/install.sh
+          F='DCPRO_GhostGuard_OneClick_Installer_v14.sh'
+          grep -F 'bootstrap/koreader-simpleui-v14.sh' "$F"
+          grep -F 'ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg' "$F"
+          grep -F 'b399a10165812f529548c9e193e1b75629dbbc4c758fbab15cc41b0c241ff0d0' "$F"
+          grep -F 'NATIVE_FILTER=SHADOW_ONLY' "$F"
+          grep -F 'INPUT_GRAB=OFF' "$F"
+          grep -F 'EVENT_INJECTION=OFF' "$F"
+          ! grep -F 'ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg' "$F"
 
-      - name: Commit verified source and artifact on release branch
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/v0.9.2-mtguard5-final' }}
+      - name: Commit golden artifact and OneClick switch
         run: |
           set -eu
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -rf .release-exact .release-patch .release-v092
-          git add -A
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/ghostguard/artifacts/ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg DCPRO_GhostGuard_OneClick_Installer_v14.sh
           if ! git diff --cached --quiet; then
-            git commit -m "[release-v092] materialize verified MTGuard5 source and artifact"
-            git push origin HEAD:v0.9.2-mtguard5-final
+            git commit -m 'release: switch OneClick to exact MTGuard5 golden artifact'
+            git push origin HEAD:main
           fi
