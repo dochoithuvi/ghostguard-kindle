@@ -1,57 +1,50 @@
-# DCPRO GhostGuard 0.9.2
+# DCPRO GhostGuard v0.5.0 Final Hotfix 1
 
-GhostGuard is a KOReader touch-protection plugin for Kindle devices with intermittent ghost-touch / malformed multi-touch input.
+## Activation
 
-## 0.9.2 stable runtime
-
-This release promotes the field-tested MTGuard5 runtime to public 0.9.2.
-
-### Protection path
-
-- Existing approved profile remains the source of coordinate-region confidence.
-- MT Guard rejects only malformed **new** multi-touch contacts before KOReader creates an invalid GestureDetector contact.
-- Established KOReader contacts are not dropped by MT Guard.
-- Existing GhostGuard classifier and Protect thresholds remain unchanged from the tested MTGuard5 build.
-- Runtime failures fail open.
-
-### Continuous learning
-
-Adaptive Learning V3 remains active while Protect is running.
-
-New suspicious regions are tracked first and are promoted only after sufficient evidence.
-A narrow `FAST_STRONG` path exists for repeated, short, high-score, axis-incomplete ghost contacts.
-
-Automatic promotions are written atomically to the approved profile and are used immediately by future Protect decisions.
-
-Reports are kept outside Kindle Library indexing:
+GhostGuard only starts observation, calibration or protection when this file exists and validates:
 
 ```text
-/mnt/us/GhostGuard_Reports/ContinuousLearning_Status.txt
-/mnt/us/GhostGuard_Reports/ContinuousLearning_Changes.log
-/mnt/us/GhostGuard_Reports/ActiveProfile_AutoLearned.txt
+/mnt/us/koreader/plugins/dcghostguardpro.koplugin/license.key
 ```
 
-### UI cleanup
+The verifier is compatible with **DCPRO License Manager v3 Offline JSON**. It checks format, serial, issue date, expiry, feature grant (`ultimate` or `ghostguard`), SHA-256 signature and persistent clock rollback state. A legacy key may be copied once into the plugin folder for migration, but the final canonical location is the plugin folder above.
 
-- SimpleUI integration is retained.
-- Cloud upload runtime is removed.
-- ZenUI integration is removed.
-- Customer-setup-only Tools entries are not exposed.
-- GhostGuard Library launcher uses the approved 600x960 cover and forces a clean re-index on install.
+STOP, status, SAFE_MODE and Cloud diagnostics remain reachable even when activation fails.
 
-### Sleep / wake
+## Customer workflow
 
-If Auto Protect is enabled and an approved profile exists, GhostGuard stops fail-open on suspend and restores Protect after wake.
-The persistent native service remains observation-only:
+1. Install the bundle and put the per-device `license.key` in the plugin folder.
+2. Open KOReader. If no approved profile exists, GhostGuard automatically starts background learning.
+3. The customer reads and uses the device normally. Learning progress accumulates across KOReader sessions.
+4. When enough abnormal contacts are collected, GhostGuard shows **Hoàn tất thiết lập bảo vệ**.
+5. One confirmation approves the profile, enables Auto Protect and starts two conservative probation sessions.
 
-```text
-NATIVE_FILTER=SHADOW_ONLY
-INPUT_GRAB=OFF
-EVENT_INJECTION=OFF
-FAIL_OPEN=YES
-```
+## Safe Input
 
-## Privacy
+KOReader consumes every complete raw touch frame before GhostGuard may suppress the resulting gesture. Hook/observer faults fail open, restore the original handler and write `RUNTIME_FAULT.txt`. Quarantine remains disabled. Probation uses a lower circuit-breaker threshold.
 
-GhostGuard 0.9.2 does not upload reports to Cloud.
-Runtime reports and learned profiles stay on the Kindle unless the user manually copies them.
+## SimpleUI
+
+GhostGuard registers a `Tools` tab after Home through SimpleUI's external Quick Action API. It does not patch SimpleUI source files. The plugin key is `dcghostguardpro`.
+
+## Cloud
+
+Closed sessions are queued under `/mnt/us/.dcpro_ghostguard/cloud_outbox/`. Empty packages are refused. Reports collect session logs, active profile, KOReader crash/runtime logs and license status. The private RootInstall contains the configured Apps Script URL/token and must not be redistributed publicly.
+
+
+CHÍNH SÁCH LICENSE CUỐI
+- Chỉ kích hoạt khi file tồn tại đúng tại /mnt/us/koreader/plugins/dcghostguardpro.koplugin/license.key
+- Không tự động nhập license từ tool cũ.
+- Bản phát hành không đóng sẵn license.key; mỗi máy dùng key riêng theo serial.
+- Khi cập nhật, không xóa thư mục plugin nếu chưa sao lưu license.key.
+
+
+## Hotfix 3 — ExitTrace / Wrapper / Engine isolation
+
+- Làm sạch NUL/control byte trong `/proc/usid`.
+- Bật PROTECT_WRAPPER PASS_THROUGH trong Observe/Calibration.
+- Đóng widget không còn dừng engine bằng lý do giả `koreader-exit`.
+- Ghi `EXIT_REASON_DETAIL.txt`, `KOReader_EXIT_TRACEBACK.txt`, `EXIT_HISTORY.log`.
+- Bắt `UIManager.quit/restart/reboot/powerOff`, `os.exit` và runtime fault.
+- Giữ nguyên Hotfix 2: tháo wrapper trước suspend, bật lại sau resume theo fail-open.
