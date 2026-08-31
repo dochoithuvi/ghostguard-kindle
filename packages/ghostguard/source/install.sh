@@ -12,6 +12,7 @@ TARGET="$KO_ROOT/plugins/dcghostguardpro.koplugin"
 STAGING="$KO_ROOT/plugins/.dcghostguardpro.kpm-new.$$"
 BACKUP="$KO_ROOT/plugins/.dcghostguardpro.kpm-old"
 DATA="$ROOT/.dcpro_ghostguard"
+REPORT_DIR="$ROOT/GhostGuard_Reports"
 LICENSE_BACKUP="$DATA/license.key.kpm-backup"
 LAUNCHER="$ROOT/documents/DCPRO_GhostGuard.sh"
 LAUNCHER_SDR="$LAUNCHER.sdr"
@@ -55,7 +56,7 @@ copy_tree_compat() {
 [ -f "system/ghostguard-native-capture.sh" ] || fail "integrated native diagnostics missing"
 [ -f "system/ghostguard-native-shadow.lua" ] || fail "native shadow observer missing"
 [ -f "system/dcpro-ghostguard.conf" ] || fail "Upstart job missing"
-mkdir -p "$DATA" || fail "cannot create data directory"
+mkdir -p "$DATA" "$REPORT_DIR" || fail "cannot create data/report directory"
 copy_tree_compat "payload/dcghostguardpro.koplugin" "$STAGING" || fail "cannot stage plugin"
 
 if [ -s "$TARGET/license.key" ]; then
@@ -80,6 +81,24 @@ fi
 }
 rm -rf "$BACKUP"
 
+# 0.9.2 local-first cleanup. Reports are deliberately outside /documents so
+# Kindle Library does not index them as books. Remove obsolete public Cloud /
+# ZenUI leftovers without touching learned profiles or online-license cache.
+rm -f \
+  "$ROOT/documents/GhostGuard_ContinuousLearning_Status.txt" \
+  "$ROOT/documents/GhostGuard_ContinuousLearning_Changes.log" \
+  "$ROOT/documents/GhostGuard_ActiveProfile_AutoLearned.txt" \
+  "$ROOT/documents/GhostGuard_MTGuard3_Install.txt" \
+  "$ROOT/documents/GhostGuard_MTGuard3_Verify.txt" \
+  "$ROOT/documents/GhostGuard_MTGuard4_Install.txt" \
+  "$ROOT/documents/GhostGuard_MTGuard4_Verify.txt" \
+  "$ROOT/documents/GhostGuard_MTGuard5_Install.txt" \
+  "$ROOT/documents/GhostGuard_MTGuard5_Verify.txt" 2>/dev/null || true
+rm -rf "$DATA/cloud_outbox" 2>/dev/null || true
+rm -f "$DATA/cloud_target.txt" "$DATA/CLOUD_UPLOAD_STATUS.txt" \
+      "$DATA/CLOUD_UPLOAD.lock" "$ROOT/documents/dochoithuvi_drive_token.conf" \
+      2>/dev/null || true
+
 mkdir -p "$SERVICE_DIR" || fail "cannot create service directory"
 copy_file_compat "system/ghostguard-service.sh" "$SERVICE_SCRIPT" || fail "cannot install system supervisor"
 copy_file_compat "system/ghostguard-native-capture.sh" "$NATIVE_CAPTURE" || fail "cannot install native diagnostic capture"
@@ -88,7 +107,7 @@ chmod 755 "$SERVICE_SCRIPT" "$NATIVE_CAPTURE" 2>/dev/null || true
 chmod 644 "$NATIVE_SHADOW" 2>/dev/null || true
 if [ ! -f "$SERVICE_CONFIG" ]; then
     cat > "$SERVICE_CONFIG" <<'EOF'
-# DCPRO GhostGuard v0.9 persistent service policy
+# DCPRO GhostGuard v0.9.2 persistent service policy
 ENABLED=1
 AUTOSTART=1
 RESUME_AFTER_WAKE=1
@@ -145,25 +164,28 @@ sleep 2
 copy_file_compat "$LAUNCHER_TMP" "$LAUNCHER" || fail "cannot install launcher"
 rm -f "$LAUNCHER_TMP" 2>/dev/null || true
 chmod 755 "$LAUNCHER" 2>/dev/null || true
+touch "$LAUNCHER" "$LIBRARY_COVER" 2>/dev/null || true
+sync 2>/dev/null || true
+sleep 2
 touch "$LAUNCHER" 2>/dev/null || true
 sync 2>/dev/null || true
 
 find "$TARGET/bin" -type f -name '*.sh' -exec chmod 755 {} \; 2>/dev/null || true
 
-printf 'PACKAGE_ID=ghostguard\nPACKAGE_VERSION=0.9.1\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nSYSTEM_SERVICE=1\nSYSTEM_SERVICE_STARTED=%s\nUPSTART_INSTALLED=%s\nUPSTART_JOB=%s\nNATIVE_INTEGRATED=1\nNATIVE_SHADOW=1\nNATIVE_FILTER=SHADOW_ONLY\nINPUT_GRAB=OFF\nEVENT_INJECTION=OFF\nLIBRARY_LAUNCHER=%s\nLIBRARY_COVER=%s\nLIBRARY_ICON_MODE=FILE_PATH_FORCE_REINDEX\nREPORT_MODE=LOCAL_ONLY\nCLOUD_UPLOAD=DISABLED_PUBLIC_BUILD\nINSTALL_MODE=ATOMIC_REPLACE_FAIL_OPEN_SERVICE\nCOPY_MODE=PRESERVE_WITH_CONTENT_FALLBACK\nINSTALLED_UTC=%s\n' \
-    "$KO_ROOT" "$TARGET" "$SERVICE_STARTED" "$UPSTART_OK" "$UPSTART_JOB" "$LAUNCHER" "$LIBRARY_COVER" \
+printf 'PACKAGE_ID=ghostguard\nPACKAGE_VERSION=0.9.2\nRUNTIME=MTGUARD5_ADAPTIVE_V3\nKO_READER_ROOT=%s\nKO_READER_PLUGIN=%s\nLICENSE_FORMAT=4\nADAPTIVE_PROFILE=1\nADAPTIVE_AUTO_PROMOTE=1\nMT_GUARD=1\nSYSTEM_SERVICE=1\nSYSTEM_SERVICE_STARTED=%s\nUPSTART_INSTALLED=%s\nUPSTART_JOB=%s\nNATIVE_INTEGRATED=1\nNATIVE_SHADOW=1\nNATIVE_FILTER=SHADOW_ONLY\nINPUT_GRAB=OFF\nEVENT_INJECTION=OFF\nLIBRARY_LAUNCHER=%s\nLIBRARY_COVER=%s\nLIBRARY_ICON_MODE=FILE_PATH_FORCE_REINDEX\nREPORT_DIR=%s\nREPORT_MODE=LOCAL_ONLY_NON_LIBRARY\nCLOUD_UPLOAD=REMOVED\nZENUI=REMOVED\nINSTALL_MODE=ATOMIC_REPLACE_FAIL_OPEN_SERVICE\nCOPY_MODE=PRESERVE_WITH_CONTENT_FALLBACK\nINSTALLED_UTC=%s\n' \
+    "$KO_ROOT" "$TARGET" "$SERVICE_STARTED" "$UPSTART_OK" "$UPSTART_JOB" "$LAUNCHER" "$LIBRARY_COVER" "$REPORT_DIR" \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)" > "$DATA/KPM_INSTALL_OK"
 
-echo "GhostGuard v0.9.1 installed. KOReader root: $KO_ROOT"
+echo "GhostGuard v0.9.2 installed. KOReader root: $KO_ROOT"
 echo "GhostGuard plugin: $TARGET"
 echo "GhostGuard system supervisor: $SERVICE_SCRIPT"
 echo "GhostGuard Native diagnostics integrated: $NATIVE_CAPTURE"
 echo "GhostGuard Native shadow observer: $NATIVE_SHADOW (read-only, event-driven)"
 echo "GhostGuard Library icon: $LIBRARY_COVER (forced clean re-index)"
-echo "Reports: local-only in public build; no Cloud .conf file is required."
+echo "Reports: $REPORT_DIR (local-only; kept outside Kindle Library indexing)."
 if [ "$UPSTART_OK" = "1" ]; then echo "Auto-start on Kindle boot: enabled via $UPSTART_JOB"
 else echo "Auto-start on Kindle boot: Upstart install unavailable; current-boot supervisor started fail-open."; fi
 echo "KPM copy compatibility: metadata-preserving copy falls back to verified content copy on /mnt/us."
 echo "Safety: Native filter is SHADOW_ONLY; input grab/injection are OFF; actual blocking remains in the tested KOReader bridge."
-echo "Restart KOReader once after upgrading to v0.9.1."
+echo "Restart KOReader once after upgrading to v0.9.2."
 exit 0

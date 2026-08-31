@@ -1,31 +1,47 @@
-# DCPRO GhostGuard v0.6.1 RC — License Sync first-launch fix
+# DCPRO GhostGuard 0.9.2 — Public Kindle Build
 
-This RC is based on the v0.5.1 HF3/ExitTrace runtime and adds signed online license registry support. v0.6.1 keeps a first-launch request pending until signed online authorization completes, so one-click installs do not require a second tap.
-It does **not** claim the later Adaptive/TouchMap runtime is merged yet.
+GhostGuard 0.9.2 is the public promotion of the field-tested MTGuard5 runtime.
 
-License v4.1:
-- RSA local `license.key` remains supported.
-- Signed `licenses.json` + `licenses.sig` may activate/renew/revoke by hashed Kindle serial.
-- Raw serials and customer names are not published in the registry.
-- Network sync happens outside the raw touch event hot path.
-- STOP and SAFE_MODE remain available on any license failure.
+## Included
 
-# DCPRO GhostGuard — public v4 integration preview
+- KOReader GhostGuard plugin
+- MT Guard malformed-new-contact compatibility layer
+- Adaptive Learning V3 with atomic automatic profile promotion
+- SimpleUI integration
+- persistent fail-open service and passive native shadow observer
+- approved 600x960 Library cover (stored as base64 source and decoded at build time)
+- KPM install/uninstall scripts
 
-KPM package ID: `ghostguard`
+## Removed in 0.9.2
 
-Install target after repository publication: `;kpm install ghostguard`
+- Cloud upload runtime/outbox
+- ZenUI integration
+- Library-indexed continuous-learning report files
 
-## Security model
-- Per-device `license.key`.
-- RSA-3072 / SHA-256 / PKCS#1 v1.5 signature.
-- `.kpkg` and public repository contain only the RSA public key.
-- Private issuer key is offline-only and is excluded by `.gitignore`.
-- v3 licenses are intentionally incompatible and must be re-issued.
-- No private Cloud token is bundled in this public payload.
+Reports now live under:
 
-## Runtime behavior
-The plugin can load its diagnostics/status UI without a valid license, but operational Learning/Observe/Protect START requires a valid v4 key. Runtime license invalidation remains fail-open: protection is disabled/stopped rather than trapping touch input. STOP and SAFE_MODE are not license-gated.
+```text
+/mnt/us/GhostGuard_Reports/
+```
 
-## Source note
-This preview patches the available Kindle v0.5.1 HF3 runtime. Merge `license_crypto.lua`, `license_manager.lua`, `keys/`, and the KPM/public-security changes into the latest Adaptive/TouchMap v0.5.x source before declaring the final official release.
+## Safety boundary
+
+Native system-wide blocking is **not** enabled in this package.
+
+```text
+NATIVE_FILTER=SHADOW_ONLY
+INPUT_GRAB=OFF
+EVENT_INJECTION=OFF
+FAIL_OPEN=YES
+```
+
+Actual touch suppression remains in the tested KOReader protection path.
+
+## Version
+
+```text
+0.9.2
+mtguard5-adaptive-v3-stable
+```
+
+See `RELEASE_NOTES_0.9.2.md` for field-qualification notes.

@@ -1,10 +1,9 @@
--- OneClick v12.1 compatibility anchors. These are comments only; v0.8 is the
--- active runtime. Keep until the legacy OneClick bootstrap is retired:
+-- Legacy OneClick compatibility anchors. Comments only; 0.9.2 is the active runtime:
 -- version = "0.6.17"
 -- runtime_revision = "calibration-flow-v2"
 return {
-    version = "0.9.0",
-    runtime_revision = "continuous-learning-shadow-v1",
+    version = "0.9.2",
+    runtime_revision = "mtguard5-adaptive-v3-stable",
     default_mode = "OBSERVE_ONLY",
     calibration_mode = "CALIBRATION",
     protect_mode = "PROTECT_PROFILE",
@@ -12,15 +11,6 @@ return {
     data_dir = "/mnt/us/.dcpro_ghostguard",
     report_dir = "/mnt/us/.dcpro_ghostguard/reports",
     profile_dir = "/mnt/us/.dcpro_ghostguard/profiles",
-    cloud_outbox_dir = "/mnt/us/.dcpro_ghostguard/cloud_outbox",
-    cloud_target_file = "/mnt/us/.dcpro_ghostguard/cloud_target.txt",
-    cloud_status_file = "/mnt/us/.dcpro_ghostguard/CLOUD_UPLOAD_STATUS.txt",
-    cloud_lock_dir = "/mnt/us/.dcpro_ghostguard/CLOUD_UPLOAD.lock",
-    cloud_endpoint = "https://script.google.com/macros/s/AKfycbw2Ex8MShC1eHmv3_rN1HN3P-Wkhd3G2Y6R5BTsxc5jGTf-ysifCDAOas5gbknajHYgKQ/exec",
-    cloud_token_file = "/mnt/us/documents/dochoithuvi_drive_token.conf",
-    cloud_max_bytes = 8388608,
-    cloud_compress_threshold = 2000000,
-    cloud_upload_enabled = false,
 
     exit_reason_detail_file = "/mnt/us/.dcpro_ghostguard/EXIT_REASON_DETAIL.txt",
     koreader_traceback_file = "/mnt/us/.dcpro_ghostguard/KOReader_EXIT_TRACEBACK.txt",
@@ -63,9 +53,6 @@ return {
     system_service_pause_during_sleep_default = true,
     system_service_controller_change_fail_open = true,
     system_service_resume_retry_delays = { 2, 4, 8, 12 },
-
-    drive_root_folder_id = "1h26N0Gtb1PgV2SYCkzU_ue2iwFrtwnah",
-    drive_root_folder_url = "https://drive.google.com/drive/folders/1h26N0Gtb1PgV2SYCkzU_ue2iwFrtwnah",
 
     customer_autolearn_default = true,
     customer_ready_notice_after_seconds = 180,
@@ -147,5 +134,16 @@ return {
     -- Native shadow coordinates are raw evdev coordinates. Keep them as
     -- diagnostics until controller-axis normalization is proven on-device.
     adaptive_import_native_shadow = false,
+
+    -- Local Adaptive v3: external diagnostics + strict fast promotion for
+    -- repeated malformed ghost contacts. Existing normal promotion remains.
+    adaptive_external_status_path = "/mnt/us/GhostGuard_Reports/ContinuousLearning_Status.txt",
+    adaptive_external_changes_path = "/mnt/us/GhostGuard_Reports/ContinuousLearning_Changes.log",
+    adaptive_external_profile_snapshot_path = "/mnt/us/GhostGuard_Reports/ActiveProfile_AutoLearned.txt",
+    adaptive_external_report_seconds = 10,
+    adaptive_fast_promotion_enabled = true,
+    adaptive_fast_promotion_min_cluster = 3,
+    adaptive_fast_promotion_min_confidence = 0.80,
+    adaptive_fast_promotion_min_base_score = 9,
     native_shadow_enabled = true,
 }
