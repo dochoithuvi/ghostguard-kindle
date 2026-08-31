@@ -59,11 +59,12 @@ jobs:
           echo "artifact_sha=$first" >> "$GITHUB_OUTPUT"
           echo "Golden artifact SHA-256: $first"
 
-      - name: Validate packaged runtime, installer and approved icon
+      - name: Validate packaged runtime, installer and exact MTGuard5 artwork
         run: |
           set -eu
+          S='packages/ghostguard/source'
           SRC='packages/ghostguard/artifacts/ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg'
-          COVER_WANT='0cbfa7a143a52eb6c23cf75afa4b1d3395cbbeed8f0a83bbb315ccc3b9edad8e'
+          ART="$S/assets/ghostguard_library_600x960.jpg"
           rm -rf /tmp/mtguard5 && mkdir -p /tmp/mtguard5
           tar -xzf "$SRC" -C /tmp/mtguard5
 
@@ -73,11 +74,27 @@ jobs:
           test ! -e /tmp/mtguard5/payload/dcghostguardpro.koplugin/zenui_bridge.lua
           sh -n /tmp/mtguard5/install.sh
 
+          test -s "$ART"
           test -s /tmp/mtguard5/assets/ghostguard_library_600x960.jpg
           test -s /tmp/mtguard5/payload/dcghostguardpro.koplugin/assets/ghostguard_library_600x960.jpg
-          test "$(sha256sum /tmp/mtguard5/assets/ghostguard_library_600x960.jpg | awk '{print $1}')" = "$COVER_WANT"
-          test "$(sha256sum /tmp/mtguard5/payload/dcghostguardpro.koplugin/assets/ghostguard_library_600x960.jpg | awk '{print $1}')" = "$COVER_WANT"
-          cmp /tmp/mtguard5/assets/ghostguard_library_600x960.jpg /tmp/mtguard5/payload/dcghostguardpro.koplugin/assets/ghostguard_library_600x960.jpg
+          cmp "$ART" /tmp/mtguard5/assets/ghostguard_library_600x960.jpg
+          cmp "$ART" /tmp/mtguard5/payload/dcghostguardpro.koplugin/assets/ghostguard_library_600x960.jpg
+          art_sha="$(sha256sum "$ART" | awk '{print $1}')"
+          echo "MTGuard5 artwork SHA-256: $art_sha"
+
+          LAUNCHER=/tmp/mtguard5/scriptlets/DCPRO_GhostGuard.sh
+          head -n 6 "$LAUNCHER" | grep -q '^# Name: DCPRO GhostGuard$'
+          head -n 6 "$LAUNCHER" | grep -q '^# Icon: data:image/png;base64,iVBORw0KGgo'
+          python3 - "$LAUNCHER" <<'PY'
+          import base64, pathlib, re, sys
+          text = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8')
+          m = re.search(r'^# Icon: data:image/png;base64,([^\r\n]+)$', text, re.M)
+          assert m, 'embedded icon header missing'
+          raw = base64.b64decode(m.group(1), validate=True)
+          assert raw.startswith(b'\x89PNG\r\n\x1a\n'), 'embedded icon is not PNG'
+          assert len(raw) >= 1024, 'embedded icon unexpectedly small'
+          print('MTGuard5 embedded icon OK', len(raw))
+          PY
 
       - name: Publish golden name and pin OneClick
         run: |
