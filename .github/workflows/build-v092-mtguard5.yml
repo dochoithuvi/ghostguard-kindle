@@ -2,7 +2,6 @@ name: Validate GhostGuard 0.9.2 MTGuard5
 on:
   push:
     branches: [v0.9.2-mtguard5-final]
-  pull_request:
   workflow_dispatch:
 
 permissions:
