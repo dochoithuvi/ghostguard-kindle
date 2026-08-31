@@ -1,5 +1,4 @@
--- OneClick v12.1 compatibility anchors. These are comments only; v0.8 is the
--- active runtime. Keep until the legacy OneClick bootstrap is retired:
+-- Legacy OneClick compatibility anchors. Comments only; 0.9.2 is the active runtime:
 -- version = "0.6.17"
 -- runtime_revision = "calibration-flow-v2"
 return {
@@ -100,6 +99,9 @@ return {
     calibration_max_clusters = 8,
     calibration_profile_padding_x = 36,
     calibration_profile_padding_y = 56,
+    -- A healthy device may produce very few ghost candidates. Learning can
+    -- therefore complete as a conservative BASELINE after both enough normal
+    -- completed touches and enough cumulative learning time across sessions.
     calibration_min_total_contacts = 40,
     calibration_min_learning_seconds = 180,
     calibration_checkpoint_contacts = 5,
@@ -118,6 +120,8 @@ return {
     adaptive_candidate_min_suspects = 8,
     adaptive_candidate_min_cluster = 3,
     adaptive_learning_during_protect = true,
+    -- v0.9 continuous learning is event-driven. Normal touches do only a few
+    -- arithmetic checks; flash is checkpointed only after strong anomalies.
     adaptive_min_base_score = 7,
     adaptive_cluster_radius_px = 96,
     adaptive_checkpoint_samples = 8,
@@ -127,8 +131,12 @@ return {
     adaptive_promotion_min_age_seconds = 30,
     adaptive_max_clusters = 32,
     adaptive_max_candidate_clusters = 32,
+    -- Native shadow coordinates are raw evdev coordinates. Keep them as
+    -- diagnostics until controller-axis normalization is proven on-device.
     adaptive_import_native_shadow = false,
 
+    -- Local Adaptive v3: external diagnostics + strict fast promotion for
+    -- repeated malformed ghost contacts. Existing normal promotion remains.
     adaptive_external_status_path = "/mnt/us/GhostGuard_Reports/ContinuousLearning_Status.txt",
     adaptive_external_changes_path = "/mnt/us/GhostGuard_Reports/ContinuousLearning_Changes.log",
     adaptive_external_profile_snapshot_path = "/mnt/us/GhostGuard_Reports/ActiveProfile_AutoLearned.txt",

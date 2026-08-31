@@ -10,7 +10,6 @@ local ACTION_IDS = {
     "dcpro_ghostguard_smart",
     "dcpro_ghostguard_status",
     "dcpro_ghostguard_stop",
-    "dcpro_ghostguard_cloud",
 }
 
 local TOOLS_LABEL = "Tools"
@@ -132,7 +131,7 @@ function SimpleUIBridge:installProfileReadyApprovalPopup()
     if self.profile_ready_popup_installed then return true end
     local owner = self.owner
     local guard = owner and owner.guard
-    if not guard or type(owner.completeCustomerSetupAndProtect) ~= "function" then
+    if not guard or type(owner.activateReadyProfileAndProtect) ~= "function" then
         return false, "GhostGuard owner is not ready for profile approval popup"
     end
 
@@ -150,17 +149,17 @@ function SimpleUIBridge:installProfileReadyApprovalPopup()
                 ok_text = _("Kích hoạt"),
                 flush_events_on_show = true,
                 cancel_callback = function()
-                    logger.info("DCPRO GhostGuard customer deferred ready profile approval")
+                    logger.info("DCPRO GhostGuard profile activation deferred")
                 end,
                 ok_callback = function()
-                    owner:completeCustomerSetupAndProtect("customer-profile-ready-popup")
+                    owner:activateReadyProfileAndProtect("profile-ready-popup")
                 end,
             })
         end)
     end
 
     self.profile_ready_popup_installed = true
-    logger.info("DCPRO GhostGuard installed customer profile-ready approval popup")
+    logger.info("DCPRO GhostGuard installed profile-ready activation popup")
     return true
 end
 
@@ -334,16 +333,6 @@ function SimpleUIBridge:register()
         execute = function(_ctx) owner:stopAndShow("simpleui-stop") end,
     }
     if not ok then self.last_error = reg_err; return false, reg_err end
-    ok, reg_err = add{
-        id = ACTION_IDS[4],
-        label = "GhostGuard: Gửi Cloud",
-        icon = icon,
-        is_in_place = true,
-        is_async_in_place = true,
-        execute = function(_ctx) owner:cloudUploadFlow("simpleui-cloud") end,
-    }
-    if not ok then self.last_error = reg_err; return false, reg_err end
-
     self.qa = qa
     self.registered = true
     local tab_ok, tab_detail = self:ensureToolsTab()
@@ -384,11 +373,10 @@ function SimpleUIBridge:unregister()
 end
 
 function SimpleUIBridge:statusText()
-    local qa_text = self.registered and "4 QUICK ACTIONS" or "QUICK ACTIONS CHƯA KẾT NỐI"
+    local qa_text = self.registered and "3 QUICK ACTIONS" or "QUICK ACTIONS CHƯA KẾT NỐI"
     local tab_text = self.tools_tab_ready and "TAB TOOLS ĐÃ GẮN CẠNH HOME"
         or ("TAB TOOLS CHƯA SẴN SÀNG" .. (self.tools_tab_detail and (" — " .. self.tools_tab_detail) or ""))
-    local popup_text = self.profile_ready_popup_installed and " + PROFILE POPUP ĐÃ BẬT" or ""
-    return qa_text .. " + " .. tab_text .. popup_text
+    return qa_text .. " + " .. tab_text
 end
 
 return SimpleUIBridge

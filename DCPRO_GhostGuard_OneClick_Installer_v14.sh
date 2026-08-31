@@ -10,7 +10,7 @@ LOG="${DCPRO_ONECLICK_LOG:-$REPORT_DIR/OneClick_v14.log}"
 V13_PRIMARY="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/DCPRO_GhostGuard_OneClick_Installer_v13.sh"
 V13_MIRROR="https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/DCPRO_GhostGuard_OneClick_Installer_v13.sh"
 GG_NAME="ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg"
-GG_SHA256="bb72ee627d2680e773254cbe34da96e193bee296d2d0ac654336bae27c8fcd41"
+GG_SHA256="b5112ba60f745032d60fcfc443709e374f61c587d3dc5215a17d14aaf81d1eeb"
 GG_PRIMARY="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/$GG_NAME"
 GG_MIRROR="https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/artifacts/$GG_NAME"
 mkdir -p "$TMP" "$REPORT_DIR" 2>/dev/null || exit 1

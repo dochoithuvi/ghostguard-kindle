@@ -26,6 +26,11 @@ SERVICE_CONFIG="$SERVICE_DIR/config.env"
 UPSTART_JOB="/etc/upstart/dcpro-ghostguard.conf"
 
 fail() { echo "GhostGuard install: $1" >&2; rm -rf "$STAGING" 2>/dev/null || true; exit 1; }
+
+# Some Kindle /mnt/us filesystems reject metadata-preserving cp -p even when a
+# normal content copy is valid. KPM install must not fail merely because the
+# filesystem cannot preserve timestamps/ownership. Always verify content after
+# the fallback copy.
 copy_file_compat() {
     src="$1"; dst="$2"
     if cp -p "$src" "$dst" 2>/dev/null; then :
@@ -35,6 +40,7 @@ copy_file_compat() {
     fi
     cmp "$src" "$dst" >/dev/null 2>&1
 }
+
 copy_tree_compat() {
     src="$1"; dst="$2"
     rm -rf "$dst" 2>/dev/null || true
@@ -75,6 +81,9 @@ fi
 }
 rm -rf "$BACKUP"
 
+# 0.9.2 local-first cleanup. Reports are deliberately outside /documents so
+# Kindle Library does not index them as books. Remove obsolete public Cloud /
+# ZenUI leftovers without touching learned profiles or online-license cache.
 rm -f \
   "$ROOT/documents/GhostGuard_ContinuousLearning_Status.txt" \
   "$ROOT/documents/GhostGuard_ContinuousLearning_Changes.log" \
@@ -132,6 +141,7 @@ if [ "$UPSTART_OK" = "1" ] && command -v initctl >/dev/null 2>&1; then
 fi
 if [ "$SERVICE_STARTED" = "0" ]; then /bin/sh "$SERVICE_SCRIPT" >/dev/null 2>&1 & SERVICE_STARTED=1; fi
 
+# v0.8.1 Library icon fix retained in v0.9.x.
 [ -f "assets/ghostguard_library_600x960.jpg" ] || fail "library cover missing from package"
 mkdir -p "$ASSET_DIR" || fail "cannot create library cover directory"
 copy_file_compat "assets/ghostguard_library_600x960.jpg" "$LIBRARY_COVER" || fail "cannot install library cover"
@@ -146,6 +156,7 @@ awk -v icon="$LIBRARY_COVER" '
 ' "scriptlets/DCPRO_GhostGuard.sh" > "$LAUNCHER_TMP" || fail "cannot stage launcher"
 grep -Fq "# Icon: $LIBRARY_COVER" "$LAUNCHER_TMP" || fail "file-backed icon header missing"
 chmod 755 "$LAUNCHER_TMP" 2>/dev/null || true
+
 rm -f "$LAUNCHER" 2>/dev/null || true
 rm -rf "$LAUNCHER_SDR" 2>/dev/null || true
 sync 2>/dev/null || true

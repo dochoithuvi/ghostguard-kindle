@@ -53,7 +53,7 @@ local function parse_marker_value(content, key)
     return content:match("\n?" .. key .. "=([^\r\n]+)")
 end
 
-function GhostGuard:new(config, Storage, TouchObserver, ProfileManager, LicenseManager, CloudManager, plugin_dir)
+function GhostGuard:new(config, Storage, TouchObserver, ProfileManager, LicenseManager, plugin_dir)
     local existing_bridge = Device and Device.input and Device.input._dcpro_ghostguard_bridge
     local existing_owner = existing_bridge and existing_bridge.owner
     if existing_owner then
@@ -75,12 +75,6 @@ function GhostGuard:new(config, Storage, TouchObserver, ProfileManager, LicenseM
         screen_height = height,
     })
     local license = LicenseManager:new(config, storage, plugin_dir, device_id)
-    local cloud = CloudManager:new(config, storage, plugin_dir)
-    if stale and stale_report and type(storage.prepareStaleOutbox) == "function" then
-        pcall(storage.prepareStaleOutbox, storage, stale_report, {
-            device_id = device_id, model = model,
-        })
-    end
 
     return setmetatable({
         config = config,
@@ -88,7 +82,6 @@ function GhostGuard:new(config, Storage, TouchObserver, ProfileManager, LicenseM
         TouchObserver = TouchObserver,
         profiles = profiles,
         license = license,
-        cloud = cloud,
         plugin_dir = plugin_dir,
         running = false,
         observer_enabled = false,
@@ -112,11 +105,10 @@ function GhostGuard:new(config, Storage, TouchObserver, ProfileManager, LicenseM
         pending_frame_decision = nil,
         quarantine_until_us = 0,
         block_timestamps = {},
-        protect_stats = { blocked_frames = 0, quarantines = 0, circuit_breakers = 0 },
+        protect_stats = { blocked_frames = 0, quarantines = 0, circuit_breakers = 0, mt_guard_deferred = 0, mt_guard_errors = 0 },
         session_started_wall = nil,
         last_safe_check_wall = nil,
         last_license_check_wall = nil,
-        last_outbox = nil,
         last_profile_result = nil,
         profile_ready_notified = false,
         on_profile_ready = nil,
@@ -180,9 +172,6 @@ function GhostGuard:setProbationRemaining(value)
     end
     return self.storage:writeAtomic(self.config.probation_marker, tostring(value) .. "\n")
 end
-function GhostGuard:cloudStatusText() return self.cloud:statusText() end
-function GhostGuard:startCloudUpload() return self.cloud:start() end
-
 function GhostGuard:exitState()
     return {
         running = self.running == true and "YES" or "NO",
@@ -205,6 +194,80 @@ function GhostGuard:recordExitReason(reason, detail, traceback_text)
     return self.storage:writeAtomic(self.config.exit_reason_detail_file, fallback)
 end
 
+-- LOCAL TEST ONLY: Kindle malformed MT compatibility guard.
+--
+-- KOReader v2026.07.1 GestureDetector:feedEvent() creates a Contact for every
+-- slot it receives, before Contact.initialState() gets a chance to validate
+-- whether a new contact actually has tracking-id + X + Y. On this Goodix panel,
+-- ghost bursts may expose a new slot with only one axis. If a buddy contact is
+-- then created, KOReader can snapshot that half-contact as initial_tev and later
+-- crash in two-finger gesture math.
+--
+-- This guard does NOT replace handleTouchEv(), feedEvent(), or GestureDetector
+-- state. At SYN_REPORT only, before Input:handleTouchEv() consumes MTSlots, it
+-- temporarily removes NEW slots that are not yet a complete contact-down.
+-- Input.ev_slots remains untouched/persistent, so if the missing axis arrives
+-- in a later frame, the complete slot is admitted normally.
+function GhostGuard:guardMalformedMtFrame(input, event)
+    if not self.running or not self.protect_enabled then return 0 end
+    if tonumber(event.type) ~= EV_SYN or tonumber(event.code) ~= SYN_REPORT then return 0 end
+    if not input or type(input.MTSlots) ~= "table" then return 0 end
+
+    local detector = input.gesture_detector
+    if not detector or type(detector.getContact) ~= "function" then return 0 end
+
+    local deferred = 0
+    for i = #input.MTSlots, 1, -1 do
+        local tev = input.MTSlots[i]
+        local slot = tev and tonumber(tev.slot) or nil
+        local contact = slot ~= nil and detector:getContact(slot) or nil
+
+        -- Never interfere with an already-established GestureDetector contact.
+        -- Once admitted, KOReader owns its full lifecycle.
+        if not contact then
+            local id = tev and tonumber(tev.id) or nil
+            local x = tev and tev.x or nil
+            local y = tev and tev.y or nil
+
+            -- The only safe NEW contact is a real down with a non-negative
+            -- tracking id and both coordinates available.
+            local complete_new_down = id ~= nil and id >= 0 and x ~= nil and y ~= nil
+            if not complete_new_down then
+                local reason
+                if id == nil then
+                    reason = "NEW_NO_TRACKING_ID"
+                elseif id < 0 then
+                    reason = "ORPHAN_LIFT_NO_CONTACT"
+                elseif x == nil and y == nil then
+                    reason = "NEW_MISSING_XY"
+                elseif x == nil then
+                    reason = "NEW_MISSING_X"
+                else
+                    reason = "NEW_MISSING_Y"
+                end
+
+                table.remove(input.MTSlots, i)
+                deferred = deferred + 1
+                self.protect_stats.mt_guard_deferred =
+                    (self.protect_stats.mt_guard_deferred or 0) + 1
+
+                if self.session then
+                    pcall(self.session.writeAction, self.session, {
+                        timestamp_us = os.time() * 1000000,
+                        frame = -1,
+                        slot = slot or -1,
+                        tracking_id = id or -1,
+                        score = 0,
+                        x = x,
+                        y = y,
+                    }, "MT_GUARD_DEFER_NEW_SLOT", reason)
+                end
+            end
+        end
+    end
+    return deferred
+end
+
 function GhostGuard:ensureInputBridge()
     local input = Device.input
     if not input then return false, "Device.input unavailable" end
@@ -225,6 +288,29 @@ function GhostGuard:ensureInputBridge()
             local active_bridge = this._dcpro_ghostguard_bridge
             local owner = active_bridge and active_bridge.owner
             if owner then
+                -- Local MT guard runs before GhostGuard observation on SYN_REPORT.
+                -- It only edits this frame's MTSlots reference list; raw events
+                -- and persistent Input.ev_slots are untouched.
+                local guard_ok, guard_err = xpcall(function()
+                    owner:guardMalformedMtFrame(this, event)
+                end, debug.traceback)
+                if not guard_ok then
+                    owner.protect_stats.mt_guard_errors =
+                        (owner.protect_stats.mt_guard_errors or 0) + 1
+                    owner.last_mt_guard_error = tostring(guard_err)
+                    if owner.session then
+                        pcall(owner.session.writeAction, owner.session, {
+                            timestamp_us = os.time() * 1000000,
+                            frame = -1,
+                            slot = -1,
+                            tracking_id = -1,
+                            score = 0,
+                        }, "MT_GUARD_FAIL_OPEN", owner.last_mt_guard_error)
+                    end
+                    -- Deliberately do NOT disable Protect here. A guard failure
+                    -- simply falls through to stock KOReader behavior.
+                end
+
                 local ok, err = xpcall(function() owner:onRawEvent(event) end, debug.traceback)
                 if not ok and type(owner.recordRuntimeFault) == "function" then
                     pcall(owner.recordRuntimeFault, owner, "RAW_EVENT_HOOK", err)
@@ -535,7 +621,7 @@ function GhostGuard:start(mode, reason)
     self.pending_frame_decision = nil
     self.quarantine_until_us = 0
     self.block_timestamps = {}
-    self.protect_stats = { blocked_frames = 0, quarantines = 0, circuit_breakers = 0 }
+    self.protect_stats = { blocked_frames = 0, quarantines = 0, circuit_breakers = 0, mt_guard_deferred = 0, mt_guard_errors = 0 }
     self.session_started_wall = os.time()
     self.last_safe_check_wall = nil
     self.last_license_check_wall = os.time()
@@ -611,20 +697,12 @@ function GhostGuard:stop(reason)
             probation_remaining = self:probationRemaining(),
             protect_candidates = stats.protect_candidates or 0,
             blocked_frames = self.protect_stats.blocked_frames or 0,
+            mt_guard_deferred = self.protect_stats.mt_guard_deferred or 0,
+            mt_guard_errors = self.protect_stats.mt_guard_errors or 0,
             quarantines = self.protect_stats.quarantines or 0,
             circuit_breakers = self.protect_stats.circuit_breakers or 0,
             last_error = self.last_error or "NONE",
         })
-        if self.config.cloud_upload_enabled ~= false then
-            local active_profile = self.profiles:hasApproved() and self.profiles.approved_path
-                or (self.profiles.pending and self.profiles.pending_path or nil)
-            local out_ok, out_result = self.storage:prepareCloudOutbox(session, {
-                device_id = self.device_id,
-                model = self.model,
-                profile_path = active_profile,
-            })
-            if out_ok then self.last_outbox = out_result end
-        end
     end
 
     self.storage:removeExact(self.config.run_marker)
@@ -725,14 +803,10 @@ function GhostGuard:statusText()
         "Profile đã duyệt: " .. (self.profiles:hasApproved() and "CÓ" or "KHÔNG"),
         "Tự bảo vệ: " .. (self:isAutoProtectEnabled() and "BẬT" or "TẮT"),
         "License: " .. self:licenseStatusText(),
-        "Thiết lập khách hàng: " .. self:customerProgressText(),
-        "Bảo vệ thử còn lại: " .. tostring(self:probationRemaining()) .. " phiên",
         "Safe Mode: " .. (safe and ("BẬT — " .. tostring(safe_path)) or "TẮT"),
         "Đã chặn: " .. tostring(self.protect_stats.blocked_frames or 0) .. " | Cách ly: " .. tostring(self.protect_stats.quarantines or 0),
-        "Báo cáo local: " .. self.config.report_dir,
-        "Cloud upload: TẮT trong bản public",
+        "Báo cáo: /mnt/us/GhostGuard_Reports",
     }
-    if self.last_outbox then lines[#lines + 1] = "Gói chờ upload: " .. self.last_outbox end
     if self.stale_report then lines[#lines + 1] = "Stale report: " .. self.stale_report end
     if self.last_error then lines[#lines + 1] = "Cảnh báo: " .. self.last_error end
     if self.observer then

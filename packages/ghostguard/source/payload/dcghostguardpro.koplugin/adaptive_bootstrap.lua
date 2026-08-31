@@ -66,6 +66,19 @@ local function center(minv, maxv)
     return (minv + maxv) / 2
 end
 
+local function ratio(n, d)
+    return (tonumber(n) or 0) / math.max(1, tonumber(d) or 0)
+end
+
+local function append_line(path, text)
+    local f = io.open(path, "ab")
+    if not f then return false end
+    f:write(tostring(text or ""), "\n")
+    f:flush()
+    f:close()
+    return true
+end
+
 function Adaptive:new(guard, config)
     local base = config.data_dir or "/mnt/us/.dcpro_ghostguard"
     local o = setmetatable({
@@ -88,6 +101,15 @@ function Adaptive:new(guard, config)
         observer_patched = nil,
         active = false,
         last_error = nil,
+        external_status_path = config.adaptive_external_status_path
+            or "/mnt/us/GhostGuard_Reports/ContinuousLearning_Status.txt",
+        external_changes_path = config.adaptive_external_changes_path
+            or "/mnt/us/GhostGuard_Reports/ContinuousLearning_Changes.log",
+        external_profile_snapshot_path = config.adaptive_external_profile_snapshot_path
+            or "/mnt/us/GhostGuard_Reports/ActiveProfile_AutoLearned.txt",
+        last_external_report_wall = 0,
+        last_promotion_utc = "NONE",
+        last_promotion_detail = "NONE",
     }, Adaptive)
     o:load()
     return o
@@ -116,6 +138,8 @@ function Adaptive:serialize()
         "PROMOTIONS=" .. tostring(self.promotions),
         "NATIVE_IMPORTED=" .. tostring(self.native_imported),
         "SESSION_SEQ=" .. tostring(self.session_seq),
+        "LAST_PROMOTION_UTC=" .. tostring(self.last_promotion_utc or "NONE"),
+        "LAST_PROMOTION_DETAIL=" .. tostring(self.last_promotion_detail or "NONE"),
         "UPDATED_UTC=" .. os.date("!%Y-%m-%dT%H:%M:%SZ"),
         "CLUSTER_COUNT=" .. tostring(#self.clusters),
     }
@@ -146,6 +170,8 @@ function Adaptive:load()
         elseif key == "PROMOTIONS" then self.promotions = tonumber(value) or 0
         elseif key == "NATIVE_IMPORTED" then self.native_imported = tonumber(value) or 0
         elseif key == "SESSION_SEQ" then self.session_seq = tonumber(value) or 0
+        elseif key == "LAST_PROMOTION_UTC" then self.last_promotion_utc = value
+        elseif key == "LAST_PROMOTION_DETAIL" then self.last_promotion_detail = value
         elseif line:match("^CLUSTER|") then
             local p = split_pipe(line)
             self.clusters[#self.clusters + 1] = {
@@ -168,6 +194,101 @@ function Adaptive:load()
             }
         end
     end
+end
+
+function Adaptive:appendChange(kind, detail)
+    return append_line(self.external_changes_path, table.concat({
+        os.date("!%Y-%m-%dT%H:%M:%SZ"), tostring(kind or "EVENT"), tostring(detail or "")
+    }, " | "))
+end
+
+function Adaptive:approvedClusterCount()
+    local approved = self.guard.profiles and self.guard.profiles.approved
+    return approved and #(approved.clusters or {}) or 0
+end
+
+function Adaptive:fastTrackEligible(cluster)
+    if self.config.adaptive_fast_promotion_enabled == false then return false end
+    local count = tonumber(cluster.count) or 0
+    local min_count = tonumber(self.config.adaptive_fast_promotion_min_cluster) or 3
+    if count < min_count then return false end
+    local conf = tonumber(cluster.confidence) or self:confidence(cluster)
+    if conf < (tonumber(self.config.adaptive_fast_promotion_min_confidence) or 0.80) then return false end
+    local avg_score = (tonumber(cluster.base_score_sum) or 0) / math.max(1, count)
+    if avg_score < (tonumber(self.config.adaptive_fast_promotion_min_base_score) or 9) then return false end
+
+    -- Fast path is for malformed electrical/lifecycle signatures only.
+    -- Coordinate repetition by itself can never trigger it.
+    local missing = (tonumber(cluster.missing_x) or 0) + (tonumber(cluster.missing_y) or 0)
+    return (tonumber(cluster.source_koreader) or 0) >= min_count
+        and ratio(cluster.incomplete, count) >= 0.67
+        and ratio(cluster.short, count) >= 0.67
+        and ratio(missing, count) >= 0.67
+end
+
+function Adaptive:writeProfileSnapshot()
+    local profiles = self.guard.profiles
+    local approved = profiles and profiles.approved
+    if not approved or type(profiles.serialize) ~= "function" then return false end
+    local header = table.concat({
+        "DCPRO_GHOSTGUARD_ACTIVE_PROFILE_SNAPSHOT",
+        "UPDATED_UTC=" .. os.date("!%Y-%m-%dT%H:%M:%SZ"),
+        "SOURCE=APPROVED_PROFILE_PLUS_CONTINUOUS_LEARNING",
+        "AUTO_PROMOTED_REGIONS=" .. tostring(self.promotions),
+        "LAST_PROMOTION_UTC=" .. tostring(self.last_promotion_utc or "NONE"),
+        "LAST_PROMOTION_DETAIL=" .. tostring(self.last_promotion_detail or "NONE"),
+        "",
+    }, "\n")
+    local ok, payload = pcall(profiles.serialize, profiles, approved, "APPROVED")
+    if not ok then return false end
+    return write(self.storage, self.external_profile_snapshot_path, header .. tostring(payload or ""))
+end
+
+function Adaptive:writeExternalStatus(force)
+    local now = os.time()
+    local interval = math.max(5, tonumber(self.config.adaptive_external_report_seconds) or 10)
+    if not force and now - (tonumber(self.last_external_report_wall) or 0) < interval then return true end
+
+    local lines = {
+        "DCPRO_GHOSTGUARD_CONTINUOUS_LEARNING_V3",
+        "UPDATED_UTC=" .. os.date("!%Y-%m-%dT%H:%M:%SZ"),
+        "ACTIVE=" .. (self.active and "YES" or "NO"),
+        "AUTO_PROFILE_UPDATE=ON",
+        "FAST_TRACK=" .. (self.config.adaptive_fast_promotion_enabled == false and "OFF" or "ON"),
+        "TOTAL_STRONG_SAMPLES=" .. tostring(self.total_samples),
+        "TOTAL_REJECTED=" .. tostring(self.total_rejected),
+        "WATCHED_NEW_REGIONS=" .. tostring(#self.clusters),
+        "PROMOTED_REGIONS=" .. tostring(self.promotions),
+        "APPROVED_PROFILE_REGIONS=" .. tostring(self:approvedClusterCount()),
+        "LAST_PROMOTION_UTC=" .. tostring(self.last_promotion_utc or "NONE"),
+        "LAST_PROMOTION_DETAIL=" .. tostring(self.last_promotion_detail or "NONE"),
+        "STATUS_FILE=" .. tostring(self.external_status_path),
+        "CHANGES_FILE=" .. tostring(self.external_changes_path),
+        "PROFILE_SNAPSHOT_FILE=" .. tostring(self.external_profile_snapshot_path),
+        "",
+        "[CANDIDATE_REGIONS]",
+    }
+    if #self.clusters == 0 then
+        lines[#lines + 1] = "NONE"
+    else
+        for i, c in ipairs(self.clusters) do
+            c.confidence = self:confidence(c)
+            local count = tonumber(c.count) or 0
+            local avg_score = (tonumber(c.base_score_sum) or 0) / math.max(1, count)
+            lines[#lines + 1] = string.format(
+                "REGION_%d count=%d conf=%.3f avg_score=%.2f x=%s..%s y=%s..%s missing_x=%d missing_y=%d incomplete=%d short=%d sessions=%d fast_ready=%s",
+                i, count, tonumber(c.confidence) or 0, avg_score,
+                tostring(c.x_min or ""), tostring(c.x_max or ""),
+                tostring(c.y_min or ""), tostring(c.y_max or ""),
+                tonumber(c.missing_x) or 0, tonumber(c.missing_y) or 0,
+                tonumber(c.incomplete) or 0, tonumber(c.short) or 0,
+                tonumber(c.session_hits) or 0, self:fastTrackEligible(c) and "YES" or "NO")
+        end
+    end
+    if self.last_error then lines[#lines + 1] = "LAST_ERROR=" .. tostring(self.last_error) end
+    local ok = write(self.storage, self.external_status_path, table.concat(lines, "\n") .. "\n")
+    if ok then self.last_external_report_wall = now end
+    return ok
 end
 
 function Adaptive:save(force)
@@ -295,7 +416,7 @@ function Adaptive:promoteReady()
         staged.clusters[#staged.clusters + 1] = copy_cluster(cluster)
     end
 
-    local promoted, keep = 0, {}
+    local promoted, keep, promoted_details = 0, {}, {}
     for _, cluster in ipairs(self.clusters) do
         cluster.confidence = self:confidence(cluster)
         local age = math.max(0,
@@ -310,10 +431,13 @@ function Adaptive:promoteReady()
             if ok then already = match end
         end
 
-        if not already and #staged.clusters < max_clusters
-            and (tonumber(cluster.count) or 0) >= min_count
-            and (tonumber(cluster.confidence) or 0) >= min_conf and repeat_ok then
+        local fast_ok = self:fastTrackEligible(cluster)
+        local normal_ok = (tonumber(cluster.count) or 0) >= min_count
+            and (tonumber(cluster.confidence) or 0) >= min_conf and repeat_ok
+
+        if not already and #staged.clusters < max_clusters and (normal_ok or fast_ok) then
             local copied = copy_cluster(cluster)
+            copied._promotion_mode = fast_ok and "FAST_STRONG" or "NORMAL"
             copied.confidence = self:confidence(copied)
             staged.clusters[#staged.clusters + 1] = copied
             staged.profile_kind = "GHOST_CLUSTER"
@@ -321,6 +445,14 @@ function Adaptive:promoteReady()
             staged.suspect_contacts = (tonumber(staged.suspect_contacts) or 0)
                 + (tonumber(copied.count) or 0)
             promoted = promoted + 1
+            promoted_details[#promoted_details + 1] = string.format(
+                "mode=%s count=%d conf=%.3f x=%s..%s y=%s..%s missing_x=%d missing_y=%d",
+                tostring(copied._promotion_mode or "NORMAL"), tonumber(copied.count) or 0,
+                tonumber(copied.confidence) or 0, tostring(copied.x_min or ""),
+                tostring(copied.x_max or ""), tostring(copied.y_min or ""),
+                tostring(copied.y_max or ""), tonumber(copied.missing_x) or 0,
+                tonumber(copied.missing_y) or 0)
+            copied._promotion_mode = nil
         else
             keep[#keep + 1] = cluster
         end
@@ -337,13 +469,18 @@ function Adaptive:promoteReady()
     local ok, err = self.storage:writeAtomic(profiles.approved_path, payload)
     if not ok then
         self.last_error = "adaptive promotion save failed: " .. tostring(err)
+        self:appendChange("PROMOTION_FAILED", self.last_error)
+        self:writeExternalStatus(true)
         return 0
     end
 
     profiles.approved = staged
     self.clusters = keep
     self.promotions = self.promotions + promoted
+    self.last_promotion_utc = os.date("!%Y-%m-%dT%H:%M:%SZ")
+    self.last_promotion_detail = table.concat(promoted_details, " ; ")
     self.last_error = nil
+    self:appendChange("PROFILE_UPDATED", "regions=" .. tostring(promoted) .. " | " .. self.last_promotion_detail)
     if self.guard.session then
         pcall(self.guard.session.writeAction, self.guard.session,
             { timestamp_us = os.time() * 1000000, frame = -1, slot = -1, score = 0 },
@@ -351,6 +488,8 @@ function Adaptive:promoteReady()
         pcall(self.guard.session.flush, self.guard.session)
     end
     self:save(true)
+    self:writeProfileSnapshot()
+    self:writeExternalStatus(true)
     return promoted
 end
 
@@ -374,7 +513,9 @@ function Adaptive:observeSample(sample, decision, source)
     if self:approvedMatch(sample) then return false, "already-covered" end
 
     local cluster = self:findCluster(sample)
+    local created_new_cluster = false
     if not cluster then
+        created_new_cluster = true
         cluster = {
             count = 0,
             x_min = sample.x, x_max = sample.x,
@@ -389,11 +530,19 @@ function Adaptive:observeSample(sample, decision, source)
         self.clusters[#self.clusters + 1] = cluster
     end
     self:updateCluster(cluster, sample, source or "KOREADER")
+    if created_new_cluster then
+        self:appendChange("NEW_REGION_WATCH",
+            "x=" .. tostring(sample.x or "") .. ";y=" .. tostring(sample.y or "")
+            .. ";score=" .. tostring(sample.base_score or 0)
+            .. ";incomplete=" .. tostring(sample.incomplete == true)
+            .. ";short=" .. tostring(sample.short == true))
+    end
     self.total_samples = self.total_samples + 1
     self.accepted_since_save = self.accepted_since_save + 1
     self:pruneCandidates()
     local promoted = self:promoteReady()
     self:save(false)
+    self:writeExternalStatus(false)
 
     if self.guard.session and source ~= "NATIVE_SHADOW" then
         pcall(self.guard.session.writeCandidate, self.guard.session,
@@ -457,6 +606,7 @@ function Adaptive:patchObserver()
 end
 
 function Adaptive:beginSession()
+    if self.active then return true end
     if self.config.adaptive_profiles_enabled == false
         or self.config.adaptive_learning_during_protect == false then return false end
     self.active = true
@@ -467,16 +617,26 @@ function Adaptive:beginSession()
         self:importNativeCandidates()
     end
     self:patchObserver()
+    self:appendChange("SESSION_BEGIN", "seq=" .. tostring(self.session_seq))
     self:save(false)
+    self:writeProfileSnapshot()
+    self:writeExternalStatus(true)
     return true
 end
 
 function Adaptive:endSession()
+    if not self.active and not self.observer_patched then return true end
     self.active = false
     remove(self.storage, self.native_pause)
     self:save(true)
+    if self.observer_patched and type(self.observer_original_evaluate) == "function" then
+        self.observer_patched.evaluateProtect = self.observer_original_evaluate
+    end
     self.observer_patched = nil
     self.observer_original_evaluate = nil
+    self:appendChange("SESSION_END", "seq=" .. tostring(self.session_seq))
+    self:writeExternalStatus(true)
+    return true
 end
 
 function Adaptive:reset()
@@ -487,24 +647,30 @@ function Adaptive:reset()
     remove(self.storage, self.path)
     remove(self.storage, self.legacy_path)
     remove(self.storage, self.native_pause)
+    remove(self.storage, self.external_status_path)
+    remove(self.storage, self.external_changes_path)
+    remove(self.storage, self.external_profile_snapshot_path)
+    self.last_promotion_utc = "NONE"
+    self.last_promotion_detail = "NONE"
+    self:writeExternalStatus(true)
     return true
 end
 
 function Adaptive:statusText()
     local enabled = self.config.adaptive_profiles_enabled ~= false
         and self.config.adaptive_learning_during_protect ~= false
-    local checkpoint_samples = tonumber(self.config.adaptive_checkpoint_samples) or 8
-    local checkpoint_seconds = tonumber(self.config.adaptive_checkpoint_seconds) or 120
     local text = string.format(
-        "Học liên tục: %s — mẫu mạnh=%d, vùng đang theo dõi=%d, đã bổ sung=%d, native nhập=%d. Flash checkpoint: %d mẫu mạnh hoặc %ds.",
-        enabled and "BẬT" or "TẮT", self.total_samples, #self.clusters,
-        self.promotions, self.native_imported, checkpoint_samples, checkpoint_seconds)
-    if self.last_error then text = text .. " Cảnh báo: " .. tostring(self.last_error) end
+        "Học liên tục: %s | mẫu mạnh=%d | vùng mới=%d | đã nhập profile=%d",
+        enabled and "BẬT" or "TẮT", self.total_samples, #self.clusters, self.promotions)
+    if self.last_error then text = text .. " | CẢNH BÁO=" .. tostring(self.last_error) end
     return text
 end
 
 function Adaptive:install()
     local guard = self.guard
+    if guard._dcpro_adaptive_instance then return true end
+    guard._dcpro_adaptive_instance = self
+
     local original_start = guard.start
     local original_stop = guard.stop
     local original_status = guard.statusText
@@ -524,22 +690,22 @@ function Adaptive:install()
 
     guard.stop = function(g, reason)
         local ok, result = original_stop(g, reason)
-        if self.active then pcall(self.endSession, self) end
+        if self.active or self.observer_patched then pcall(self.endSession, self) end
         return ok, result
     end
 
     guard.statusText = function(g, ...)
-        local base = original_status(g, ...)
-        return tostring(base or "GhostGuard") .. "\n" .. self:statusText()
+        local base = tostring(original_status(g, ...) or "GhostGuard")
+        -- Strip any stale adaptive lines left by an older stacked wrapper.
+        base = base:gsub("\nHọc liên tục:[^\n]*", "")
+        return base .. "\n" .. self:statusText()
     end
 
     guard.onRawEvent = function(g, event)
         if not self.active and type(g.isProtecting) == "function" and g:isProtecting()
             and g.profiles and g.profiles:hasApproved() then
             local adaptive_ok, adaptive_err = pcall(self.beginSession, self)
-            if not adaptive_ok then
-                self.last_error = "adaptive lazy begin error: " .. tostring(adaptive_err)
-            end
+            if not adaptive_ok then self.last_error = "adaptive lazy begin error: " .. tostring(adaptive_err) end
         end
         return original_raw(g, event)
     end
@@ -550,13 +716,19 @@ function Adaptive:install()
         return ok, result
     end
 
+    self:writeProfileSnapshot()
+    self:writeExternalStatus(true)
     return true
 end
 
 return function(guard, config)
+    if guard and guard._dcpro_adaptive_instance then
+        return true, guard._dcpro_adaptive_instance
+    end
     local ok, adaptive = pcall(Adaptive.new, Adaptive, guard, config)
     if not ok then return false, adaptive end
-    local installed, err = pcall(adaptive.install, adaptive)
-    if not installed then return false, err end
+    local call_ok, install_result = pcall(adaptive.install, adaptive)
+    if not call_ok then return false, install_result end
+    if install_result ~= true then return false, install_result end
     return true, adaptive
 end
