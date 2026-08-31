@@ -5,8 +5,8 @@
 -- then keep a Contact with nil initial_tev/x/y and later crash in gesture math.
 --
 -- This layer is deliberately narrow:
---   * no EVIOCGRAB
---   * no /dev/uinput
+--   * no input-device grabbing
+--   * no virtual input device
 --   * no event injection
 --   * no profile/classifier threshold changes
 --   * malformed-contact sanitation only
