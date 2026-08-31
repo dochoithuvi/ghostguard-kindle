@@ -32,7 +32,9 @@ FAIL_OPEN=YES
 DCPRO_GhostGuard_OneClick_Installer_v14.sh
 ```
 
-OneClick v14 uses the proven v13 KOReader/SimpleUI bootstrap only when needed, then installs and verifies GhostGuard 0.9.2.
+OneClick v14 uses the dedicated `bootstrap/koreader-simpleui-v14.sh` helper to install or verify KOReader + SimpleUI when needed, then downloads, verifies and installs GhostGuard 0.9.2.
+
+Legacy OneClick v12.1/v13 installers have been removed from the public root. Current public installs should use v14.
 
 ## KPM repository
 
@@ -60,7 +62,7 @@ See `packages/ghostguard/source/RELEASE_NOTES_0.9.2.md`.
 
 ## Backward compatibility
 
-Older manifests and OneClick installers remain available for existing devices/scripts.
+Older GhostGuard package artifacts remain available where they are still referenced by the public manifests for rollback/compatibility. Obsolete standalone OneClick installers are not kept in the public root.
 
 ## Public privacy boundary
 
