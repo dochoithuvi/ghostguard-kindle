@@ -1,6 +1,6 @@
 #!/bin/sh
 # DCPRO GhostGuard OneClick v14
-# Ensure KOReader + SimpleUI via the dedicated v14 bootstrap, then install GhostGuard 0.9.2.
+# Ensure KOReader + SimpleUI, then install the MTGuard5 golden runtime.
 set -u
 ROOT="${DCPRO_ONECLICK_ROOT:-/mnt/us}"
 DATA="$ROOT/.dcpro_ghostguard"
@@ -9,8 +9,8 @@ REPORT_DIR="$ROOT/GhostGuard_Reports"
 LOG="${DCPRO_ONECLICK_LOG:-$REPORT_DIR/OneClick_v14.log}"
 BOOTSTRAP_PRIMARY="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/bootstrap/koreader-simpleui-v14.sh"
 BOOTSTRAP_MIRROR="https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/bootstrap/koreader-simpleui-v14.sh"
-GG_NAME="ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg"
-GG_SHA256="b5112ba60f745032d60fcfc443709e374f61c587d3dc5215a17d14aaf81d1eeb"
+GG_NAME="ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg"
+GG_SHA256="92fd6914205719d19fc243728d347ff76b6f29787ec4dc50cbf1b842055f4fdd"
 GG_PRIMARY="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/$GG_NAME"
 GG_MIRROR="https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/artifacts/$GG_NAME"
 mkdir -p "$TMP" "$REPORT_DIR" 2>/dev/null || exit 1
@@ -69,7 +69,7 @@ verify_sha256(){
 log "DCPRO GhostGuard OneClick v14"
 log "Root: $ROOT"
 say 1 "GhostGuard OneClick v14"
-say 2 "KOReader + SimpleUI + GhostGuard 0.9.2"
+say 2 "KOReader + SimpleUI + MTGuard5 GOLDEN"
 
 BOOTSTRAP="$TMP/koreader-simpleui-v14.sh"
 say 4 "[1/7] Tai bootstrap KOReader/SimpleUI..."
@@ -88,9 +88,9 @@ done
 say 8 "[3/7] KOReader + SimpleUI... OK"
 
 KPKG="$TMP/$GG_NAME"
-say 9 "[4/7] Tai GhostGuard 0.9.2..."
-log "Downloading GhostGuard 0.9.2 package."
-download_pair "$GG_PRIMARY" "$GG_MIRROR" "$KPKG" || fail "khong tai duoc GhostGuard 0.9.2"
+say 9 "[4/7] Tai MTGuard5 GOLDEN..."
+log "Downloading MTGuard5 golden package."
+download_pair "$GG_PRIMARY" "$GG_MIRROR" "$KPKG" || fail "khong tai duoc MTGuard5 golden"
 
 say 10 "[5/7] Kiem tra SHA-256..."
 verify_sha256 "$KPKG" "$GG_SHA256" || fail "GhostGuard SHA-256 mismatch"
@@ -103,7 +103,7 @@ tar -xzf "$KPKG" -C "$TMP/pkg" >>"$LOG" 2>&1 || fail "khong giai nen duoc GhostG
 (
     cd "$TMP/pkg" || exit 1
     GHOSTGUARD_US_ROOT="$ROOT" sh ./install.sh
-) >>"$LOG" 2>&1 || fail "GhostGuard 0.9.2 install failed"
+) >>"$LOG" 2>&1 || fail "MTGuard5 golden install failed"
 
 say 12 "[7/7] Xac minh cai dat..."
 SIMPLEUI_OK=0
@@ -113,21 +113,21 @@ done
 [ "$SIMPLEUI_OK" = "1" ] || fail "SimpleUI verification failed"
 
 cat >> "$LOG" <<EOF
-GhostGuard 0.9.2 install complete.
+MTGuard5 golden install complete.
 KOReader root: $KO_ROOT
 SimpleUI detected: $SIMPLEUI_OK
 Artifact SHA-256: $GG_SHA256
 Reports: $REPORT_DIR
 EOF
 
-printf 'ONECLICK_VERSION=14\nGHOSTGUARD_VERSION=0.9.2\nRUNTIME=MTGUARD5_ADAPTIVE_V3\nARTIFACT_SHA256=%s\nKO_READER_ROOT=%s\nSIMPLEUI_DETECTED=%s\nREPORT_DIR=%s\nCLOUD_UPLOAD=REMOVED\nZENUI=REMOVED\nNATIVE_FILTER=SHADOW_ONLY\nINPUT_GRAB=OFF\nEVENT_INJECTION=OFF\n' \
+printf 'ONECLICK_VERSION=14\nGHOSTGUARD_VERSION=0.9.1-local-mtguard5\nRUNTIME=mtguard1-adaptive-v3-approved-cover-nocloud\nARTIFACT_SHA256=%s\nKO_READER_ROOT=%s\nSIMPLEUI_DETECTED=%s\nREPORT_DIR=%s\nCLOUD_UPLOAD=REMOVED\nZENUI=REMOVED\nNATIVE_FILTER=SHADOW_ONLY\nINPUT_GRAB=OFF\nEVENT_INJECTION=OFF\n' \
     "$GG_SHA256" "$KO_ROOT" "$SIMPLEUI_OK" "$REPORT_DIR" > "$DATA/ONECLICK_V14_OK"
 
 sync 2>/dev/null || true
 log "SUCCESS"
-say 14 "THANH CONG! GhostGuard 0.9.2 da cai dat"
+say 14 "THANH CONG! MTGuard5 GOLDEN da cai dat"
 say 15 "Khoi dong lai KOReader 1 lan"
-echo "GhostGuard 0.9.2 installed successfully."
+echo "MTGuard5 golden installed successfully."
 echo "Restart KOReader once."
 finish_delay
 exit 0
