@@ -14,16 +14,27 @@ for item in manifest.json install.sh uninstall.sh launch.sh payload scriptlets s
 done
 
 mkdir -p "$TMP/pkg/assets"
-if command -v base64 >/dev/null 2>&1; then
-    cat "$SRC"/assets/ghostguard_library_600x960.jpg.b64.* | tr -d '\r\n' | base64 -d > "$TMP/pkg/assets/ghostguard_library_600x960.jpg"
-else
-    python3 - "$SRC/assets" "$TMP/pkg/assets/ghostguard_library_600x960.jpg" <<'PY'
+set -- "$SRC"/assets/ghostguard_library_600x960.jpg.b64.*
+if [ -e "$1" ]; then
+    if command -v base64 >/dev/null 2>&1; then
+        cat "$SRC"/assets/ghostguard_library_600x960.jpg.b64.* | tr -d '\r\n' | base64 -d > "$TMP/pkg/assets/ghostguard_library_600x960.jpg"
+    else
+        python3 - "$SRC/assets" "$TMP/pkg/assets/ghostguard_library_600x960.jpg" <<'PY'
 import base64, pathlib, sys
 srcdir, dst = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 parts = sorted(srcdir.glob("ghostguard_library_600x960.jpg.b64.*"))
+if not parts:
+    raise SystemExit("missing cover chunks")
 dst.write_bytes(base64.b64decode("".join(p.read_text().strip() for p in parts)))
 PY
+    fi
+elif [ -s "$SRC/assets/ghostguard_library_600x960.jpg" ]; then
+    cp "$SRC/assets/ghostguard_library_600x960.jpg" "$TMP/pkg/assets/ghostguard_library_600x960.jpg"
+else
+    echo "Missing GhostGuard library cover" >&2
+    exit 1
 fi
+
 cp "$TMP/pkg/assets/ghostguard_library_600x960.jpg" \
    "$TMP/pkg/payload/dcghostguardpro.koplugin/assets/ghostguard_library_600x960.jpg"
 
