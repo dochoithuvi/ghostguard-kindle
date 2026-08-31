@@ -1,0 +1,48 @@
+name: Test OneClick v14
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - DCPRO_GhostGuard_OneClick_Installer_v14.sh
+      - bootstrap/koreader-simpleui-v14.sh
+      - .github/workflows/test-oneclick-v14.yml
+  pull_request:
+    paths:
+      - DCPRO_GhostGuard_OneClick_Installer_v14.sh
+      - bootstrap/koreader-simpleui-v14.sh
+      - .github/workflows/test-oneclick-v14.yml
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: |
+          sh -n DCPRO_GhostGuard_OneClick_Installer_v14.sh
+          sh -n bootstrap/koreader-simpleui-v14.sh
+      - name: Verify fresh-device flow
+        run: |
+          set -eu
+          f=DCPRO_GhostGuard_OneClick_Installer_v14.sh
+          b=bootstrap/koreader-simpleui-v14.sh
+          grep -F 'bootstrap/koreader-simpleui-v14.sh' "$f"
+          grep -F 'ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg' "$f"
+          grep -F 'b5112ba60f745032d60fcfc443709e374f61c587d3dc5215a17d14aaf81d1eeb' "$f"
+          grep -F 'ensure_koreader' "$b"
+          grep -F 'install_koreader_kpm' "$b"
+          grep -F 'install_koreader_official' "$b"
+          grep -F 'install_simpleui' "$b"
+          grep -F 'features/sui_quickactions.lua' "$b"
+          grep -F 'infra/sui_config.lua' "$b"
+          grep -F 'engines/sui_window.lua' "$b"
+      - name: Enforce safe native mode
+        run: |
+          set -eu
+          f=DCPRO_GhostGuard_OneClick_Installer_v14.sh
+          grep -F 'NATIVE_FILTER=SHADOW_ONLY' "$f"
+          grep -F 'INPUT_GRAB=OFF' "$f"
+          grep -F 'EVENT_INJECTION=OFF' "$f"
+          ! grep -F 'EVIOCGRAB' "$f"
+          ! grep -F '/dev/uinput' "$f"
