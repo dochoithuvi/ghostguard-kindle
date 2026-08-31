@@ -38,6 +38,7 @@ jobs:
           sh -n DCPRO_GhostGuard_OneClick_Installer_v14.sh
           sh -n bootstrap/koreader-simpleui-v14.sh
           sh -n packages/ghostguard/source/install.sh
+          sh -n packages/ghostguard/source/launch.sh
           sh -n scripts/build_ghostguard_v092.sh
 
       - name: Test Goodix crash shield regression contract
@@ -54,6 +55,23 @@ jobs:
           grep -F 'Do NOT call restoreProtectWrapper() here' "$P/goodix_crashshield.lua"
           ! grep -F 'EVIOCGRAB' "$P/goodix_crashshield.lua"
           ! grep -F '/dev/uinput' "$P/goodix_crashshield.lua"
+
+      - name: Validate direct KOReader launch and reboot autostart contract
+        run: |
+          set -eu
+          f=DCPRO_GhostGuard_OneClick_Installer_v14.sh
+          l=packages/ghostguard/source/launch.sh
+          grep -F 'AUTOSTART_JOB="/etc/upstart/dcpro-koreader-autostart.conf"' "$f"
+          grep -F 'start on mounted_userstore' "$f"
+          grep -F 'No respawn loop' "$f"
+          grep -F 'KO_READER_DIRECT_LAUNCH=1' "$f"
+          grep -F 'KO_READER_BOOT_AUTOSTART=%s' "$f"
+          grep -F 'LEGACY_LAUNCH_ONCE=DISABLED' "$f"
+          grep -F 'rm -f "$DATA/LAUNCH_ONCE"' "$f"
+          grep -F 'Direct KOReader launch only' "$l"
+          grep -F 'rm -f "$DATA/LAUNCH_ONCE"' "$l"
+          grep -F 'koreader.sh" --asap' "$l"
+          ! grep -F "printf 'REQUEST=KPM" "$l"
 
       - name: Build and inspect candidate MTGuard5 package
         run: |
@@ -72,6 +90,8 @@ jobs:
           grep -F 'runtime_revision = "mtguard1-adaptive-v3-approved-cover-nocloud"' "$P/defaults.lua"
           grep -F 'goodix_crashshield.lua' "$P/ghostguard.lua"
           sh -n /tmp/gg-candidate/install.sh
+          sh -n /tmp/gg-candidate/launch.sh
+          grep -F 'Direct KOReader launch only' /tmp/gg-candidate/launch.sh
           grep -F 'GOODIX_CRASH_SHIELD=1' /tmp/gg-candidate/install.sh
           grep -F 'TOUCH_SHIELD_MODE=PASS_THROUGH_SAFE' /tmp/gg-candidate/install.sh
           grep -F 'LIBRARY_ICON_MODE=EMBEDDED_PNG_FORCE_REINDEX' /tmp/gg-candidate/install.sh
