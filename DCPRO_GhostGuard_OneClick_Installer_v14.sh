@@ -10,7 +10,7 @@ LOG="${DCPRO_ONECLICK_LOG:-$REPORT_DIR/OneClick_v14.log}"
 BOOTSTRAP_PRIMARY="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/bootstrap/koreader-simpleui-v14.sh"
 BOOTSTRAP_MIRROR="https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/bootstrap/koreader-simpleui-v14.sh"
 GG_NAME="ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg"
-GG_SHA256="92fd6914205719d19fc243728d347ff76b6f29787ec4dc50cbf1b842055f4fdd"
+GG_SHA256="92df5cb7bd16ca1dacb5cdc40f1f8d49fef72bc4b216d8a1a87883704f26e552"
 GG_PRIMARY="https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/packages/ghostguard/artifacts/$GG_NAME"
 GG_MIRROR="https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/packages/ghostguard/artifacts/$GG_NAME"
 mkdir -p "$TMP" "$REPORT_DIR" 2>/dev/null || exit 1
