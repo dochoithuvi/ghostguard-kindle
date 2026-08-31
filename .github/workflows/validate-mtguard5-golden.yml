@@ -12,9 +12,15 @@ jobs:
       - name: Compare plugin source with field-tested MTGuard5 hashes
         shell: bash
         run: |
-          set -eu
+          set -u
           P=packages/ghostguard/source/payload/dcghostguardpro.koplugin
-          check(){ got="$(sha256sum "$P/$2" | awk '{print $1}')"; printf '%s  %s\n' "$got" "$2"; [ "$got" = "$1" ]; }
+          BAD=0
+          check(){
+            want="$1"; rel="$2"
+            if [ ! -f "$P/$rel" ]; then echo "MISSING $rel"; BAD=1; return; fi
+            got="$(sha256sum "$P/$rel" | awk '{print $1}')"
+            if [ "$got" = "$want" ]; then echo "PASS $rel $got"; else echo "FAIL $rel got=$got want=$want"; BAD=1; fi
+          }
           check 11e711420a0cf06685fb25440ce0758ac5f3620af0c24e03454c312396224fb2 _meta.lua
           check 54245e36fca08055f314c23162772659b44a60850a951285c584fd3ee90813da adaptive_bootstrap.lua
           check a9aa301edad3662884bab83da5f0148c92f50878a4ed9005d8c38a2371e79f01 defaults.lua
@@ -31,3 +37,4 @@ jobs:
           check 9e5fb761755b03f7e9b75cb72413c37d3a3a9c17fb6b983bc54794d3e597e586 storage.lua
           check b1dd2c3169182cdbaf737f4cc8de54494a941581285e1c82a380f49fd08e9c5b system_service.lua
           check 318224dee3d914ec29c82b5edf7a334e7ab637aed60583ab7ab6bacc120a19f5 touch_observer.lua
+          exit "$BAD"
