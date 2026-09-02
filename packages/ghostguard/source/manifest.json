@@ -3,11 +3,11 @@
   "id": "ghostguard",
   "name": "DCPRO GhostGuard",
   "author": "Do Choi Thu Vi",
-  "description": "GhostGuard 0.9.2 - field-tested MT Guard, Adaptive Learning V3, Auto Protect, local reports, no Cloud/ZenUI.",
+  "description": "GhostGuard 0.9.3 - field-tested MTGuard5, faster Adaptive Learning V3, KOReader-only Library entry, local reports, no Cloud/ZenUI.",
   "version": [
     0,
     9,
-    2
+    3
   ],
   "dependencies": [],
   "supported_platforms": [
