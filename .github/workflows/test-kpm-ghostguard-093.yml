@@ -1,0 +1,87 @@
+name: Test GhostGuard KPM 0.9.3 upgrade path
+
+on:
+  pull_request:
+    paths:
+      - manifest.json
+      - manifest.v2.json
+      - manifest.mirror.json
+      - packages/ghostguard/source/**
+      - scripts/build_ghostguard_v092.sh
+      - .github/workflows/test-kpm-ghostguard-093.yml
+  push:
+    branches: [main]
+    paths:
+      - manifest.json
+      - manifest.v2.json
+      - manifest.mirror.json
+      - packages/ghostguard/source/**
+      - scripts/build_ghostguard_v092.sh
+      - .github/workflows/test-kpm-ghostguard-093.yml
+
+jobs:
+  kpm-upgrade:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate KPM manifests
+        run: |
+          set -eu
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          expected = [0, 9, 3]
+          golden = 'packages/ghostguard/artifacts/ghostguard_mtguard5_golden_kindle5-kindlepw2-kindlehf.kpkg'
+          src = json.loads(Path('packages/ghostguard/source/manifest.json').read_text())
+          assert src['manifest_version'] == 2
+          assert src['id'] == 'ghostguard'
+          assert src['version'] == expected
+          for name in ('manifest.json', 'manifest.v2.json', 'manifest.mirror.json'):
+              data = json.loads(Path(name).read_text())
+              pkg = data['packages']['ghostguard']
+              top = pkg['artifacts'][0]
+              assert top['version'] == expected, (name, top)
+              assert top['url'] == golden, (name, top)
+              assert top['supported_platforms'] == ['kindle5','kindlepw2','kindlehf']
+          print('KPM_MANIFEST_093_PASS')
+          PY
+
+      - name: Build KPM candidate and inspect package manifest
+        run: |
+          set -eu
+          chmod +x scripts/build_ghostguard_v092.sh
+          scripts/build_ghostguard_v092.sh
+          a=packages/ghostguard/artifacts/ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg
+          test -s "$a"
+          rm -rf /tmp/gg-kpm && mkdir -p /tmp/gg-kpm
+          tar -xzf "$a" -C /tmp/gg-kpm
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m = json.loads(Path('/tmp/gg-kpm/manifest.json').read_text())
+          assert m['manifest_version'] == 2
+          assert m['id'] == 'ghostguard'
+          assert m['version'] == [0,9,3]
+          assert m['supported_platforms'] == ['kindle5','kindlepw2','kindlehf']
+          print('KPM_PACKAGE_093_PASS')
+          PY
+          sh -n /tmp/gg-kpm/install.sh
+          grep -F 'LIBRARY_ENTRY=KO_READER_ONLY' /tmp/gg-kpm/install.sh
+          grep -F 'GHOSTGUARD_LIBRARY_ICON=REMOVED' /tmp/gg-kpm/install.sh
+          grep -F 'NATIVE_FILTER=SHADOW_ONLY' /tmp/gg-kpm/install.sh
+          grep -F 'INPUT_GRAB=OFF' /tmp/gg-kpm/install.sh
+          grep -F 'EVENT_INJECTION=OFF' /tmp/gg-kpm/install.sh
+
+      - name: Preserve field-tested runtime identity
+        run: |
+          set -eu
+          d=packages/ghostguard/source/payload/dcghostguardpro.koplugin/defaults.lua
+          grep -F 'version = "0.9.1-local-mtguard5"' "$d"
+          grep -F 'runtime_revision = "mtguard1-adaptive-v3-approved-cover-nocloud"' "$d"
+          grep -F 'adaptive_checkpoint_samples = 4' "$d"
+          grep -F 'adaptive_checkpoint_seconds = 30' "$d"
+          grep -F 'adaptive_promotion_min_cluster = 4' "$d"
+          grep -F 'adaptive_promotion_min_age_seconds = 15' "$d"
+          grep -F 'adaptive_external_report_seconds = 5' "$d"
+          grep -F 'protect_drop_score = 8' "$d"
