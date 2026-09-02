@@ -3,8 +3,11 @@ set -eu
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ROOT="$(CDPATH= cd -- "$HERE/.." && pwd)"
 SRC="$ROOT/packages/ghostguard/source"
-OUT="$ROOT/packages/ghostguard/artifacts/ghostguard_0.9.3_kindle5-kindlepw2-kindlehf.kpkg"
-TMP="${TMPDIR:-/tmp}/ghostguard-093-build.$$"
+# Keep the historical intermediate path because the golden publisher and
+# OneClick release gate already consume it. KPM versioning comes from the
+# package manifest inside the archive (0.9.3), not this staging filename.
+OUT="$ROOT/packages/ghostguard/artifacts/ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg"
+TMP="${TMPDIR:-/tmp}/ghostguard-093-kpm-build.$$"
 cleanup(){ rm -rf "$TMP"; }
 trap cleanup EXIT INT TERM
 mkdir -p "$TMP/pkg" "$(dirname "$OUT")"
