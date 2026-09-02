@@ -3,8 +3,8 @@ set -eu
 HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 ROOT="$(CDPATH= cd -- "$HERE/.." && pwd)"
 SRC="$ROOT/packages/ghostguard/source"
-OUT="$ROOT/packages/ghostguard/artifacts/ghostguard_0.9.2_kindle5-kindlepw2-kindlehf.kpkg"
-TMP="${TMPDIR:-/tmp}/ghostguard-092-build.$$"
+OUT="$ROOT/packages/ghostguard/artifacts/ghostguard_0.9.3_kindle5-kindlepw2-kindlehf.kpkg"
+TMP="${TMPDIR:-/tmp}/ghostguard-093-build.$$"
 cleanup(){ rm -rf "$TMP"; }
 trap cleanup EXIT INT TERM
 mkdir -p "$TMP/pkg" "$(dirname "$OUT")"
@@ -46,7 +46,7 @@ chmod 755 "$TMP/pkg/system/ghostguard-service.sh" \
 
 (
     cd "$TMP/pkg"
-    tar --sort=name --mtime='UTC 2026-08-31 00:00:00' \
+    tar --sort=name --mtime='UTC 2026-09-02 00:00:00' \
         --owner=0 --group=0 --numeric-owner -cf - \
         manifest.json install.sh uninstall.sh launch.sh payload assets system RELEASE_NOTES_0.9.2.md
 ) | gzip -n -9 > "$OUT"
