@@ -1,10 +1,14 @@
--- DCPRO GhostGuard v0.9 native shadow observer.
+-- DCPRO GhostGuard v1.0 Phase 1 native shadow decision observer.
 --
--- Runs under KOReader's bundled LuaJIT even when the KOReader application is
--- closed. It opens the physical evdev touchscreen READ-ONLY, never EVIOCGRABs,
--- never creates /dev/uinput and never injects events. Work is event-driven: the
--- process blocks in read(2) while the screen is idle and writes only strong
--- anomaly candidates to a small bounded spool for later import by GhostGuard.
+-- SAFETY CONTRACT:
+--   * READ-ONLY /dev/input/eventN
+--   * NO EVIOCGRAB
+--   * NO /dev/uinput
+--   * NO event injection
+--   * NO actual suppression
+--
+-- Phase 1 adds a "would suppress" decision trace so real Kindle-native
+-- behavior can be measured before any interception design is enabled.
 
 local ok_ffi, ffi = pcall(require, "ffi")
 if not ok_ffi then os.exit(2) end
@@ -41,6 +45,8 @@ local status_path = arg[3]
 local pause_path = arg[4]
 local approved_profile = arg[5]
 if not device or not spool or not status_path then os.exit(2) end
+
+local decision_path = status_path:gsub("%.status$", "") .. "-decisions.log"
 
 local function exists(path)
     if not path or path == "" then return false end
@@ -80,22 +86,31 @@ end
 local candidate_count = 0
 local raw_events = 0
 local frame_count = 0
+local completed_contacts = 0
+local would_suppress_count = 0
+local sampled_pass_count = 0
 local start_wall = os.time()
 
 local function write_status(state, detail)
     atomic_write(status_path, table.concat({
-        "DCPRO_GHOSTGUARD_NATIVE_SHADOW_V1",
-        "VERSION=0.9.0",
+        "DCPRO_GHOSTGUARD_NATIVE_SHADOW_DECISION_V1",
+        "VERSION=1.0.0-PHASE1",
         "STATUS=" .. tostring(state or "UNKNOWN"),
         "DEVICE=" .. tostring(device),
-        "MODE=READ_ONLY_SHADOW",
+        "MODE=READ_ONLY_SHADOW_DECISION",
+        "DECISION_POLICY=STRONG_EVIDENCE_V1",
+        "ACTUAL_SUPPRESSION=OFF",
         "INPUT_GRAB=OFF",
         "EVENT_INJECTION=OFF",
         "FAIL_OPEN=YES",
         "RAW_EVENTS=" .. tostring(raw_events),
         "FRAMES=" .. tostring(frame_count),
+        "COMPLETED_CONTACTS=" .. tostring(completed_contacts),
         "CANDIDATES=" .. tostring(candidate_count),
+        "WOULD_SUPPRESS=" .. tostring(would_suppress_count),
+        "PASS_SAMPLES=" .. tostring(sampled_pass_count),
         "SCREEN_WIDTH=" .. tostring(screen_width),
+        "DECISION_LOG=" .. tostring(decision_path),
         "START_WALL=" .. tostring(start_wall),
         "UPDATED_WALL=" .. tostring(os.time()),
         "DETAIL=" .. tostring(detail or "NONE"),
@@ -103,14 +118,41 @@ local function write_status(state, detail)
     }, "\n"))
 end
 
-local function rotate_if_needed()
-    local f = io.open(spool, "rb")
+local function rotate_path_if_needed(path)
+    local f = io.open(path, "rb")
     if not f then return end
     local size = f:seek("end") or 0
     f:close()
     if size <= 131072 then return end
-    os.remove(spool .. ".1")
-    os.rename(spool, spool .. ".1")
+    os.remove(path .. ".1")
+    os.rename(path, path .. ".1")
+end
+
+local function rotate_if_needed()
+    rotate_path_if_needed(spool)
+end
+
+local function append_decision(kind, slot, sample)
+    if exists(pause_path) then return end
+    rotate_path_if_needed(decision_path)
+    local f = io.open(decision_path, "ab")
+    if not f then return end
+    f:write(table.concat({
+        tostring(kind),
+        tostring(os.time()),
+        tostring(slot or -1),
+        sample.x == nil and "" or tostring(sample.x),
+        sample.y == nil and "" or tostring(sample.y),
+        tostring(sample.score or 0),
+        sample.incomplete and "1" or "0",
+        sample.low_major and "1" or "0",
+        sample.short and "1" or "0",
+        sample.extreme_edge and "1" or "0",
+        sample.near_edge and "1" or "0",
+        tostring(sample.path_px or 0),
+        tostring(sample.duration_us or 0),
+    }, "|") .. "\n")
+    f:close()
 end
 
 local function append_candidate(slot, sample)
@@ -118,6 +160,7 @@ local function append_candidate(slot, sample)
     rotate_if_needed()
     local f = io.open(spool, "ab")
     if not f then return end
+    -- Preserve the v0.9 candidate spool format exactly.
     f:write(table.concat({
         "CANDIDATE",
         tostring(os.time()),
@@ -133,7 +176,6 @@ local function append_candidate(slot, sample)
     }, "|") .. "\n")
     f:close()
     candidate_count = candidate_count + 1
-    if candidate_count % 8 == 0 then write_status("RUNNING", "candidate checkpoint") end
 end
 
 local function new_slot()
@@ -196,6 +238,8 @@ local function score_slot(slot, ts)
         extreme_edge = extreme_edge,
         near_edge = near_edge,
         strong = strong,
+        path_px = path_px,
+        duration_us = duration,
     }
 end
 
@@ -205,7 +249,7 @@ if fd < 0 then
     os.exit(3)
 end
 
-write_status("RUNNING", "read-only evdev observer active")
+write_status("RUNNING", "read-only shadow decision observer active")
 local evbuf = ffi.new("struct input_event[1]")
 local evsize = ffi.sizeof("struct input_event")
 
@@ -257,7 +301,9 @@ while true do
                 elseif code == ABS_MT_TOUCH_MAJOR then
                     slot.changed = true
                     slot.touch_major = value
-                    if slot.min_touch_major == nil or value < slot.min_touch_major then slot.min_touch_major = value end
+                    if slot.min_touch_major == nil or value < slot.min_touch_major then
+                        slot.min_touch_major = value
+                    end
                 end
             end
         elseif ev_type == EV_SYN and code == SYN_REPORT then
@@ -265,8 +311,25 @@ while true do
             for slot_index, slot in pairs(slots) do
                 if slot.changed then
                     if slot.transition == "END" then
+                        completed_contacts = completed_contacts + 1
                         local sample = score_slot(slot, ts)
-                        if sample.strong then append_candidate(slot_index, sample) end
+
+                        if sample.strong then
+                            -- Phase 1 decision only. Nothing is blocked.
+                            would_suppress_count = would_suppress_count + 1
+                            append_candidate(slot_index, sample)
+                            append_decision("WOULD_SUPPRESS", slot_index, sample)
+                            if would_suppress_count % 8 == 0 then
+                                write_status("RUNNING", "would-suppress checkpoint")
+                            end
+                        elseif completed_contacts % 64 == 0 then
+                            -- Sparse pass-through sampling gives us a baseline without
+                            -- writing every normal touch to flash.
+                            sampled_pass_count = sampled_pass_count + 1
+                            append_decision("PASS_SAMPLE", slot_index, sample)
+                            write_status("RUNNING", "pass sample checkpoint")
+                        end
+
                         slots[slot_index] = new_slot()
                     else
                         slot.changed = false
