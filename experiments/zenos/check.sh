@@ -11,3 +11,8 @@ grep -F 'DISABLE_GHOSTGUARD_ZEN_BOOT' experiments/zenos/boot-launch.sh
 grep -F 'Already attempted this boot' experiments/zenos/boot-launch.sh
 ! grep -Eq '^[[:space:]]*respawn' experiments/zenos/ghostguard-zenos.conf.template
 echo "ZenOS static checks passed"
+
+! grep -Ei 'simpleui|sui_window' "$BASE/main.lua"
+[ ! -e "$BASE/simpleui_bridge.lua" ]
+grep -F 'ZEN_REALTIME_STRIP' "$BASE/touch_observer.lua"
+if command -v lua >/dev/null 2>&1; then lua experiments/zenos/test-realtime.lua; else echo "Lua tests NOT RUN: lua missing"; fi
