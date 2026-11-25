@@ -23,6 +23,28 @@ local function load_local(filename)
     return result
 end
 
+-- ZenOS is a KOReader UI layer, not a replacement Linux input stack.
+-- Explicit opt-in: no early launch or candidate expiry for existing installs.
+local function zenInstalled()
+    local f = io.open(plugin_dir .. "../zenos.koplugin/main.lua", "rb")
+    if f then f:close(); return true end
+    return false
+end
+
+function DCPROGhostGuard:zenEarlyEnabled()
+    if not zenInstalled() or not self.guard then return false end
+    return self.guard.storage:readFile(self.config.data_dir .. "/ZEN_EARLY_PROTECT") == "1\n"
+end
+
+function DCPROGhostGuard:startupDelay(mode, reason)
+    -- No accelerated online-license sync, initial learning, or launch requests.
+    if mode == self.config.protect_mode and reason == "auto-protect"
+        and self:zenEarlyEnabled() then
+        return 1
+    end
+    return self.config.auto_start_delay_seconds
+end
+
 function DCPROGhostGuard:loadRuntime()
     if self.guard then return true end
     local config, err = load_local("defaults.lua")
@@ -43,6 +65,8 @@ function DCPROGhostGuard:loadRuntime()
         ProfileManager, LicenseManager, plugin_dir)
     if not ok then return false, "GhostGuard:new: " .. tostring(guard_or_err) end
     self.config, self.guard = config, guard_or_err
+    -- Experimental expiry affects unapproved candidates only, never live approved regions.
+    if self:zenEarlyEnabled() then config.zen_candidate_ttl_seconds = 1800 end
 
     -- v0.9: continuous adaptive learning. A fault in this optional layer must
     -- never prevent the proven core protection path from loading.
@@ -62,7 +86,7 @@ function DCPROGhostGuard:loadRuntime()
 
     -- SimpleUI is the only UI bridge in this local build.
     local SimpleUIBridge, bridge_err = load_local("simpleui_bridge.lua")
-    if SimpleUIBridge then
+    if SimpleUIBridge and not self:zenEarlyEnabled() then
         local bridge_ok, bridge_obj = pcall(SimpleUIBridge.new, SimpleUIBridge, self, plugin_dir)
         if bridge_ok then
             self.simpleui = bridge_obj
@@ -346,8 +370,8 @@ function DCPROGhostGuard:init()
             start_reason, start_mode = "customer-auto-learning", self.config.calibration_mode
         end
         if start_reason then
-            UIManager:scheduleIn(self.config.auto_start_delay_seconds, function()
-                if self.guard and not self.guard:isRunning() and not self.guard.autostart_blocked then
+            UIManager:scheduleIn(self:startupDelay(start_mode, start_reason), function()
+                if self.guard and not self.guard:isRunning() and not self.guard.autostart_blocked and not self.guard:isSafeMode() then
                     local started, result = self.guard:start(start_mode, start_reason)
                     if not started then show(_("GhostGuard không tự khởi động:\n") .. tostring(result), 8) end
                 end
@@ -380,6 +404,26 @@ function DCPROGhostGuard:addToMainMenu(menu_items)
             end }
         sub_items[#sub_items + 1] = { text = _("Dừng GhostGuard"), enabled_func = function() return self.guard:isRunning() end,
             callback = function() self:stopAndShow("manual") end }
+        if zenInstalled() then
+            sub_items[#sub_items + 1] = { text = _("ZenOS: bảo vệ sớm (thử nghiệm)"),
+                checked_func = function() return self:zenEarlyEnabled() end,
+                callback = function()
+                    local path = self.config.data_dir .. "/ZEN_EARLY_PROTECT"
+                    if self:zenEarlyEnabled() then
+                        self.guard.storage:removeExact(path)
+                        show(_("Khởi động lại KOReader để tắt chế độ thử nghiệm ZenOS."), 5)
+                    else
+                        UIManager:show(ConfirmBox:new{
+                            text = _("Chỉ thử trên máy đã có profile, license hợp lệ và Auto Protect. Khởi động lại để áp dụng; SAFE_MODE vẫn có hiệu lực."),
+                            ok_text = _("Bật thử"),
+                            ok_callback = function()
+                                local ok, err = self.guard.storage:writeAtomic(path, "1\n")
+                                show(ok and _("Đã bật thử. Khởi động lại KOReader.") or tostring(err), 6)
+                            end,
+                        })
+                    end
+                end }
+        end
         sub_items[#sub_items + 1] = { text = _("License"), keep_menu_open = true,
             callback = function() show(self.guard:licenseStatusText(), 10) end }
         sub_items[#sub_items + 1] = { text = _("Xóa profile & học lại"), enabled_func = function() return not self.guard:isRunning() end,

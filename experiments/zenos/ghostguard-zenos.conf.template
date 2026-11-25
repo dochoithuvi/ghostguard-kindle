@@ -1,0 +1,10 @@
+# TEMPLATE ONLY: confirm the exact event names on the target before installation.
+# No respawn. Keep stock framework available; USB opt-in and disable markers.
+description "GhostGuard ZenOS one-shot boot launcher (experimental)"
+start on framework_ready and started lab126_gui and started kppmainapp
+stop on stopping system
+task
+script
+    [ -f /mnt/us/GhostGuardZenOS/boot-launch.sh ] || exit 0
+    exec /bin/sh /mnt/us/GhostGuardZenOS/boot-launch.sh boot
+end script
