@@ -23,6 +23,28 @@ local function load_local(filename)
     return result
 end
 
+-- ZenOS is a KOReader UI layer, not a replacement Linux input stack.
+-- Explicit opt-in: no early launch or candidate expiry for existing installs.
+local function zenInstalled()
+    local f = io.open(plugin_dir .. "../zenos.koplugin/main.lua", "rb")
+    if f then f:close(); return true end
+    return false
+end
+
+function DCPROGhostGuard:zenEarlyEnabled()
+    if not zenInstalled() or not self.guard then return false end
+    return self.guard.storage:readFile(self.config.data_dir .. "/ZEN_EARLY_PROTECT") == "1\n"
+end
+
+function DCPROGhostGuard:startupDelay(mode, reason)
+    -- No accelerated online-license sync, initial learning, or launch requests.
+    if mode == self.config.protect_mode and reason == "auto-protect"
+        and self:zenEarlyEnabled() then
+        return 1
+    end
+    return self.config.auto_start_delay_seconds
+end
+
 function DCPROGhostGuard:loadRuntime()
     if self.guard then return true end
     local config, err = load_local("defaults.lua")
@@ -43,6 +65,12 @@ function DCPROGhostGuard:loadRuntime()
         ProfileManager, LicenseManager, plugin_dir)
     if not ok then return false, "GhostGuard:new: " .. tostring(guard_or_err) end
     self.config, self.guard = config, guard_or_err
+    -- Experimental expiry affects unapproved candidates only, never live approved regions.
+    if zenInstalled() then
+        config.zen_preserve_gestures = true
+        config.zen_candidate_ttl_seconds = 1800
+        config.zen_realtime_strip = self.guard.storage:readFile(config.data_dir .. "/ZEN_REALTIME_STRIP") == "1\n"
+    end
 
     -- v0.9: continuous adaptive learning. A fault in this optional layer must
     -- never prevent the proven core protection path from loading.
@@ -60,18 +88,6 @@ function DCPROGhostGuard:loadRuntime()
         logger.warn("DCPRO GhostGuard adaptive bootstrap missing:", adaptive_err)
     end
 
-    -- SimpleUI is the only UI bridge in this local build.
-    local SimpleUIBridge, bridge_err = load_local("simpleui_bridge.lua")
-    if SimpleUIBridge then
-        local bridge_ok, bridge_obj = pcall(SimpleUIBridge.new, SimpleUIBridge, self, plugin_dir)
-        if bridge_ok then
-            self.simpleui = bridge_obj
-        else
-            logger.warn("DCPRO GhostGuard SimpleUI bridge init failed:", bridge_obj)
-        end
-    else
-        logger.info("DCPRO GhostGuard SimpleUI bridge unavailable:", bridge_err)
-    end
     self.exit_diagnostics = ExitDiagnostics:new(config, self.guard.storage)
     self.guard.exit_diagnostics = self.exit_diagnostics
     self.exit_diagnostics:install(self)
@@ -133,7 +149,7 @@ function DCPROGhostGuard:stopAndShow(reason)
 end
 
 
-function DCPROGhostGuard:simpleUIPrimaryLabel()
+function DCPROGhostGuard:primaryLabel()
     if not self.guard then return "GhostGuard" end
     local licensed = self.guard:licenseValid(false)
     if not licensed then return "GhostGuard: Cần license.key" end
@@ -210,76 +226,6 @@ function DCPROGhostGuard:syncOnlineLicense(show_result)
     return ok, detail, allowed, policy
 end
 
-function DCPROGhostGuard:showToolsPanel()
-    if self.load_error then
-        show(_("KOReader đã thấy plugin nhưng runtime không nạp được:\n\n") .. tostring(self.load_error), 12)
-        return
-    end
-    local ok_sui, SUIWindow = pcall(require, "sui_window")
-    if not ok_sui or not SUIWindow then self:showStatus(); return end
-
-    local function opener(restore_indicator)
-        local function buildRoot(ctx)
-            local items = {
-                { text_func = function() return self:simpleUIPrimaryLabel() end,
-                  callback = function() self:runSmartAction("simpleui-tools"); ctx.repaint() end },
-                { text = _("Trạng thái GhostGuard"), callback = function() self:showStatus() end },
-                { text = _("Profile đang dùng"), callback = function() show(self.guard.profiles:summaryText(), 15) end },
-                { text = _("Học liên tục & báo cáo"), callback = function() self:showContinuousLearning() end },
-                { text = _("Tự bảo vệ khi mở KOReader"),
-                  enabled_func = function() return self.guard:profileApproved() and self.guard:protectSupported() end,
-                  checked_func = function() return self.guard:isAutoProtectEnabled() end,
-                  callback = function()
-                      local enable = not self.guard:isAutoProtectEnabled()
-                      local changed, result = self.guard:setAutoProtectEnabled(enable)
-                      show(changed and (enable and _("Đã bật tự bảo vệ.") or _("Đã tắt tự bảo vệ.")) or tostring(result), 5)
-                      ctx.repaint()
-                  end },
-                { text = _("Dừng GhostGuard"), enabled_func = function() return self.guard:isRunning() end,
-                  callback = function() self:stopAndShow("simpleui-tools-stop"); ctx.repaint() end },
-                { text = _("Xóa profile & học lại"), enabled_func = function() return not self.guard:isRunning() end,
-                  callback = function()
-                      UIManager:show(ConfirmBox:new{
-                          text = _("Xóa profile hiện tại và dữ liệu học liên tục để học lại từ đầu? Báo cáo cũ vẫn được giữ."),
-                          ok_text = _("Xóa & học lại"),
-                          ok_callback = function()
-                              local ok, result = self.guard:resetProfile()
-                              show(ok and _("Đã xóa profile. Chạm GhostGuard để bắt đầu học lại.") or tostring(result), 6)
-                              ctx.repaint()
-                          end,
-                      })
-                  end },
-                { text = _("SAFE_MODE"), checked_func = function() return self.guard:isSafeMode() end,
-                  callback = function()
-                      local safe = self.guard:isSafeMode()
-                      if safe then
-                          UIManager:show(ConfirmBox:new{ text = _("Tắt SAFE_MODE để cho phép GhostGuard chạy lại?"), ok_text = _("Tắt SAFE_MODE"), ok_callback = function()
-                              local changed, result = self.guard:setSafeMode(false); show(changed and _("SAFE_MODE đã tắt.") or tostring(result), 4); ctx.repaint()
-                          end })
-                      else
-                          local changed, result = self.guard:setSafeMode(true)
-                          show(changed and _("SAFE_MODE đã bật. GhostGuard dừng và không tự khởi động.") or tostring(result), 5)
-                          ctx.repaint()
-                      end
-                  end },
-            }
-            return SUIWindow.MenuTable{
-                inner_w = ctx.inner_w, items = items,
-                repaint = function() ctx.repaint() end,
-                push_stack = function(_id, params) ctx.push("nested_menu", params) end,
-                on_close = function() end,
-            }
-        end
-        local win = SUIWindow:new{
-            name = "dcpro_ghostguard_tools", title = "GhostGuard",
-            screens = { __root__ = buildRoot }, position = "bottom",
-            auto_height = true, on_close = restore_indicator,
-        }
-        win:show()
-    end
-    if self.simpleui then self.simpleui:openTrackedToolsWindow(opener) else opener(function() end) end
-end
-
 function DCPROGhostGuard:runSmartAction(reason)
     local licensed, detail = self.guard:licenseValid(true)
     if not licensed then show(_("GhostGuard chưa được kích hoạt.\n\n") .. self.guard:licenseHelpText() .. _("\n\nChi tiết: ") .. tostring(detail), 15); return end
@@ -299,18 +245,6 @@ function DCPROGhostGuard:runSmartAction(reason)
     end
 end
 
-function DCPROGhostGuard:registerSimpleUI(attempt)
-    if not self.simpleui or self.simpleui.registered then return end
-    attempt = attempt or 1
-    local ok, err = self.simpleui:register()
-    if ok then return end
-    if attempt < 8 then UIManager:scheduleIn(2, function() self:registerSimpleUI(attempt + 1) end) else logger.warn("DCPRO GhostGuard SimpleUI integration unavailable:", err) end
-end
-
-function DCPROGhostGuard:unregisterSimpleUI()
-    if self.simpleui then self.simpleui:unregister() end
-end
-
 function DCPROGhostGuard:recordExitReason(reason, detail, traceback_text)
     local result
     if self.guard and type(self.guard.recordExitReason) == "function" then
@@ -327,7 +261,6 @@ function DCPROGhostGuard:init()
     if not ok then self.load_error = err; logger.warn("DCPRO GhostGuard runtime load failed:", err) else logger.info("DCPRO GhostGuard runtime loaded") end
     self.ui.menu:registerToMainMenu(self)
     if not self.load_error then
-        UIManager:scheduleIn(0.5, function() self:registerSimpleUI(1) end)
         UIManager:scheduleIn(1.5, function() self.online_startup_sync = true; pcall(function() self:syncOnlineLicense(false) end); self.online_startup_sync = false end)
         local requested, requested_mode = self.guard:consumeLaunchRequest()
         local start_reason, start_mode
@@ -346,8 +279,8 @@ function DCPROGhostGuard:init()
             start_reason, start_mode = "customer-auto-learning", self.config.calibration_mode
         end
         if start_reason then
-            UIManager:scheduleIn(self.config.auto_start_delay_seconds, function()
-                if self.guard and not self.guard:isRunning() and not self.guard.autostart_blocked then
+            UIManager:scheduleIn(self:startupDelay(start_mode, start_reason), function()
+                if self.guard and not self.guard:isRunning() and not self.guard.autostart_blocked and not self.guard:isSafeMode() then
                     local started, result = self.guard:start(start_mode, start_reason)
                     if not started then show(_("GhostGuard không tự khởi động:\n") .. tostring(result), 8) end
                 end
@@ -362,7 +295,7 @@ function DCPROGhostGuard:addToMainMenu(menu_items)
         sub_items[#sub_items + 1] = { text = _("Lỗi nạp GhostGuard"), keep_menu_open = true,
             callback = function() show(_("KOReader đã thấy plugin nhưng runtime không nạp được:\n\n") .. tostring(self.load_error), 12) end }
     else
-        sub_items[#sub_items + 1] = { text_func = function() return self:simpleUIPrimaryLabel() end,
+        sub_items[#sub_items + 1] = { text_func = function() return self:primaryLabel() end,
             callback = function() self:runSmartAction("main-menu") end }
         sub_items[#sub_items + 1] = { text = _("Trạng thái GhostGuard"), keep_menu_open = true,
             callback = function() self:showStatus() end }
@@ -380,6 +313,44 @@ function DCPROGhostGuard:addToMainMenu(menu_items)
             end }
         sub_items[#sub_items + 1] = { text = _("Dừng GhostGuard"), enabled_func = function() return self.guard:isRunning() end,
             callback = function() self:stopAndShow("manual") end }
+        if zenInstalled() then
+            sub_items[#sub_items + 1] = { text = _("ZenOS: lọc dải ghost real-time (thử nghiệm)"),
+                checked_func = function() return self.guard.storage:readFile(self.config.data_dir .. "/ZEN_REALTIME_STRIP") == "1\n" end,
+                callback = function()
+                    local path = self.config.data_dir .. "/ZEN_REALTIME_STRIP"
+                    if self.guard.storage:readFile(path) == "1\n" then
+                        self.guard.storage:removeExact(path)
+                        show(_("Khởi động lại KOReader để tắt lọc dải ghost."), 6)
+                    else
+                        UIManager:show(ConfirmBox:new{
+                            text = _("Bộ lọc thử nghiệm chỉ xử lý chạm rất ngắn, yếu, lặp theo dải. Có thể nhận nhầm. Cần profile, license và Protect hợp lệ. Khởi động lại để áp dụng."),
+                            ok_text = _("Bật thử"),
+                            ok_callback = function()
+                                local ok, err = self.guard.storage:writeAtomic(path, "1\n")
+                                show(ok and _("Đã bật thử. Khởi động lại KOReader.") or tostring(err), 6)
+                            end,
+                        })
+                    end
+                end }
+            sub_items[#sub_items + 1] = { text = _("ZenOS: bảo vệ sớm (thử nghiệm)"),
+                checked_func = function() return self:zenEarlyEnabled() end,
+                callback = function()
+                    local path = self.config.data_dir .. "/ZEN_EARLY_PROTECT"
+                    if self:zenEarlyEnabled() then
+                        self.guard.storage:removeExact(path)
+                        show(_("Khởi động lại KOReader để tắt chế độ thử nghiệm ZenOS."), 5)
+                    else
+                        UIManager:show(ConfirmBox:new{
+                            text = _("Chỉ thử trên máy đã có profile, license hợp lệ và Auto Protect. Khởi động lại để áp dụng; SAFE_MODE vẫn có hiệu lực."),
+                            ok_text = _("Bật thử"),
+                            ok_callback = function()
+                                local ok, err = self.guard.storage:writeAtomic(path, "1\n")
+                                show(ok and _("Đã bật thử. Khởi động lại KOReader.") or tostring(err), 6)
+                            end,
+                        })
+                    end
+                end }
+        end
         sub_items[#sub_items + 1] = { text = _("License"), keep_menu_open = true,
             callback = function() show(self.guard:licenseStatusText(), 10) end }
         sub_items[#sub_items + 1] = { text = _("Xóa profile & học lại"), enabled_func = function() return not self.guard:isRunning() end,
@@ -443,12 +414,12 @@ end
 
 function DCPROGhostGuard:onPowerOff()
     self:recordExitReason("POWER_OFF", "KOReader dispatched onPowerOff", debug.traceback("onPowerOff", 2))
-    self:unregisterSimpleUI(); if self.guard then self.guard:stop("poweroff") end
+    if self.guard then self.guard:stop("poweroff") end
 end
 
 function DCPROGhostGuard:onReboot()
     self:recordExitReason("REBOOT", "KOReader dispatched onReboot", debug.traceback("onReboot", 2))
-    self:unregisterSimpleUI(); if self.guard then self.guard:stop("reboot") end
+    if self.guard then self.guard:stop("reboot") end
 end
 
 function DCPROGhostGuard:onCloseWidget()
@@ -458,7 +429,7 @@ end
 
 function DCPROGhostGuard:stopPlugin()
     self:recordExitReason("PLUGIN_STOP", "GhostGuard plugin explicitly stopped", debug.traceback("stopPlugin", 2))
-    self:unregisterSimpleUI(); if self.guard then self.guard:stop("plugin-stop") end
+    if self.guard then self.guard:stop("plugin-stop") end
     return true
 end
 

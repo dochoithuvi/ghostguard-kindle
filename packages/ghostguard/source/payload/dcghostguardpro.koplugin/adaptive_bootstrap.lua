@@ -396,7 +396,25 @@ function Adaptive:approvedRoom()
     return #(approved.clusters or {}) < max_clusters
 end
 
+-- Discard stale *unapproved* evidence before merging or promoting new samples.
+-- Approved profiles are untouched; a new candidate still needs V3 confirmation.
+function Adaptive:expireZenCandidates(now)
+    local ttl = tonumber(self.config.zen_candidate_ttl_seconds) or 0
+    if ttl <= 0 then return 0 end
+    now = now or os.time()
+    local removed = 0
+    for i = #self.clusters, 1, -1 do
+        local last = tonumber(self.clusters[i].last_seen_wall)
+        if last and last > 0 and now >= last and now - last >= ttl then
+            table.remove(self.clusters, i)
+            removed = removed + 1
+        end
+    end
+    return removed
+end
+
 function Adaptive:promoteReady()
+    self:expireZenCandidates()
     local profiles = self.guard.profiles
     local approved = profiles and profiles.approved
     if not approved or approved.ready ~= true then return 0 end
@@ -510,6 +528,7 @@ function Adaptive:observeSample(sample, decision, source)
         self.total_rejected = self.total_rejected + 1
         return false, "weak"
     end
+    self:expireZenCandidates()
     if self:approvedMatch(sample) then return false, "already-covered" end
 
     local cluster = self:findCluster(sample)

@@ -46,6 +46,7 @@ local function slot_state()
         max_touch_major = nil,
         path_px = 0,
         flags = {},
+        overlapped = false,
     }
 end
 
@@ -69,6 +70,8 @@ function TouchObserver:new(session, config, options)
         frame = 0,
         start_times = {},
         recent_suspects = {},
+        zen_strip_history = {},
+        zen_strip_last_us = nil,
         stats = {
             raw_events = 0, frames = 0, starts = 0, moves = 0, ends = 0,
             candidates = 0, protect_candidates = 0,
@@ -79,7 +82,11 @@ end
 
 function TouchObserver:setProtectEnabled(enabled)
     self.protect_enabled = enabled == true
-    if not self.protect_enabled then self.recent_suspects = {} end
+    if not self.protect_enabled then
+        self.recent_suspects = {}
+        self.zen_strip_history = {}
+        self.zen_strip_last_us = nil
+    end
 end
 
 function TouchObserver:getSlot(index)
@@ -161,6 +168,7 @@ function TouchObserver:baseSignals(slot, ts, slot_index)
         extreme_edge = extreme_edge,
         near_edge = near_edge,
         base_score = score,
+        overlapped = slot.overlapped == true,
         learnable = learnable,
         reason = table.concat(reasons, ";"),
     }
@@ -180,8 +188,52 @@ function TouchObserver:calibrate(sample)
     end
 end
 
+-- Bounded recent evidence, never a permanent coordinate blacklist.
+-- Evaluate only completed weak, still, single-contact taps with both axes.
+-- Same-axis evidence is eligible only if the other axis spans >= 70 pixels.
+function TouchObserver:zenStripEvidence(sample)
+    if self.config.zen_realtime_strip ~= true then return false end
+    local ts = tonumber(sample.timestamp_us)
+    if not ts or ts <= 0 then return false end
+    if self.zen_strip_last_us and ts < self.zen_strip_last_us then
+        self.zen_strip_history = {}
+    end
+    self.zen_strip_last_us = ts
+    local hist = self.zen_strip_history
+    while #hist > 0 and ts - hist[1].ts > 2000000 do table.remove(hist, 1) end
+    if sample.overlapped or sample.incomplete or not sample.low_major
+        or not sample.short or not sample.still
+        or type(sample.x) ~= "number" or type(sample.y) ~= "number"
+        or (tonumber(sample.duration_us) or 0) <= 0
+        or sample.duration_us > 60000 or (tonumber(sample.path_px) or math.huge) > 20 then
+        return false
+    end
+    local last = hist[#hist]
+    if last and ts - last.ts < 35000 then return false end
+    local function axisEvidence(axis, other)
+        local n, lo, hi = 1, sample[other], sample[other]
+        for _, h in ipairs(hist) do
+            if math.abs(h[axis] - sample[axis]) <= 24 then
+                n = n + 1
+                lo, hi = math.min(lo, h[other]), math.max(hi, h[other])
+            end
+        end
+        return n >= 5 and hi - lo >= 70
+    end
+    local hit = axisEvidence("x", "y") or axisEvidence("y", "x")
+    hist[#hist + 1] = { ts = ts, x = sample.x, y = sample.y }
+    if #hist > 48 then table.remove(hist, 1) end
+    return hit
+end
+
 function TouchObserver:evaluateProtect(sample)
     if not self.protect_enabled or not self.profile_manager then return nil end
+    if self.config.zen_preserve_gestures == true and
+        (sample.overlapped or (not sample.incomplete and
+            (not sample.still or (tonumber(sample.duration_us) or 0) >= 180000))) then
+        return nil
+    end
+    local strip = self:zenStripEvidence(sample)
     local match = self.profile_manager:match(sample.x, sample.y)
     local score = sample.base_score
     local reasons = { sample.reason }
@@ -213,7 +265,11 @@ function TouchObserver:evaluateProtect(sample)
 
     -- Outside a learned cluster, only extreme/incomplete burst patterns may
     -- pass the threshold. This preserves ordinary taps in unlearned regions.
-    if not match and not (sample.incomplete or sample.extreme_edge) then return nil end
+    if not match and not (sample.incomplete or sample.extreme_edge or strip) then return nil end
+    if strip then
+        score = math.max(score, self.config.protect_drop_score)
+        reasons[#reasons + 1] = "ZEN_REALTIME_STRIP"
+    end
     if score < self.config.protect_drop_score then return nil end
 
     self.stats.protect_candidates = self.stats.protect_candidates + 1
@@ -272,6 +328,7 @@ function TouchObserver:observe(event)
                 slot.max_touch_major = nil
                 slot.path_px = 0
                 slot.flags = {}
+                slot.overlapped = false
                 if tracking_replaced then self:addFlag(slot, "TRACKING_REPLACED", "new tracking id while active") end
                 slot.transition = "START"
                 self.stats.starts = self.stats.starts + 1
@@ -324,6 +381,17 @@ function TouchObserver:observe(event)
         self.frame = self.frame + 1
         self.stats.frames = self.frame
         local frame_decision = nil
+        if self.config.zen_preserve_gestures == true then
+            local count = 0
+            for _, s in pairs(self.slots) do
+                if s.active or (s.changed and s.transition == "END") then count = count + 1 end
+            end
+            if count > 1 then
+                for _, s in pairs(self.slots) do
+                    if s.active or (s.changed and s.transition == "END") then s.overlapped = true end
+                end
+            end
+        end
         for slot_index, slot in pairs(self.slots) do
             if slot.changed then
                 local state = slot.transition or (slot.active and "MOVE" or "IDLE")
@@ -332,6 +400,11 @@ function TouchObserver:observe(event)
                 local sample, decision = nil, nil
                 if state == "END" then
                     sample = self:baseSignals(slot, ts, slot_index)
+                    if self.config.zen_preserve_gestures == true and
+                        (sample.overlapped or (not sample.incomplete and
+                            (not sample.still or sample.duration_us >= 180000))) then
+                        sample.learnable = false
+                    end
                     if self.calibration_enabled then self:calibrate(sample) end
                     if self.protect_enabled then decision = self:evaluateProtect(sample) end
                 end
