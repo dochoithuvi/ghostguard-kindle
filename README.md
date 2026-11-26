@@ -2,7 +2,7 @@
 
 **YOUR INTENT. YOUR CONTROL.**
 
-[![Release](https://img.shields.io/badge/release-1.0%20Final-238636)](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0)
+[![Release](https://img.shields.io/badge/release-1.0%20Final-238636)](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0-r2)
 ![Device](https://img.shields.io/badge/Kindle-Basic%202022-333333)
 ![ZenOS](https://img.shields.io/badge/ZenOS-4.3.2-blue)
 
@@ -10,7 +10,7 @@ Developed by **Dochoithuvi** · Intent-based ghost touch protection for Kindle.
 
 IntentShield is the standalone next-generation successor to GhostGuard. Instead of trying to identify every false touch, it authorizes actions only after a completed swipe satisfies an intentional-gesture classifier. Ordinary taps are blocked while Shield is active.
 
-**[Download IntentShield 1.0 Final (ZIP)](https://github.com/dochoithuvi/ghostguard-kindle/releases/download/intentshield-v1.0.0/DCPRO_IntentShield_1.0_Final_Basic2022.zip)** · [Release notes & checksums](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0) · [Vietnamese installation guide](https://github.com/dochoithuvi/ghostguard-kindle/blob/intent-shield/packages/intentshield/README_VI.txt)
+**[Download IntentShield 1.0 Final (ZIP)](https://github.com/dochoithuvi/ghostguard-kindle/releases/download/intentshield-v1.0.0-r2/DCPRO_IntentShield_1.0_Final_Basic2022.zip)** · [Release notes & checksums](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0-r2) · [Vietnamese installation guide](https://github.com/dochoithuvi/ghostguard-kindle/blob/intent-shield/packages/intentshield/README_VI.txt)
 
 ## What makes IntentShield different?
 
@@ -36,7 +36,7 @@ The ZIP is an offline IntentShield installer; it does not bundle or replace KORe
 2. Download the release ZIP and copy the **contents** of `COPY_TO_KINDLE_ROOT` to the Kindle USB root.
 3. Run `GhostGuard_IntentGate_INSTALL.sh` from Library using SH Integration.
 4. Open ZenOS and find **DCPRO IntentShield 1.0** in Launcher / Plugin Menu.
-5. Test **Global Shield - 5 min** first; then select **Global Shield - continuous + resume** if comfortable.
+5. Open **License**, verify or sync an existing valid GhostGuard license, then enable **Global Shield — liên tục + Auto Resume**.
 
 ## Global Shield controls
 
@@ -86,8 +86,8 @@ Local reports: `/mnt/us/GhostGuard_Reports/IntentGate/`. Do not post reports con
 
 ## Distribution channels
 
-- **DCPRO IntentShield™ 1.0 Final**: [Release ZIP](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0) and [dedicated source branch](https://github.com/dochoithuvi/ghostguard-kindle/tree/intent-shield).
+- **DCPRO IntentShield™ 1.0 Final**: [Release ZIP](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0-r2) and [dedicated source branch](https://github.com/dochoithuvi/ghostguard-kindle/tree/intent-shield).
 - Legacy GhostGuard and GhostGuard Native KPM packages and the old SimpleUI OneClick installer have been retired. They are no longer offered from the current main branch. Existing signed license registry and public verification keys remain available. Git history is preserved.
 - KindleForge continues to be offered via [KPM v2 manifest](manifest.v2.json). IntentShield is not installed by KPM.
 
-The licensed unified IntentShield source candidate is undergoing verification; the existing 1.0 release ZIP remains the previous build until verification is complete.
+The latest 1.0 Final unified licensed revision is published. It retains the tested Strict swipe logic and uses existing GhostGuard RSA v4 keys and signed registry policy. CI passed including real RSA acceptance and tamper rejection with an ephemeral test key. Physical-device validation of the integrated license and Auto Boot is still pending. Download the latest release ZIP (revision r2), not the earlier unlicensed 1.0 build.
