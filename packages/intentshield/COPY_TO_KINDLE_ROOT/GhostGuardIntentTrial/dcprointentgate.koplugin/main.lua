@@ -11,10 +11,10 @@ local logger = require("logger")
 local BD = require("ui/bidi")
 local root = debug.getinfo(1,"S").source:sub(2):match("(.*/)")
 local Gate = dofile(root.."intent_gate.lua")
-local License = dofile(root.."license_gate.lua")
 local Plugin = WidgetContainer:extend{name="dcprointentgate",is_doc_only=false}
 local Global=Device.input and Device.input._dcpro_intentshield_global
 if not Global then Global=dofile(root.."global_shield.lua"); if Device.input then Device.input._dcpro_intentshield_global=Global end end
+local License=Global.license
 local REPORT = "/mnt/us/GhostGuard_Reports/IntentGate"
 local DISABLE = "/mnt/us/DISABLE_INTENTGATE"
 local shared = Device.input and Device.input._dcpro_intentgate_trial

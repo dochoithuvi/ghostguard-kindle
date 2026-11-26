@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.4 luajit openssl libssl-dev
       - name: Test and package candidate (no release mutation)
         run: |
           set -eu
@@ -21,6 +21,7 @@ jobs:
           for f in "$P"/dcprointentgate.koplugin/*.lua; do luac5.4 -p "$f"; done
           (cd "$P/dcprointentgate.koplugin"; lua5.4 ../../../TESTS/test_gate.lua)
           lua5.4 TESTS/test_integration.lua "$P/dcprointentgate.koplugin"
+          sh TESTS/test_license_rsa.sh "$P/dcprointentgate.koplugin"
           for f in COPY_TO_KINDLE_ROOT/documents/*.sh "$P"/boot-launch.sh; do sh -n "$f"; done
           (cd "$P/dcprointentgate.koplugin"; find . -type f | sort | xargs sha256sum) > "$P/SHA256SUMS"
           (cd "$P/dcprointentgate.koplugin"; sha256sum -c ../SHA256SUMS)

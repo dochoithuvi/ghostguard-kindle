@@ -9,7 +9,7 @@ local lfs = require('libs/libkoreader-lfs')
 local root=debug.getinfo(1,'S').source:sub(2):match('(.*/)')
 local Gate=dofile(root..'intent_gate.lua')
 local License=dofile(root..'license_gate.lua')
-local S={gen=0,active=false}
+local S={gen=0,active=false,license=License}
 local DIS='/mnt/us/DISABLE_INTENTGATE'
 local AUTO='/mnt/us/ENABLE_INTENTSHIELD_GLOBAL'
 local REPORT='/mnt/us/GhostGuard_Reports/IntentGate'

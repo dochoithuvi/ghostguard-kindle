@@ -11,8 +11,9 @@ CÀI ĐẶT VÀ THỬ THỦ CÔNG TRƯỚC
    Tự sao lưu plugin cũ vào GhostGuardIntentTrial/backup-before-1.0-<timestamp>-<pid>.
    Nếu backup đã tồn tại, bộ cài từ chối ghi đè; không xóa backup.
 4. Vào ZenOS, chọn DCPRO IntentShield 1.0 trong Launcher/Plugin Menu.
-   Global Shield - 5 min trước, rồi Global Shield - continuous + resume.
-   Các chế độ Reader-only 0.4 vẫn giữ. Không chạy hai chế độ cùng lúc.
+   Kiểm tra License; nếu cần, đồng bộ online qua Wi-Fi hoặc dùng license.key RSA v4.
+   Bật Global Shield — liên tục + Auto Resume. Dùng thao tác thoát hoặc nút nguồn để dừng.
+   Menu chỉ còn Global Shield, Dừng, Trạng thái, License và Báo cáo & hướng dẫn.
 
 CÁCH DÙNG GLOBAL SHIELD (khác cảm ứng thông thường)
 - Home, Library, các menu/hộp thoại: vuốt NGANG có chủ đích, nhấc tay tại
@@ -24,7 +25,7 @@ CÁCH DÙNG GLOBAL SHIELD (khác cảm ứng thông thường)
   CẢ HAI nét bắt đầu/kết thúc ở 1/4 bên trái màn hình. Không cuộn từ vùng này.
 - Nút nguồn: dừng khi ngủ; chế độ continuous+resume thử bật lại sau 5 giây.
   Nhấn nguồn lần nữa trong 5 giây để hủy; có khoảng trống không được bảo vệ.
-- Nếu khó điều khiển: để phiên 5 phút tự hết hạn. Với continuous, kết nối USB
+- Nếu khó điều khiển: nhấn nút nguồn để ngủ và hủy tự resume bằng lần nhấn tiếp theo trong 5 giây chờ. Hoặc kết nối USB
   và tạo file rỗng DISABLE_INTENTGATE ở gốc Kindle. Sau đó reboot nếu cần.
   Marker được kiểm tra mỗi ~2 giây khi KOReader chạy; không bảo đảm USB xuất hiện
   nếu hệ thống treo. Có thể phải khởi động lại bằng nút nguồn.
@@ -70,3 +71,5 @@ Kiểm thử: Lua 5.4 local + mock KOReader; không phải LuaJIT/Kindle thật.
 
 MIGRATION: Sau khi cài và test Global, thoát KOReader, chạy IntentShield_REPLACE_LEGACY.sh để chuyển plugin cũ vào backup ngoài plugins. Không xóa license, profile hay service chẩn đoán native read-only. IntentShield_RESTORE_LEGACY.sh khôi phục plugin cũ và vô hiệu IntentShield; không tự bật lại legacy autoboot.
 AUTO BOOT FIX: Chạy IntentShield_BOOT_PROBE.sh và xem boot.log. Nguồn hệ thống ưu tiên; nếu chỉ có /mnt/us/system/version.txt chứa Kindle 5.18.6, kiểm tra Device Info trên Kindle rồi tạo file CONFIRM_INTENTSHIELD_FW_5.18.6 ở gốc USB chứa đúng 5.18.6 (một dòng). Không tạo nếu không đúng. Nếu nguồn hệ thống báo phiên bản khác, vẫn từ chối. Chưa xác thực Upstart trên máy thật.
+
+1.0 Final — licensed revision: xác thực license GhostGuard RSA v4 và signed registry giữ nguyên. Bộ cài tự sao chép license.key hiện có từ plugin IntentShield, GhostGuard hoặc backup legacy đã ghi nhận; không gửi khóa cá nhân lên mạng. Sau khi kiểm tra license và Global Shield, chạy IntentShield_REPLACE_LEGACY.sh để ẩn plugin cũ bằng sao lưu. Không cần profile. Không có SimpleUI. Chưa kiểm thử bản tích hợp license trên Kindle thật.
