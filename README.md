@@ -96,6 +96,6 @@ The dedicated branch is being prepared for the simplified, licensed 1.0 Final in
 - [Tests and test results](packages/intentshield/TESTS/)
 - ZIP SHA-256: `2ba8bb7731f27430841c92982d2e74068cc169965f38987ad2034720a27b1f24`
 
-This branch is the dedicated IntentShield channel. The [main branch](https://github.com/dochoithuvi/ghostguard-kindle/tree/main) retains the legacy KPM packages, manifests and GhostGuard release channel. The IntentShield ZIP is not installed via the legacy KPM commands.
+This branch is the dedicated IntentShield channel. The [main branch](https://github.com/dochoithuvi/ghostguard-kindle/tree/main) retains KindleForge and the signed license registry. Legacy GhostGuard and GhostGuard Native KPM binaries and SimpleUI OneClick installer have been removed from the active branches; Git history is preserved. IntentShield is not installed via KPM.
 
 **By Dochoithuvi.**
