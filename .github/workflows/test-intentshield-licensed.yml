@@ -19,7 +19,7 @@ jobs:
           cd packages/intentshield
           P=COPY_TO_KINDLE_ROOT/GhostGuardIntentTrial
           for f in "$P"/dcprointentgate.koplugin/*.lua; do luac5.4 -p "$f"; done
-          lua5.4 TESTS/test_gate.lua "$P/dcprointentgate.koplugin"
+          (cd "$P/dcprointentgate.koplugin"; lua5.4 ../../../TESTS/test_gate.lua)
           lua5.4 TESTS/test_integration.lua "$P/dcprointentgate.koplugin"
           for f in COPY_TO_KINDLE_ROOT/documents/*.sh "$P"/boot-launch.sh; do sh -n "$f"; done
           (cd "$P/dcprointentgate.koplugin"; find . -type f | sort | xargs sha256sum) > "$P/SHA256SUMS"
