@@ -1,0 +1,63 @@
+name: Publish IntentShield 1.0 Final r3
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/intentshield/releases/r3/DCPRO_IntentShield_OneClick_Install.sh'
+permissions:
+  contents: write
+concurrency:
+  group: intentshield-release-r3
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify exact device-tested installer
+        run: |
+          set -eu
+          src="packages/intentshield/releases/r3/DCPRO_IntentShield_OneClick_Install.sh"
+          printf '%s  %s\n' 'bd26e9b601fffb7d91af1ae54ef1bbc2345de0c7d5b54e271160d11e8893a962' "$src" | sha256sum -c -
+          sh -n "$src"
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, io, zipfile, hashlib
+          p = Path("packages/intentshield/releases/r3/DCPRO_IntentShield_OneClick_Install.sh")
+          raw = p.read_bytes().split(b"\n__DCPRO_PAYLOAD_BELOW__\n", 1)[1]
+          z = zipfile.ZipFile(io.BytesIO(base64.b64decode(raw)))
+          assert z.testzip() is None
+          assert all(not n.startswith("/") and ".." not in Path(n).parts for n in z.namelist())
+          prefix = "COPY_TO_KINDLE_ROOT/GhostGuardIntentTrial/"
+          for line in z.read(prefix + "SHA256SUMS").decode().splitlines():
+              digest, rel = line.split(None, 1)
+              assert hashlib.sha256(z.read(prefix + "dcprointentgate.koplugin/" + rel.lstrip("*"))).hexdigest() == digest, rel
+          for n in z.namelist():
+              data = z.read(n)
+              assert b"-----BEGIN PRIVATE KEY-----" not in data and b"-----BEGIN RSA PRIVATE KEY-----" not in data
+              assert "database" not in n.lower() and "private" not in n.lower()
+          print("Embedded payload verified")
+          PY
+      - name: Package release
+        run: |
+          set -eu
+          mkdir -p dist
+          cp "packages/intentshield/releases/r3/DCPRO_IntentShield_OneClick_Install.sh" dist/
+          cp README.md dist/README.md
+          (cd dist && zip -q DCPRO_IntentShield_1.0_Final_r3_OneClick.zip DCPRO_IntentShield_OneClick_Install.sh README.md)
+          (cd dist && sha256sum DCPRO_IntentShield_OneClick_Install.sh DCPRO_IntentShield_1.0_Final_r3_OneClick.zip > SHA256SUMS)
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          if gh release view 'intentshield-v1.0.0-r3' >/dev/null 2>&1; then
+            echo "Release already exists; refusing overwrite."
+            exit 1
+          fi
+          gh release create 'intentshield-v1.0.0-r3' \
+            dist/DCPRO_IntentShield_OneClick_Install.sh \
+            dist/DCPRO_IntentShield_1.0_Final_r3_OneClick.zip \
+            dist/SHA256SUMS \
+            --target "$GITHUB_SHA" --title 'DCPRO IntentShield™ 1.0 Final — r3 OneClick + AutoSync' \
+            --notes-file 'packages/intentshield/releases/r3/RELEASE_NOTES.md' --latest
