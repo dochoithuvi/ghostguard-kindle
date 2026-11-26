@@ -22,6 +22,10 @@ stub("ui/widget/infomessage",{new=function(_,t)return t end});stub("ui/widget/co
 stub("ui/geometry",{new=function(_,t)return t end});stub("ui/time",{now=function()return 123 end}); function ui:sendEvent(e) calls[#calls+1]=e end
 local open=io.open
 local log={};io.open=function(path,mode) if path:find("/mnt/us/",1,true)==1 then return {write=function(_,s)log[#log+1]=s;return true end,flush=function()return true end,close=function()return true end} end return open(path,mode) end
+local licensed=true
+local real_dofile=dofile
+-- Mock license policy only; never change the production verification module.
+dofile=function(path) if path:match("/license_gate%.lua$") then return {check=function() return licensed,licensed and "VALID" or "DENIED" end,sync=function() return false,"MOCK" end} end return real_dofile(path) end
 local C=dofile(plugin_dir.."/main.lua");local p=setmetatable({ui=reader},C);p:init();ui.top=reader
 local ts=1
 local function ev(typ,code,value) input.hook(input,{type=typ,code=code,value=value,time={sec=math.floor(ts),usec=math.floor((ts-math.floor(ts))*1000000)}}) end
@@ -94,3 +98,10 @@ end
 assert(G:start(0,true)); local n=#calls; ts=ts+1;edgeVertical(900,-70);assert(G.exit);ts=ts+1;edgeVertical(480,70);nextTicks();assert(not G.active and G.manual_off and #calls==n)
 assert(G:start(0,true)); G:suspend();G:onResume();G:suspend();runTasks(5);assert(not G.active)
 print('PASS: global two-stroke left-edge escape, second suspend cancels resume')
+
+licensed=false
+assert(not G:start(0,true) and not G.active)
+assert(not p:start("SHIELD",60) and not p.mode)
+licensed=true; assert(G:start(0,true)); licensed=false; G.monitor(); assert(not G.active)
+licensed=true; assert(G:start(0,true)); G:suspend(); licensed=false; G:onResume(); runTasks(5); assert(not G.active)
+print("PASS: invalid license denies manual and resumed protection; active Global stops on invalid license")

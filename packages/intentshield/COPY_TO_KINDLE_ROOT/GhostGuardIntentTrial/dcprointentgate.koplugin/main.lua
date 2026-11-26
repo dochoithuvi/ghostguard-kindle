@@ -11,6 +11,7 @@ local logger = require("logger")
 local BD = require("ui/bidi")
 local root = debug.getinfo(1,"S").source:sub(2):match("(.*/)")
 local Gate = dofile(root.."intent_gate.lua")
+local License = dofile(root.."license_gate.lua")
 local Plugin = WidgetContainer:extend{name="dcprointentgate",is_doc_only=false}
 local Global=Device.input and Device.input._dcpro_intentshield_global
 if not Global then Global=dofile(root.."global_shield.lua"); if Device.input then Device.input._dcpro_intentshield_global=Global end end
@@ -198,6 +199,7 @@ function Plugin:installRawHook()
 end
 function Plugin:start(mode, seconds, fast, auto_resume)
     if Global.active then return false,"Stop Global Shield first" end
+    if mode=="SHIELD" then local ok,why=License.check(true); if not ok then return false,why end end
     if self.mode then self:stop("replaced") end
     local continuous=mode=="SHIELD" and seconds==0
     if (mode~="SHADOW" and mode~="SHIELD") or type(seconds)~="number" or
@@ -253,6 +255,7 @@ function Plugin:start(mode, seconds, fast, auto_resume)
             if exists(DISABLE) or not self:foreground() or screen:getRotationMode()~=0 then
                 self:stop("monitor_stop"); return
             end
+            if self.mode=="SHIELD" and not License.check(false) then self:stop("license_invalid"); return end
             if self.mode=="SHIELD" and UIManager.handleInputEvent~=self.wrapper then
                 self:stop("dispatch_hook_replaced"); return
             end
@@ -284,31 +287,37 @@ function Plugin:init()
     Global:maybeAuto()
 end
 function Plugin:addToMainMenu(menu)
-    menu.dcprointentgate={text="DCPRO IntentShield 1.0",sorting_hint="more_tools",sub_item_table={
-        {text="Global Shield - 5 min",callback=function() UIManager:show(ConfirmBox:new{text="Toan giao dien: vuot ngang ket thuc tai muc can chon; vuot doc cuon. Trong sach vuot ngang lat trang, vuot doc mo menu. Vuot dai len/xuong o mep trai de thoat. Het 5 phut tu tat.",ok_callback=function() self:stop("global_arm"); UIManager:scheduleIn(3,function() local ok,err=Global:start(300,false); if not ok then notice(tostring(err),5) end end) end}) end},
-        {text="Global Shield - continuous + resume",callback=function() UIManager:show(ConfirmBox:new{text="Thu nghiem toan giao dien lien tuc. Nhan nguon de tam dung; tu bat lai sau 5 giay. Thoat bang hai vuot doc nguoc chieu o mep trai, hoac DISABLE_INTENTGATE qua USB.",ok_callback=function() self:stop("global_arm"); UIManager:scheduleIn(3,function() local ok,err=Global:start(0,true); if not ok then notice(tostring(err),5) end end) end}) end},
-        {text="Global Shield - Stop",callback=function() Global:stop("manual"); Global.manual_off=true; notice("Global OFF") end},
-        {text="01 - Observe 180s (khong chan)",callback=function() self:arm("SHADOW",180) end},
-        {text="02 - Safe Swipe 60s (thu nghiem)",callback=function()
-            UIManager:show(ConfirmBox:new{text="Chi doc sach: tat cham don, vuot ngang co chu dich de lat trang. Het 60 giay tu tat. Nhan nut nguon de dung. Bat thu?",ok_text="Thu 60 giay",ok_callback=function() self:arm("SHIELD",60) end})
-        end},
-        {text="03 - Safe Swipe 5 min (strict 0.2)",callback=function()
-            UIManager:show(ConfirmBox:new{text="Thu 5 phut, giu bo loc 0.2. Nhan nut nguon de dung; het gio tu tat.",ok_text="Thu 5 phut",ok_callback=function() self:arm("SHIELD",300,false) end})
-        end},
-        {text="04 - Safe Swipe 15 min (strict 0.2)",callback=function()
-            UIManager:show(ConfirmBox:new{text="Thu 15 phut, giu bo loc 0.2. Nhan nut nguon de dung; het gio tu tat.",ok_text="Thu 15 phut",ok_callback=function() self:arm("SHIELD",900,false) end})
-        end},
-        {text="05 - Fast Swipe 5 min (experimental)",callback=function()
-            UIManager:show(ConfirmBox:new{text="Thu bo loc vuot nhanh moi. Co the nhan nham ghost. Nhan nut nguon de dung; het 5 phut tu tat.",ok_text="Thu Fast Swipe",ok_callback=function() self:arm("SHIELD",300,true) end})
-        end},
-        {text="06 - Continuous Shield (Strict)",callback=function()
-            UIManager:show(ConfirmBox:new{text="Bao ve khong gioi han trong trang sach. Cham don bi khoa. Vuot ngang de lat trang. Vuot doc dai len roi xuong (hoac nguoc lai) trong 8 giay de thoat. Nhan nut nguon de dung. Khong tu bat lai.",ok_text="Bat Continuous",ok_callback=function() self:arm("SHIELD",0,false,false) end})
-        end},
-        {text="07 - Continuous + Auto Resume (trial)",callback=function()
-            UIManager:show(ConfirmBox:new{text="Tu bat lai sau 5 giay khi mo khoa cung cuon sach. Nhan nguon lan nua trong 5 giay cho de huy tu bat. Vuot doc dai hai huong trong 8 giay de thoat. Khong tu bat sau reboot.",ok_text="Bat thu",ok_callback=function() self:arm("SHIELD",0,false,true) end})
-        end},
-        {text="08 - Stop",callback=function() self:stop("manual"); notice("IntentShield OFF") end},
-        {text="09 - Status / Report",callback=function() notice("IntentGate "..tostring(self.mode or "OFF").."\nGhostGuard_Reports/IntentGate/\nKhong thay doi GhostGuard cu.",6) end},
+    local function startGlobal()
+        local valid,why=License.check(true)
+        if not valid then notice("Cần license hợp lệ: "..tostring(why),8); return end
+        UIManager:show(ConfirmBox:new{
+            text="Bật Global Shield liên tục. Vuốt ngang để chọn/lật trang; vuốt dọc để cuộn. Thoát: hai nét vuốt dọc dài ngược chiều ở 1/4 bên trái trong 8 giây.",
+            ok_text="Bật",
+            ok_callback=function()
+                self:stop("global_arm")
+                Global.manual_off=false
+                UIManager:scheduleIn(3,function()
+                    if Global.manual_off then return end
+                    local ok,err=Global:start(0,true)
+                    if not ok then notice(tostring(err),6) end
+                end)
+            end,
+        })
+    end
+    menu.dcprointentgate={text="DCPRO IntentShield™",sorting_hint="more_tools",sub_item_table={
+        {text="Global Shield — liên tục + Auto Resume",checked_func=function() return Global.active end,
+            callback=function()
+                if Global.active then Global:stop("manual"); Global.manual_off=true
+                else startGlobal() end
+            end},
+        {text="Dừng bảo vệ",callback=function() Global:stop("manual"); Global.manual_off=true; self:stop("manual"); notice("Đã dừng IntentShield") end},
+        {text="Trạng thái bảo vệ",callback=function() notice("Global Shield: "..(Global.active and "BẬT" or "TẮT").."\nAuto Resume: "..(Global.active and Global.auto_resume and "BẬT" or "TẮT"),6) end},
+        {text="License",sub_item_table={
+            {text="Kiểm tra license",callback=function() local ok,why=License.check(true); notice((ok and "HỢP LỆ" or "KHÔNG HỢP LỆ").."\n"..tostring(why),10) end},
+            {text="Đồng bộ license online",callback=function() local ok,why=License.sync(); notice((ok and "Đã đồng bộ" or "Đồng bộ thất bại").."\n"..tostring(why),10) end},
+            {text="Hướng dẫn kích hoạt",callback=function() notice("Dùng license GhostGuard RSA v4 hợp lệ (license.key trong thư mục plugin) hoặc đồng bộ license online qua Wi-Fi.",10) end},
+        }},
+        {text="Báo cáo & hướng dẫn",callback=function() notice("GhostGuard_Reports/IntentGate/\nVuốt ngang để chọn hoặc lật trang. Vuốt dọc để cuộn/mở menu. Hai nét vuốt dọc dài ngược chiều ở mép trái để thoát. USB: DISABLE_INTENTGATE.",12) end},
     }}
 end
 function Plugin:onSuspend()

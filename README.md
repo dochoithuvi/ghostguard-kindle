@@ -84,6 +84,10 @@ Local reports: `/mnt/us/GhostGuard_Reports/IntentGate/`. Do not post reports con
 
 ---
 
+## Licensed unified candidate
+
+The dedicated branch is being prepared for the simplified, licensed 1.0 Final interface. The existing release ZIP is the previous tested build; the new source candidate is not yet a verified replacement. Legacy KPM distribution is retired.
+
 ## Source and development
 
 - [IntentShield package and source](packages/intentshield/)

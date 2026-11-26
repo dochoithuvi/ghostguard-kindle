@@ -1,0 +1,32 @@
+name: Test licensed IntentShield 1.0 candidate
+on:
+  push:
+    branches: [intent-shield]
+    paths:
+      - 'packages/intentshield/**'
+      - '.github/workflows/test-intentshield-licensed.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Test and package candidate (no release mutation)
+        run: |
+          set -eu
+          cd packages/intentshield
+          P=COPY_TO_KINDLE_ROOT/GhostGuardIntentTrial
+          for f in "$P"/dcprointentgate.koplugin/*.lua; do luac5.4 -p "$f"; done
+          lua5.4 TESTS/test_gate.lua "$P/dcprointentgate.koplugin"
+          lua5.4 TESTS/test_integration.lua "$P/dcprointentgate.koplugin"
+          for f in COPY_TO_KINDLE_ROOT/documents/*.sh "$P"/boot-launch.sh; do sh -n "$f"; done
+          (cd "$P/dcprointentgate.koplugin"; find . -type f | sort | xargs sha256sum) > "$P/SHA256SUMS"
+          (cd "$P/dcprointentgate.koplugin"; sha256sum -c ../SHA256SUMS)
+          zip -r /tmp/DCPRO_IntentShield_1.0_Licensed_Candidate.zip COPY_TO_KINDLE_ROOT README_VI.txt LICENSED_CANDIDATE.md
+          unzip -t /tmp/DCPRO_IntentShield_1.0_Licensed_Candidate.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IntentShield-1.0-licensed-candidate
+          path: /tmp/DCPRO_IntentShield_1.0_Licensed_Candidate.zip

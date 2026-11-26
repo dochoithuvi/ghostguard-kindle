@@ -8,6 +8,7 @@ local BD = require('ui/bidi')
 local lfs = require('libs/libkoreader-lfs')
 local root=debug.getinfo(1,'S').source:sub(2):match('(.*/)')
 local Gate=dofile(root..'intent_gate.lua')
+local License=dofile(root..'license_gate.lua')
 local S={gen=0,active=false}
 local DIS='/mnt/us/DISABLE_INTENTGATE'
 local AUTO='/mnt/us/ENABLE_INTENTSHIELD_GLOBAL'
@@ -108,6 +109,8 @@ function S:rawEvent(e)
 end
 function S:start(seconds,auto_resume)
     if self.active then return true end
+    local licensed,why=License.check(true)
+    if not licensed then return false,'License: '..tostring(why) end
     if exists(DIS) or not screenOK() then return false,'disabled or incompatible device' end
     if not Device.input or type(Device.input.registerEventAdjustHook)~='function' or type(UI.handleInputEvent)~='function' or type(UI.sendEvent)~='function' or type(Time.now)~='function' then return false,'incompatible KOReader APIs' end
     local old=Device.input._dcpro_intentgate_trial
@@ -131,6 +134,7 @@ function S:start(seconds,auto_resume)
     self.monitor=function()
         if not self.active or gen~=self.gen then return end
         if exists(DIS) or not screenOK() or UI.handleInputEvent~=self.wrapper or self.log_failed then self:stop('monitor_stop'); self.manual_off=true; return end
+        if not License.check(false) then self:stop('license_invalid'); self.manual_off=true; return end
         if self.file then local ok,v=pcall(self.file.flush,self.file); if not ok or not v then self:stop('flush_failed'); return end end
         UI:scheduleIn(2,self.monitor)
     end

@@ -32,7 +32,20 @@ S="$KR/plugins/.dcprointentgate-stage.$$"
 trap 'rm -rf "$S"' EXIT
 trap 'exit 130' HUP INT TERM
 mkdir "$S"
-for name in _meta.lua main.lua intent_gate.lua global_shield.lua; do cp "$SRC/$name" "$S/$name"; cmp "$SRC/$name" "$S/$name"; done
+mkdir "$S/keys"
+for name in _meta.lua main.lua intent_gate.lua global_shield.lua license_gate.lua license_config.lua license_storage.lua license_manager.lua license_crypto.lua online_license.lua keys/keyring.lua keys/ghostguard-prod-2026-08.pem keys/ghostguard-rc-2026-08.pem; do cp "$SRC/$name" "$S/$name"; cmp "$SRC/$name" "$S/$name"; done
+# Preserve the user's existing signed license, never download or generate one.
+OLD="$KR/plugins/dcghostguardpro.koplugin"
+if [ -s "$T/license.key" ]; then
+    cp "$T/license.key" "$S/license.key"; cmp "$T/license.key" "$S/license.key"
+elif [ -s "$OLD/license.key" ]; then
+    cp "$OLD/license.key" "$S/license.key"; cmp "$OLD/license.key" "$S/license.key"
+else
+    LEGACY_BACKUP=$(cat "$BASE/last-legacy-backup.txt" 2>/dev/null || :)
+    case "$LEGACY_BACKUP" in "$BASE"/legacy-ghostguard-*)
+        if [ -s "$LEGACY_BACKUP/license.key" ]; then cp "$LEGACY_BACKUP/license.key" "$S/license.key"; cmp "$LEGACY_BACKUP/license.key" "$S/license.key"; fi;;
+    esac
+fi
 B="$BASE/backup-before-1.0-$(date +%Y%m%d-%H%M%S)-$$"
 if [ -d "$T" ]; then
     [ ! -e "$B" ] || fail 'Backup already exists; keep it and use manual update'

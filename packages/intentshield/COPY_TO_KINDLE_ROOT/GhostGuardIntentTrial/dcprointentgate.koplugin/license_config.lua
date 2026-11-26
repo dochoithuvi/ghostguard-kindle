@@ -1,0 +1,16 @@
+return {
+    data_dir = "/mnt/us/.dcpro_ghostguard",
+    license_recheck_seconds = 30,
+    license_clock_rollback_tolerance_seconds = 300,
+    online_license_enabled = true,
+    online_license_registry_url = "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/licenses/licenses.json",
+    online_license_signature_url = "https://raw.githubusercontent.com/dochoithuvi/ghostguard-kindle/main/licenses/licenses.sig",
+    online_license_registry_mirror_url = "https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/licenses/licenses.json",
+    online_license_signature_mirror_url = "https://cdn.jsdelivr.net/gh/dochoithuvi/ghostguard-kindle@main/licenses/licenses.sig",
+    online_license_cache_json = "/mnt/us/.dcpro_ghostguard/online_licenses.json",
+    online_license_cache_sig = "/mnt/us/.dcpro_ghostguard/online_licenses.sig",
+    online_license_sync_state = "/mnt/us/.dcpro_ghostguard/online_license_sync_state",
+    online_license_grace_seconds = 604800,
+    online_license_connect_timeout = 5,
+    online_license_total_timeout = 12,
+}
