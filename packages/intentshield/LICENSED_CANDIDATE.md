@@ -1,3 +1,0 @@
-# 1.0 Final — licensed unified candidate
-
-This source revision keeps the existing swipe classifier and Global action mapping. It removes experimental menu entries and uses the existing GhostGuard signed RSA v4 and signed online registry policy for manual start, Auto Start, Auto Resume and periodic checks. The original 1.0 Release asset remains unchanged until this candidate is tested. Existing license.key is migrated from the prior IntentShield plugin, legacy plugin, or recorded legacy backup. Stop/recovery remains unrestricted. Auto Boot remains experimental. No old ghost profile engine is loaded. The legacy source is retained in Git history; public legacy distributions are retired.

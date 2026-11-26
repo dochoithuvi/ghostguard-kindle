@@ -2,7 +2,7 @@
 
 **YOUR INTENT. YOUR CONTROL.**
 
-[![Release](https://img.shields.io/badge/release-1.0%20Final-238636)](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0)
+[![Release](https://img.shields.io/badge/release-1.0%20Final-238636)](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0-r2)
 ![Device](https://img.shields.io/badge/Kindle-Basic%202022-333333)
 ![ZenOS](https://img.shields.io/badge/ZenOS-4.3.2-blue)
 
@@ -10,7 +10,7 @@ Developed by **Dochoithuvi** · Intent-based ghost touch protection for Kindle.
 
 IntentShield is the standalone next-generation successor to GhostGuard. Instead of trying to identify every false touch, it authorizes actions only after a completed swipe satisfies an intentional-gesture classifier. Ordinary taps are blocked while Shield is active.
 
-**[Download IntentShield 1.0 Final (ZIP)](https://github.com/dochoithuvi/ghostguard-kindle/releases/download/intentshield-v1.0.0/DCPRO_IntentShield_1.0_Final_Basic2022.zip)** · [Release notes & checksums](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0) · [Vietnamese installation guide](https://github.com/dochoithuvi/ghostguard-kindle/blob/intent-shield/packages/intentshield/README_VI.txt)
+**[Download IntentShield 1.0 Final (ZIP)](https://github.com/dochoithuvi/ghostguard-kindle/releases/download/intentshield-v1.0.0-r2/DCPRO_IntentShield_1.0_Final_Basic2022.zip)** · [Release notes & checksums](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0-r2) · [Vietnamese installation guide](https://github.com/dochoithuvi/ghostguard-kindle/blob/intent-shield/packages/intentshield/README_VI.txt)
 
 ## What makes IntentShield different?
 
@@ -36,7 +36,7 @@ The ZIP is an offline IntentShield installer; it does not bundle or replace KORe
 2. Download the release ZIP and copy the **contents** of `COPY_TO_KINDLE_ROOT` to the Kindle USB root.
 3. Run `GhostGuard_IntentGate_INSTALL.sh` from Library using SH Integration.
 4. Open ZenOS and find **DCPRO IntentShield 1.0** in Launcher / Plugin Menu.
-5. Test **Global Shield - 5 min** first; then select **Global Shield - continuous + resume** if comfortable.
+5. Open **License**, verify or sync your existing valid GhostGuard license, then enable **Global Shield — liên tục + Auto Resume**. Stop with the escape gesture or USB recovery if needed.
 
 ## Global Shield controls
 
@@ -84,9 +84,9 @@ Local reports: `/mnt/us/GhostGuard_Reports/IntentGate/`. Do not post reports con
 
 ---
 
-## Licensed unified candidate
+## Unified licensed revision
 
-The dedicated branch is being prepared for the simplified, licensed 1.0 Final interface. The existing release ZIP is the previous tested build; the new source candidate is not yet a verified replacement. Legacy KPM distribution is retired.
+The Vietnamese menu is streamlined to continuous Global Shield + Auto Resume, Stop, Status, License and Reports & Help. Existing GhostGuard RSA v4 license keys and signed registry policy are reused. The previous build's Strict swipe logic is preserved. This revision passed local CI tests, including actual RSA signature verification with a temporary test key; Kindle-device validation of the new licensing integration and Auto Boot is still pending.
 
 ## Source and development
 
@@ -94,7 +94,7 @@ The dedicated branch is being prepared for the simplified, licensed 1.0 Final in
 - [Detailed Vietnamese guide](packages/intentshield/README_VI.txt)
 - [Release notes](packages/intentshield/RELEASE_NOTES.md)
 - [Tests and test results](packages/intentshield/TESTS/)
-- ZIP SHA-256: `2ba8bb7731f27430841c92982d2e74068cc169965f38987ad2034720a27b1f24`
+- ZIP SHA-256: see the checksum asset on the [release page](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0-r2).
 
 This branch is the dedicated IntentShield channel. The [main branch](https://github.com/dochoithuvi/ghostguard-kindle/tree/main) retains KindleForge and the signed license registry. Legacy GhostGuard and GhostGuard Native KPM binaries and SimpleUI OneClick installer have been removed from the active branches; Git history is preserved. IntentShield is not installed via KPM.
 

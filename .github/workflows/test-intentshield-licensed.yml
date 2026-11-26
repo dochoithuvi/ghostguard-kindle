@@ -1,4 +1,4 @@
-name: Test licensed IntentShield 1.0 candidate
+name: Test and publish IntentShield 1.0 licensed revision
 on:
   push:
     branches: [intent-shield]
@@ -6,14 +6,14 @@ on:
       - 'packages/intentshield/**'
       - '.github/workflows/test-intentshield-licensed.yml'
 permissions:
-  contents: read
+  contents: write
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y lua5.4 luajit openssl libssl-dev
-      - name: Test and package candidate (no release mutation)
+      - name: Test and package the licensed revision
         run: |
           set -eu
           cd packages/intentshield
@@ -25,9 +25,25 @@ jobs:
           for f in COPY_TO_KINDLE_ROOT/documents/*.sh "$P"/boot-launch.sh; do sh -n "$f"; done
           (cd "$P/dcprointentgate.koplugin"; find . -type f | sort | xargs sha256sum) > "$P/SHA256SUMS"
           (cd "$P/dcprointentgate.koplugin"; sha256sum -c ../SHA256SUMS)
-          zip -r /tmp/DCPRO_IntentShield_1.0_Licensed_Candidate.zip COPY_TO_KINDLE_ROOT README_VI.txt LICENSED_CANDIDATE.md
-          unzip -t /tmp/DCPRO_IntentShield_1.0_Licensed_Candidate.zip
+          zip -r /tmp/DCPRO_IntentShield_1.0_Final_Basic2022.zip COPY_TO_KINDLE_ROOT README_VI.txt RELEASE_NOTES.md
+          unzip -t /tmp/DCPRO_IntentShield_1.0_Final_Basic2022.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: IntentShield-1.0-licensed-candidate
-          path: /tmp/DCPRO_IntentShield_1.0_Licensed_Candidate.zip
+          name: IntentShield-1.0-Final-licensed
+          path: /tmp/DCPRO_IntentShield_1.0_Final_Basic2022.zip
+      - name: Publish verified revision as latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -eu
+          cd /tmp
+          ASSET="DCPRO_IntentShield_1.0_Final_Basic2022.zip"
+          sha256sum "$ASSET" > "$ASSET.sha256"
+          sha256sum -c "$ASSET.sha256"
+          TAG="intentshield-v1.0.0-r2"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Revision already exists; refusing to overwrite."
+            exit 0
+          fi
+          gh release create "$TAG" "$ASSET" "$ASSET.sha256" --target "$GITHUB_SHA" --title "DCPRO IntentShield™ 1.0 Final — Unified Licensed Edition" --notes-file "$GITHUB_WORKSPACE/packages/intentshield/RELEASE_NOTES.md" --latest
