@@ -286,6 +286,41 @@ function Plugin:init()
     self.ui.menu:registerToMainMenu(self)
     Global:maybeAuto()
 end
+
+-- Keep the normal UI toggle separate from the emergency recovery script.
+local BOOT_ON = "/mnt/us/ENABLE_INTENTSHIELD_BOOT"
+local BOOT_OFF = "/mnt/us/DISABLE_INTENTSHIELD_BOOT"
+local function bootEnabled()
+    return exists(BOOT_ON) and not exists(BOOT_OFF) and not exists(DISABLE)
+        and exists("/etc/upstart/dcpro-intentshield-boot.conf")
+end
+local function toggleBoot()
+    if exists(BOOT_ON) and not exists(BOOT_OFF) then
+        -- Disable next boot, without stopping Global Shield or Auto Resume.
+        local f = io.open(BOOT_OFF,"w")
+        if not f then notice("Không thể ghi marker tắt Auto Boot. Dùng USB cứu hộ.",8); return end
+        f:close()
+        os.remove(BOOT_ON)
+        notice("Đã tắt Auto Boot cho lần khởi động tới.")
+        return
+    end
+    local valid,why = License.check(true)
+    if not valid then notice("Cần license hợp lệ: "..tostring(why),8); return end
+    UIManager:show(ConfirmBox:new{
+        text="Auto Boot thử nghiệm: chỉ bật sau khi đã kiểm tra Global Shield và USB cứu hộ. Script sẽ kiểm tra firmware, quyền root và hệ thống. Không tự reboot.",
+        ok_text="Bật Auto Boot",
+        ok_callback=function()
+            local a,_,c = os.execute("/bin/sh /mnt/us/documents/IntentShield_ENABLE_AUTOBOOT.sh")
+            local success = a == 0 or (a == true and c == 0)
+            if success and bootEnabled() then
+                notice("Đã bật Auto Boot cho lần khởi động tới.",6)
+            else
+                notice("Chưa bật Auto Boot. Cần root SH Integration và preflight thành công. Xem GhostGuard_Reports/IntentGate/boot-install.log.",10)
+            end
+        end,
+    })
+end
+
 function Plugin:addToMainMenu(menu)
     local function startGlobal()
         local valid,why=License.check(true)
@@ -310,6 +345,7 @@ function Plugin:addToMainMenu(menu)
                 if Global.active then Global:stop("manual"); Global.manual_off=true
                 else startGlobal() end
             end},
+        {text="Auto Boot (thử nghiệm)",checked_func=bootEnabled,callback=toggleBoot},
         {text="Dừng bảo vệ",callback=function() Global:stop("manual"); Global.manual_off=true; self:stop("manual"); notice("Đã dừng IntentShield") end},
         {text="Trạng thái bảo vệ",callback=function() notice("Global Shield: "..(Global.active and "BẬT" or "TẮT").."\nAuto Resume: "..(Global.active and Global.auto_resume and "BẬT" or "TẮT"),6) end},
         {text="License",sub_item_table={

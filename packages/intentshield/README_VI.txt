@@ -1,6 +1,6 @@
 DCPRO IntentShield™ 1.0 Final — Global Protection (Auto Boot EXPERIMENTAL)
 By Dochoithuvi | Kindle Basic 2022 (KindleBasic4), portrait 1072×1448
-Auto Boot: CHỈ FW 5.18.6 đã xác minh, root SH Integration/SSH.
+Yêu cầu thiết bị: Kindle Basic 2022 đã jailbreak. Auto Boot thử nghiệm cần root và vượt kiểm tra tương thích.
 Cần KOReader đã cài (ưu tiên 2026.07), ZenOS 4.3.2 đang chạy được.
 Không tải mạng; không thay ZenOS/KOReader, license/profile. Có script thay thế plugin GhostGuard cũ riêng, phục hồi được.
 
@@ -31,7 +31,7 @@ CÁCH DÙNG GLOBAL SHIELD (khác cảm ứng thông thường)
   nếu hệ thống treo. Có thể phải khởi động lại bằng nút nguồn.
 
 AUTO BOOT — CHỈ BẬT SAU KHI GLOBAL THỦ CÔNG ỔN ĐỊNH
-1. Thoát KOReader. Chạy IntentShield_ENABLE_AUTOBOOT.sh (cần quyền root).
+1. Trong IntentShield chọn Auto Boot (thử nghiệm) sau khi Global ổn định. Nếu không đủ quyền, thoát KOReader rồi chạy IntentShield_ENABLE_AUTOBOOT.sh qua SH Integration quyền root.
    Script kiểm tra model/firmware, Upstart framework running, checksum, ZenOS
    và plugin đã cài. Không tự reboot, không dừng Amazon framework.
    Cài một job /etc/upstart/dcpro-intentshield-boot.conf, không respawn.
@@ -73,3 +73,15 @@ MIGRATION: Sau khi cài và test Global, thoát KOReader, chạy IntentShield_RE
 AUTO BOOT FIX: Chạy IntentShield_BOOT_PROBE.sh và xem boot.log. Nguồn hệ thống ưu tiên; nếu chỉ có /mnt/us/system/version.txt chứa Kindle 5.18.6, kiểm tra Device Info trên Kindle rồi tạo file CONFIRM_INTENTSHIELD_FW_5.18.6 ở gốc USB chứa đúng 5.18.6 (một dòng). Không tạo nếu không đúng. Nếu nguồn hệ thống báo phiên bản khác, vẫn từ chối. Chưa xác thực Upstart trên máy thật.
 
 1.0 Final — licensed revision: xác thực license GhostGuard RSA v4 và signed registry giữ nguyên. Bộ cài tự sao chép license.key hiện có từ plugin IntentShield, GhostGuard hoặc backup legacy đã ghi nhận; không gửi khóa cá nhân lên mạng. Sau khi kiểm tra license và Global Shield, chạy IntentShield_REPLACE_LEGACY.sh để ẩn plugin cũ bằng sao lưu. Không cần profile. Không có SimpleUI. Chưa kiểm thử bản tích hợp license trên Kindle thật.
+
+
+# r3 candidate — chưa phát hành
+
+Yêu cầu: Kindle Basic 2022 đã jailbreak. OneClick cần Wi-Fi, KPM và SH Integration quyền root.
+
+- Build: `python3 packages/intentshield/build_oneclick.py` (tạo ZIP và file SH OneClick chứa payload).
+- Chạy file OneClick qua SH Integration; script dùng KPM CLI cài KOReader nếu thiếu, tải ZenOS 4.3.2 từ upstream và xác minh SHA-256, cài IntentShield từ payload nhúng.
+- Chưa xác minh ZenOS có package riêng trong KPM; do đó không tuyên bố ZenOS được cài bởi KPM. Không ghi đè KOReader/ZenOS hiện có. Nếu có Zen UI/Project: Title/SimpleUI, xử lý xung đột theo hướng dẫn upstream.
+- ZenOS mới: mặc định Library, Home, DCPRO IntentShield™ (tia sét); font giao diện Library/Home Readerly R cỡ 18. ZenOS hiện có giữ nguyên cấu hình; thêm shortcut qua Zen Settings > Interface > Navbar > Tabs > Add > Plugin Menu; chọn DCPRO IntentShield™, icon tia sét. Font Library chọn Readerly R 18.
+- Auto Boot mặc định tắt; menu IntentShield gọi script preflight cũ. Tắt từ menu chỉ tắt lần boot sau, không tắt Shield đang chạy. Script DISABLE_AUTOBOOT vẫn là cứu hộ toàn bộ. Giữ kiểm tra firmware 5.18.6 trong code và điều kiện kỹ thuật; không vượt preflight.
+- Cần kiểm thử mock, CI, kiểm thử installer KPM, quyền root, menu ZenOS, font hiển thị, license và reboot trên Kindle thật trước khi phát hành. Không ghi đè release r2.

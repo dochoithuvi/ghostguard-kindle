@@ -2,7 +2,7 @@
 
 **YOUR INTENT. YOUR CONTROL.** · By Dochoithuvi
 
-This is the licensed revision of the same 1.0 Final product, not version 1.1. Standalone successor to legacy GhostGuard for jailbroken Kindle Basic 2022 (KindleBasic4), portrait 1072 × 1448, with compatible preinstalled KOReader (2026.07 recommended) and ZenOS v4.3.2.
+This is the licensed revision of the same 1.0 Final product, not version 1.1. Standalone successor to legacy GhostGuard for jailbroken Kindle Basic 2022 (KindleBasic4), portrait 1072 × 1448, with KOReader and ZenOS.
 
 ## What's new
 - A single Vietnamese IntentShield menu: continuous Global Shield + Auto Resume, Stop, Status, License, Reports & Help.
@@ -12,6 +12,8 @@ This is the licensed revision of the same 1.0 Final product, not version 1.1. St
 - Legacy GhostGuard KPM distributions and old SimpleUI OneClick installer removed from main and intent-shield. KindleForge and signed license registry preserved.
 
 ## Install
+r3 candidate adds a OneClick builder and in-menu experimental Auto Boot toggle; see `packages/intentshield/R3_CANDIDATE.md`. The published r2 remains unchanged.
+
 Exit KOReader, back up your device, extract the ZIP and copy the contents of COPY_TO_KINDLE_ROOT to the Kindle USB root. Run GhostGuard_IntentGate_INSTALL.sh through SH Integration. Open ZenOS → Launcher / Plugin Menu → DCPRO IntentShield™ → License, check or sync your license; enable Global Shield — liên tục + Auto Resume. Once confirmed, exit KOReader and run IntentShield_REPLACE_LEGACY.sh. See README_VI.txt.
 
 ## Recovery and Auto Boot
