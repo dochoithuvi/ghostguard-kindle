@@ -1,0 +1,5 @@
+PASS: mock integration shadow, gesture interception, page directions, power pass-through, timeout, suspend, USB disable, foreground loss, SYN_DROPPED, stale page request
+PASS: page-location observation, 15-min deadline, optional fast mode, max duration
+PASS: continuous, default suspend-off, opt-in resume, second sleep cancels, USB marker, foreground refusal, close cancellation, two-stroke escape, expiry, timed-mode unchanged, fast rate-limit
+PASS: global tap suppression, selection endpoint, stale context discard, vertical scroll, reader page/menu, desync reset, resume, USB stop, queued cancellation, timeout
+PASS: global two-stroke left-edge escape, second suspend cancels resume

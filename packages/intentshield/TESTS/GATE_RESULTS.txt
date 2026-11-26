@@ -1,0 +1,2 @@
+PASS: 15 synthetic assertions (including one-time challenge, stale axes, overlap, loss of sync).
+PASS: 6 fast-lane assertions (synthetic analogue, short duration, low movement, few frames, zigzag).

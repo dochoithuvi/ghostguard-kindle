@@ -1,0 +1,1 @@
+Shell syntax and checksum checks passed; firmware source expansion and actual Upstart boot remain unverified on Kindle.
