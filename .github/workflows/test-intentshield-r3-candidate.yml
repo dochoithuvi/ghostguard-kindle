@@ -1,0 +1,33 @@
+name: IntentShield r3 candidate checks
+on:
+  push:
+    branches: [intent-shield-r3-candidate]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y lua5.4 luajit openssl libssl-dev
+      - name: Build and test without publishing a release
+        run: |
+          set -eu
+          cd packages/intentshield
+          P=COPY_TO_KINDLE_ROOT/GhostGuardIntentTrial
+          for f in "$P"/dcprointentgate.koplugin/*.lua; do luac5.4 -p "$f"; done
+          (cd "$P/dcprointentgate.koplugin"; lua5.4 ../../../TESTS/test_gate.lua)
+          lua5.4 TESTS/test_integration.lua "$P/dcprointentgate.koplugin"
+          sh TESTS/test_license_rsa.sh "$P/dcprointentgate.koplugin"
+          python3 build_oneclick.py
+          (cd "$P/dcprointentgate.koplugin"; sha256sum -c ../SHA256SUMS)
+          (cd "$P"; sha256sum -c BOOT_SHA256SUMS)
+          unzip -t dist/DCPRO_IntentShield_1.0_Final_Basic2022.zip
+          sed '1,/^__DCPRO_PAYLOAD_BELOW__$/d' dist/DCPRO_IntentShield_OneClick_Install.sh | base64 -d > /tmp/embedded.zip
+          cmp /tmp/embedded.zip dist/DCPRO_IntentShield_1.0_Final_Basic2022.zip
+          (cd dist; sha256sum *.zip *.sh > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IntentShield-r3-candidate
+          path: packages/intentshield/dist/

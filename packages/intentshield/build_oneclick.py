@@ -25,5 +25,5 @@ template = (p / "OneClick.template.sh").read_bytes()
 script = out / "DCPRO_IntentShield_OneClick_Install.sh"
 script.write_bytes(template.rstrip(b"\n") + b"\n" + base64.encodebytes(payload))
 # Shell parses only until the payload marker when extracting a syntax-checkable prefix.
-subprocess.run(["sh", "-n"], input=template.split(b"__DCPRO_PAYLOAD_BELOW__\n")[-2] if False else template.rsplit(b"\n__DCPRO_PAYLOAD_BELOW__",1)[0], check=True)
+subprocess.run(["sh", "-n"], input=template.rsplit(b"\n__DCPRO_PAYLOAD_BELOW__",1)[0], check=True)
 print(out)
