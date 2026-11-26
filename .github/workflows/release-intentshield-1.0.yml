@@ -1,0 +1,35 @@
+name: Publish IntentShield 1.0 Final
+on:
+  push:
+    branches: [intent-shield]
+    paths: ['.github/workflows/release-intentshield-1.0.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: release-intentshield-v1.0.0
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/intent-shield'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: intentshield-v1.0.0
+      ASSET: DCPRO_IntentShield_1.0_Final_Basic2022.zip
+    steps:
+      - name: Verify and publish exact release artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GH_REPO/contents/packages/intentshield/artifacts/$ASSET?ref=$GITHUB_SHA" --jq .content | base64 -d > "$ASSET"
+          printf '%s  %s\n' '2ba8bb7731f27430841c92982d2e74068cc169965f38987ad2034720a27b1f24' "$ASSET" > "$ASSET.sha256"
+          sha256sum -c "$ASSET.sha256"
+          unzip -t "$ASSET"
+          gh api "repos/$GH_REPO/contents/packages/intentshield/RELEASE_NOTES.md?ref=$GITHUB_SHA" --jq .content | base64 -d > notes.md
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to replace."
+            exit 0
+          fi
+          gh release create "$TAG" "$ASSET" "$ASSET.sha256" --target "$GITHUB_SHA" --title "DCPRO IntentShield™ 1.0 Final — Global Protection" --notes-file notes.md --latest=false
