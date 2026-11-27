@@ -1,68 +1,53 @@
-# DCPRO IntentShield™ — 1.0 Final
+# DCPRO IntentShield™ — 1.1 Final
 
 **YOUR INTENT. YOUR CONTROL.**
 
-Phát triển bởi **Dochoithuvi** · Giải pháp hỗ trợ đọc sách trên Kindle Basic 2022 gặp tình trạng ghost touch (loạn cảm ứng).
+Phát triển bởi **Dochoithuvi**. Giải pháp hỗ trợ đọc sách trên Kindle gặp tình trạng ghost touch (loạn cảm ứng) khi dùng KOReader và ZenOS.
 
-[![Release](https://img.shields.io/badge/release-1.0%20Final%20r3-238636)](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0-r3)
-![Device](https://img.shields.io/badge/Kindle-Basic%202022-333333)
-![ZenOS](https://img.shields.io/badge/ZenOS-4.3%2B-blue)
+**[Tải OneClick (.SH)](https://github.com/dochoithuvi/ghostguard-kindle/releases/download/intentshield-v1.1.0/DCPRO_IntentShield_OneClick_Install.sh)** · [Bản ZIP](https://github.com/dochoithuvi/ghostguard-kindle/releases/download/intentshield-v1.1.0/DCPRO_IntentShield_1.1_Final_OneClick.zip) · [Release](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.1.0)
 
-**[Tải OneClick Installer (.SH)](https://github.com/dochoithuvi/ghostguard-kindle/releases/download/intentshield-v1.0.0-r3/DCPRO_IntentShield_OneClick_Install.sh)** · [Bản ZIP dự phòng và thông tin phát hành](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.0.0-r3)
+## Thiết bị
+| Model | Tình trạng |
+| --- | --- |
+| Kindle Basic 2022 | Đã thử trên máy thật |
+| Kindle Basic 2024 | Đã thử trên máy thật |
+| Kindle Paperwhite 4 (10th gen, 2018) | Hỗ trợ thử nghiệm, chưa xác nhận trên máy thật |
+| Kindle Basic 2019 (10th gen) | Hỗ trợ thử nghiệm, chưa xác nhận trên máy thật |
 
 ## Tính năng
+- OneClick tự nhận diện model, cài KOReader và ZenOS khi cần, tự mở KOReader khi hoàn tất.
+- Global Shield và Auto Resume, hạn chế thao tác cảm ứng ngoài ý muốn.
+- Tra từ điển bằng bốn hướng vuốt chéo theo vùng hỗ trợ; mở Aa, mục lục, bookmark và ghi chú qua Page Browser.
+- Gesture Guide minh họa 5 trang; tắt bảo vệ bằng xác nhận trong plugin, không còn gesture thoát.
+- Đồng bộ bản quyền tự động khi có Wi-Fi; tự lưu báo cáo cục bộ.
 
-- Hạn chế thao tác ngoài ý muốn trong ZenOS, thư viện, trang sách và các menu được hỗ trợ.
-- Vuốt để chọn mục, cuộn hoặc lật trang.
-- Global Shield, Auto Resume và Auto Boot (thử nghiệm).
-- OneClick tự cài KOReader, ZenOS và IntentShield khi cần; hiển thị tiến trình, tự mở KOReader sau khi hoàn tất.
-- Tự đồng bộ và kích hoạt bản quyền hợp lệ khi có Wi-Fi.
+## Cài đặt
+Yêu cầu Kindle đã jailbreak, SH Integration có quyền root, Wi-Fi, KPM (`;kpm`) nếu chưa cài KOReader. KOReader 2026.03+ và ZenOS 4.3+ có cấu trúc tương thích; bộ cài kiểm tra trước khi áp dụng, không đảm bảo mọi phiên bản tương lai.
 
-## Yêu cầu
-
-- Kindle Basic 2022 đã jailbreak.
-- KPM (`;kpm`) nếu chưa có KOReader; SH Integration có quyền root.
-- Wi-Fi để tải các thành phần cần thiết và kích hoạt online.
-- KOReader 2026.03+ và ZenOS 4.3+ có cấu trúc tương thích. Bộ cài kiểm tra trước khi áp dụng; không đảm bảo mọi bản tương lai đều tương thích.
-
-## Cài đặt OneClick
-
-1. Sao lưu dữ liệu, dừng GhostGuard cũ (nếu có) và thoát hoàn toàn KOReader về giao diện Kindle.
-2. Tải file `DCPRO_IntentShield_OneClick_Install.sh` ở phần Release (nếu tải ZIP, giải nén lấy file SH).
-3. Chép file SH vào thư mục `documents` của Kindle. Ngắt kết nối USB, kết nối Wi-Fi.
-4. Mở file bằng SH Integration có quyền root và đợi đủ 9 bước.
-5. Khi cài thành công, OneClick tự mở KOReader / ZenOS và tự xóa file cài khỏi thư viện nếu có thể.
-6. Mở **DCPRO IntentShield™** trong Navbar hoặc menu plugin. Nếu đã có bản quyền hợp lệ, Global Shield và Auto Resume tự bật khi đủ điều kiện. Không bật đồng thời GhostGuard cũ.
-
-Nếu chưa kích hoạt, chọn **License → Đồng bộ license online → Kiểm tra license** khi có Wi-Fi. License GhostGuard RSA v4 hợp lệ vẫn được hỗ trợ. Nếu đã dùng ZenOS trước đó, có thể cần thêm shortcut vào Navbar và chọn Readerly R cỡ 18 trong Zen Settings.
+1. Sao lưu dữ liệu, tắt GhostGuard cũ (nếu có), thoát KOReader.
+2. Tải file SH (nếu tải ZIP, giải nén lấy SH), chép vào `documents`, ngắt USB và kết nối Wi-Fi.
+3. Chạy bằng SH Integration root, chờ hoàn tất 9 bước.
+4. OneClick tự mở KOReader và tự xóa file cài nếu có thể. Mở DCPRO IntentShield™ từ Navbar hoặc menu plugin.
+5. License hợp lệ được tự đồng bộ khi có Wi-Fi. Nếu cần, vào License → Đồng bộ license online → Kiểm tra license. License RSA v4 hiện có được giữ nguyên.
+6. Trên các model thử nghiệm, lần tự kích hoạt chạy thử 60 giây; kiểm tra thao tác rồi chọn Global Shield để bật liên tục.
 
 ## Cách sử dụng
-
-| Thao tác | Cách thực hiện khi Global Shield bật |
+| Cử chỉ | Chức năng |
 | --- | --- |
-| Chọn sách hoặc mục menu | Vuốt ngang, nhấc tay tại mục cần chọn |
-| Cuộn danh sách | Vuốt dọc ở giữa màn hình |
-| Lật trang sách | Vuốt trái / phải |
-| Mở menu khi đọc | Vuốt dọc dài (từ 300 px) ở giữa màn hình |
-| Thoát Shield | Hai nét vuốt dọc dài (từ 350 px) ngược chiều trong 8 giây, cả hai ở 1/4 màn hình bên trái |
+| Vuốt ngang trong sách | Lật trang |
+| Vuốt ngang và nhấc tại mục | Chọn mục trong menu/thư viện |
+| Vuốt dọc | Cuộn danh sách |
+| Vuốt dọc dài trong sách | Mở menu |
+| Vuốt từ mép dưới lên (ngoài 1/4 trái) | Mở Page Browser, tab Aa |
+| Vuốt chéo và nhấc tại từ | Tra từ điển theo vùng hỗ trợ |
 
-Chạm đơn không hoạt động như bình thường khi Shield bật. Auto Boot là tính năng thử nghiệm, chỉ bật sau khi kiểm tra Global Shield và phương án cứu hộ. Nếu kiểm tra tương thích không đạt, không ép bật Auto Boot.
+Xem Gesture Guide trong plugin. Tra từ điển ưu tiên sách văn bản reflowable có từ điển đã cài. Tab Annotations cần bật trong cấu hình Page Browser nếu đang ẩn. Không dùng chạm đơn thông thường khi Shield hoạt động.
 
-## Cứu hộ và lưu ý
+## Lưu ý và cứu hộ
+- Auto Boot vẫn thử nghiệm, chỉ chuẩn bị trên Basic 2022 firmware chính xác 5.18.6 khi preflight thành công; không tự bật. Firmware khác và model khác chưa hỗ trợ.
+- Dừng bảo vệ bằng menu plugin và xác nhận; khi mở lại KOReader, Auto Shield có thể bật lại theo cấu hình.
+- Cứu hộ qua USB: tạo file rỗng `DISABLE_INTENTGATE` và `DISABLE_INTENTSHIELD_BOOT` ở gốc Kindle, xóa `ENABLE_INTENTSHIELD_GLOBAL` và `ENABLE_INTENTSHIELD_BOOT`; reboot nếu cần. Nút nguồn dừng phiên nhưng Auto Resume có thể bật lại. USB có thể không hoạt động khi máy treo.
+- Báo cáo nằm ở `GhostGuard_Reports/IntentGate/`, tự ghi cục bộ, không gửi online. Không đăng công khai thông tin định danh.
+- Đây không phải sửa phần cứng và không bảo vệ giao diện Kindle gốc. Không bật đồng thời GhostGuard cũ.
 
-Nếu khó thao tác, dùng nút nguồn để dừng phiên bảo vệ. Khi có thể truy cập USB, tạo hai file rỗng tại gốc Kindle:
-
-```text
-DISABLE_INTENTGATE
-DISABLE_INTENTSHIELD_BOOT
-```
-
-Xóa `ENABLE_INTENTSHIELD_GLOBAL` và `ENABLE_INTENTSHIELD_BOOT`, khởi động lại nếu cần. USB có thể không khả dụng khi máy treo. Chỉ xóa marker cứu hộ khi sẵn sàng bật lại.
-
-IntentShield hỗ trợ giảm thao tác ngoài ý muốn, không sửa chữa phần cứng cảm ứng và không bảo vệ giao diện Kindle gốc. Auto Boot chưa được xác nhận trên mọi thiết bị. Log hỗ trợ nằm trong `GhostGuard_Reports/IntentGate/`; không đăng công khai thông tin nhận dạng thiết bị.
-
----
-
-**Dochoithuvi** · [Các bản phát hành](https://github.com/dochoithuvi/ghostguard-kindle/releases) · [Báo lỗi](https://github.com/dochoithuvi/ghostguard-kindle/issues)
-
-KindleForge: [KPM manifest](manifest.v2.json). Các bản GhostGuard cũ được lưu trong lịch sử dự án.
+[Releases](https://github.com/dochoithuvi/ghostguard-kindle/releases) · [Issues](https://github.com/dochoithuvi/ghostguard-kindle/issues)

@@ -1,0 +1,25 @@
+name: Publish IntentShield 1.1 Final
+on:
+  push:
+    branches: [main]
+    paths: ['packages/intentshield/releases/1.1/**', '.github/workflows/publish-intentshield-1.1.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publish-intentshield-1.1
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify and package exact tested source
+        run: python3 packages/intentshield/releases/1.1/build_final.py
+      - name: Publish public release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release create intentshield-v1.1.0 dist/DCPRO_IntentShield_OneClick_Install.sh dist/DCPRO_IntentShield_1.1_Final_OneClick.zip dist/SHA256SUMS --target "$GITHUB_SHA" --title "DCPRO IntentShield™ 1.1 Final" --notes-file packages/intentshield/releases/1.1/RELEASE_NOTES.md --latest
+          gh release view intentshield-v1.1.0 --json tagName,isDraft,isPrerelease,url,assets
