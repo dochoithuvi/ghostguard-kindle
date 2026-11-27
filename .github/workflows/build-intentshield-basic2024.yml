@@ -1,0 +1,25 @@
+name: Basic 2024 Beta build
+on:
+  push:
+    branches: [intent-shield-basic2024]
+    paths: ['packages/intentshield/basic2024/**', '.github/workflows/build-intentshield-basic2024.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Build verified candidate
+        run: |
+          set -eu
+          mkdir -p dist
+          python3 packages/intentshield/basic2024/build_beta2.py packages/intentshield/basic2024/DCPRO_IntentShield_OneClick_Basic2024_Beta1.sh dist/DCPRO_IntentShield_OneClick_Basic2024_Beta2.sh
+          sed '/^__DCPRO_PAYLOAD_BELOW__$/,$d' dist/DCPRO_IntentShield_OneClick_Basic2024_Beta2.sh | sh -n
+          cp packages/intentshield/basic2024/README.md dist/README.md
+          (cd dist && sha256sum *.sh > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: IntentShield-Basic2024-Beta2
+          path: dist/
