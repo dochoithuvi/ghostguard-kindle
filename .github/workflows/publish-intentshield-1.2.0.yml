@@ -1,0 +1,26 @@
+name: Publish IntentShield 1.2.0 Stable
+on:
+  push:
+    branches: [main]
+    paths: ['packages/intentshield/releases/1.2.0/**', '.github/workflows/publish-intentshield-1.2.0.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publish-intentshield-1.2.0
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Verify exact signed production assets
+        run: python3 packages/intentshield/releases/1.2.0/verify_release.py
+      - name: Publish Stable release and signed update feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          cd packages/intentshield/releases/1.2.0
+          gh release create intentshield-v1.2.0 DCPRO_IntentShield_OneClick_Install.sh DCPRO_IntentShield_1.2.0_Stable_OneClick.zip IntentShield_UPDATE.manifest IntentShield_UPDATE.sig IntentShield_UPDATE.zip SHA256SUMS README.md --target "$GITHUB_SHA" --title "DCPRO IntentShield™ 1.2.0 Stable" --notes-file RELEASE_NOTES.md --latest
+          gh release view intentshield-v1.2.0 --json tagName,isDraft,isPrerelease,url,assets

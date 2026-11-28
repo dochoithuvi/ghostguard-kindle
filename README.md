@@ -1,65 +1,49 @@
-# DCPRO IntentShield™ — 1.1.1 Stable
+# DCPRO IntentShield™ 1.2.0 Stable
 
-**YOUR INTENT. YOUR CONTROL.**
+**YOUR INTENT. YOUR CONTROL.** Developed by Dochoithuvi.
 
-Developed by **Dochoithuvi**. IntentShield helps readers use jailbroken Kindles affected by ghost touches in KOReader with ZenOS. It filters unintended touchscreen contacts and translates deliberate gestures into reading and navigation actions. It does not repair touchscreen hardware or protect the native Kindle interface.
+IntentShield filters unintended touchscreen contacts in KOReader + ZenOS on jailbroken Kindles. It does not repair touch hardware or protect the native Kindle interface.
 
-**[Download OneClick (.sh)](https://github.com/dochoithuvi/ghostguard-kindle/releases/download/intentshield-v1.1.1/DCPRO_IntentShield_OneClick_Install.sh)** · [ZIP package](https://github.com/dochoithuvi/ghostguard-kindle/releases/download/intentshield-v1.1.1/DCPRO_IntentShield_1.1.1_Stable_OneClick.zip) · [Release notes](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.1.1)
+[Download OneClick](https://github.com/dochoithuvi/ghostguard-kindle/releases/latest/download/DCPRO_IntentShield_OneClick_Install.sh) · [Releases](https://github.com/dochoithuvi/ghostguard-kindle/releases)
 
-## Supported devices
+## What's new
 
-| Device | Support status | Experimental Auto Boot firmware |
-| --- | --- | --- |
-| Kindle Basic 2022 (11th generation) | Tested on hardware | 5.18.6 or newer |
-| Kindle Basic 2024 | Tested on hardware in earlier builds | 5.18.6 or newer |
-| Kindle Paperwhite 4 (10th generation, 2018) | Experimental; hardware validation pending | 5.18.1, 5.18.1.1, 5.18.1.1.1 |
-| Kindle Basic 2019 (10th generation) | Experimental; hardware validation pending | 5.18.1, 5.18.1.1, 5.18.1.1.1 |
+- Smart Update: user-initiated, RSA-3072 signed manifests and SHA-256 verified plugin packages, staged before restarting KOReader. No background polling or firmware reboot.
+- Native Gesture Isolation on Kindle Basic 2022 only; raw IntentGate filtering remains active. Context transition protection, contact watchdog and conservative native gesture recovery after observed releases.
+- Original IntentGate core, gesture thresholds, device adapter and license implementation unchanged.
+- ZenFM 1.2.2 integration and navigation shortcut, with existing settings preserved; fresh setup uses HTTPS, documents root and five-minute inactivity timeout. Stop the server after transferring books.
+- Auto Boot disabled. Open KOReader manually after installation; Global Shield and its normal resume behavior remain available.
 
-Firmware ranges for Auto Boot are eligibility checks, not guarantees of compatibility. Jailbreak, KPM, Upstart, and the KOReader launcher must also pass preflight. Do not update firmware merely to meet these requirements.
+## Install or upgrade from an older version
 
-## What's new in 1.1.1
+Requirements: jailbroken supported Kindle, root SH Integration, compatible KOReader 2026.03+ launcher, ZenOS 4.3+ (fresh installation uses verified 4.3.2), Wi-Fi for missing dependencies. KPM is required if KOReader is not installed. Basic 2022 was tested by the project owner with 1.2.0 RC1 and the offline update fixture. Basic 2024 was tested with earlier versions. Paperwhite 4 and Basic 2019 remain experimental. Native isolation is Basic 2022 only.
 
-- Input stability: respect KOReader input inhibition, discard contacts crossing an observed inhibition period, and drop actions queued for more than one second.
-- Dictionary: correct word-box handling and reader context checks; contain dictionary API failures without stopping the entire shield.
-- Diagnostics: record gesture rejection reasons, geometry and slow processing; automatically save local reports without logging looked-up words.
-- Expanded experimental Auto Boot with firmware/model preflight and re-authorization after firmware changes.
-- Unchanged IntentGate core, gesture thresholds, overlap rejection, device adapter, and RSA license system.
+1. Back up your data, disable Auto Boot and exit KOReader fully. Disable legacy GhostGuard Pro if installed.
+2. Download the current OneClick SH, copy to Kindle `documents`, and run with root SH Integration.
+3. When installation is complete, open KOReader manually. Existing valid licenses are retained. Enable Global Shield from the menu if necessary.
+4. All versions before 1.2.0 Stable (including RC1/RC2) require this one-time OneClick migration to install the production update trust anchor and compatible launcher hook. No uninstall or license reissue is normally needed.
 
-## Installation
+## Future updates
 
-Requirements: a jailbroken supported Kindle, root SH Integration, Wi-Fi, and KPM (install KOReader through KPM if not already installed). The installer checks compatible layouts in KOReader 2026.03+ and ZenOS 4.3+. Future releases are not automatically guaranteed to work.
+Connect Wi-Fi, then choose IntentShield > Software Update > Check for Update. Confirm Update now, and restart KOReader when prompted. The updater verifies a signed manifest and ZIP digest, stages the package and applies it before `reader.lua` loads. It retains a backup; it does not automatically roll back runtime regressions. Requires curl, OpenSSL CLI, sha256sum, unzip, LuaJIT and a compatible launcher hook. If the hook is missing or replaced by a KOReader upgrade, use the current OneClick. Never launch two KOReader instances simultaneously. Do not suspend or disconnect during staging or activation.
 
-1. Back up your data. Disable any legacy GhostGuard protection and exit KOReader.
-2. Download the SH file, or extract it from the ZIP. Copy it to the Kindle's `documents` directory.
-3. Disconnect USB, connect to Wi-Fi, and run the file using root SH Integration.
-4. Follow the nine installation stages. The installer detects the model, installs missing components, verifies the plugin, launches KOReader, and removes the installer when possible.
-5. Open DCPRO IntentShield from the navigation bar or plugin menu. A valid existing device license is retained; sync online if necessary.
-6. On models with a trial startup session, verify gestures during the 60-second trial and select **Global Shield** for continuous protection.
+The signed package is limited to the fixed 23-file plugin layout and preserves raw filter, gesture and license files. Changes to installer, launcher hook, trust anchor, protected files or external dependencies require a new trusted OneClick. The three `IntentShield_UPDATE.*` assets are for the updater, not manual installation. Do not use RC offline fixtures with Stable. Stable sequence: 12010.
 
 ## Gesture guide
 
 | Gesture | Action |
 | --- | --- |
-| Horizontal swipe while reading | Turn pages |
-| Horizontal swipe ending on a menu item | Select the item |
-| Vertical swipe in a list | Scroll |
-| Long vertical swipe in the reading area | Open the menu |
-| Upward swipe from the bottom edge, outside the left quarter | Open Page Browser / Aa |
-| Diagonal swipe ending on a word | Dictionary lookup in supported regions |
+| Horizontal swipe in Reader | Page turn |
+| Horizontal swipe ending on a Home/Library item | Select item |
+| Vertical swipe in lists | Scroll |
+| Long vertical swipe in reading area | Open menu |
+| Swipe up from bottom edge outside left quarter | Page Browser / Aa |
+| Diagonal swipe ending on a word in supported regions | Dictionary lookup |
 
-Dictionary gestures retain their existing directional and regional limits: up-left in the left half, downward diagonals near the bottom quarter, and up-right within the supported area. A dictionary must be installed, and the document must support word extraction. See the illustrated **Gesture Guide** in the plugin. Ordinary raw taps are blocked while protection is active.
+Use the in-plugin Gesture Guide. Raw taps are blocked during protection. Up-left lookup ends in the left half; downward diagonals end in the bottom quarter. A supported document and installed dictionary are required.
 
-## Auto Boot (experimental)
+## Recovery
 
-Auto Boot is opt-in. The installer prepares the Upstart job only when preflight succeeds. Enable it from the plugin after confirming Global Shield and USB recovery work. Firmware changes require enabling it again. No automatic reboot is triggered by installation. Firmware eligibility does not establish successful boot on every device; expanded Auto Boot remains experimental.
+USB rescue: create empty `DISABLE_INTENTGATE` and `DISABLE_INTENTSHIELD_BOOT` at USB storage root; remove `ENABLE_INTENTSHIELD_GLOBAL` and `ENABLE_INTENTSHIELD_BOOT`, restart if necessary. If update fails, keep the current version or reinstall a trusted OneClick with KOReader closed. Reports: `GhostGuard_Reports/IntentGate/`, including `update.log`. Do not share device identifiers or license data publicly. Recovery does not guarantee that a physically stuck touchscreen will recover; Sleep/Wake remains a fallback. The production online feed and Stable trust provisioning need device validation even though RC1 and the offline update were owner-tested.
 
-## Recovery and troubleshooting
-
-- Stop protection from the plugin and confirm. Auto Shield may resume on the next KOReader launch depending on configuration.
-- USB recovery: create empty files named `DISABLE_INTENTGATE` and `DISABLE_INTENTSHIELD_BOOT` at the Kindle's USB storage root, remove `ENABLE_INTENTSHIELD_GLOBAL` and `ENABLE_INTENTSHIELD_BOOT`, and restart if needed. USB recovery requires accessible USB storage.
-- Local reports are saved under `GhostGuard_Reports/IntentGate/`. For dictionary or input issues, include relevant PROFILE, DICT_RESULT and PERF records and KOReader's crash.log. Remove personal identifiers before sharing.
-- Overlapping ghost contacts can cause genuine swipes to be rejected. This conservative behavior is intentional; the filter is not loosened to accept ambiguous contacts.
-- If external input devices are involved, compare behavior without HIDPassthrough or Bluetooth accessories. The installer does not uninstall them.
-- A valid license is required. See the repository's [LICENSE](https://github.com/dochoithuvi/ghostguard-kindle/blob/main/LICENSE) for DCPRO terms; third-party components retain their respective licenses.
-
-[Releases](https://github.com/dochoithuvi/ghostguard-kindle/releases) · [Report an issue](https://github.com/dochoithuvi/ghostguard-kindle/issues)
+Third-party ZenOS, ZenFM and KOReader retain their own licenses. See [LICENSE](https://github.com/dochoithuvi/ghostguard-kindle/blob/main/LICENSE) for DCPRO terms.
