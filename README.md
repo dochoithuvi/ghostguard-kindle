@@ -6,6 +6,8 @@ IntentShield filters unintended touchscreen contacts in KOReader + ZenOS on jail
 
 [Download OneClick](https://github.com/dochoithuvi/ghostguard-kindle/releases/latest/download/DCPRO_IntentShield_OneClick_Install.sh) · [Releases](https://github.com/dochoithuvi/ghostguard-kindle/releases)
 
+**Testing preview:** [1.2.1 RC1 — Touch Recovery V2 and Kindle Virtual Library](https://github.com/dochoithuvi/ghostguard-kindle/releases/tag/intentshield-v1.2.1-rc1). Hardware validation pending; 1.2.0 remains Latest Stable.
+
 ## What's new
 
 - Smart Update: user-initiated, RSA-3072 signed manifests and SHA-256 verified plugin packages, staged before restarting KOReader. No background polling or firmware reboot.
