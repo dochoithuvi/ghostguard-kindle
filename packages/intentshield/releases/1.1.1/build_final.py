@@ -49,6 +49,44 @@ for n,d in files.items():
     if n.endswith((".sh",".tool")): subprocess.run(["sh","-n"],input=d,check=True)
 newheader=header.replace(b"1.1.1 RC1",b"1.1.1 Stable")
 assert newheader!=header and newheader.replace(b"1.1.1 Stable",b"1.1.1 RC1")==header
+# Installer-only hotfix: preserve the original Stable payload and README.
+def once(data, old, new):
+    assert data.count(old)==1, old[:100]
+    return data.replace(old,new,1)
+helper=(here/"kpm_index_timeout.sh").read_bytes()
+newheader=once(newheader,b"stage 1 'Checking Kindle and tools'",helper+b"\nstage 1 'Checking Kindle and tools'")
+newheader=once(newheader,b"ERROR_MSG=''\ncleanup(){",b"ERROR_MSG=''\nKPM_WORKER=''\ncleanup(){")
+newheader=once(newheader,b"    trap - EXIT HUP INT TERM\n",b"    trap - EXIT HUP INT TERM\n    if [ -n \"$KPM_WORKER\" ]; then kpm_index_stop; fi\n")
+old_kpm=b'''    repos=$("$KPM" -y list-repo 2>&1 || :)
+    case "$repos" in *kindlemodding*) ;; *) "$KPM" -y add-repo https://repo.kindlemodding.org/manifest.v2.json || fail "KPM repository";; esac
+    stage 3 'Updating KPM package index'
+    run_busy '' "$KPM" -y update || fail "KPM update"
+'''
+new_kpm=b'''    if kpm_index_run 30 "$KPM" -y list-repo > "$T/kpm-repos.log" 2>&1; then
+        cat "$T/kpm-repos.log"
+    else
+        cat "$T/kpm-repos.log"
+        fail "KPM list-repo failed; check Wi-Fi/KPM"
+    fi
+    repos=$(cat "$T/kpm-repos.log")
+    case "$repos" in
+        *kindlemodding*) ;;
+        *) kpm_index_run 60 "$KPM" -y add-repo https://repo.kindlemodding.org/manifest.v2.json || fail "KPM repository failed; check Wi-Fi";;
+    esac
+    stage 3 'Updating KPM package index'
+    if kpm_index_run 120 "$KPM" -y update; then
+        :
+    else
+        rc=$?
+        case "$rc" in
+            124|125|126|127|1[3-9][0-9]|2[0-5][0-9]) fail "KPM timeout/error; check Wi-Fi and KPM";;
+            *) line 7 'KPM update failed - retrying once'; sleep 3
+               kpm_index_run 120 "$KPM" -y update || fail "KPM update failed; check Wi-Fi/KPM";;
+        esac
+    fi
+'''
+newheader=once(newheader,old_kpm,new_kpm)
+
 subprocess.run(["sh","-n"],input=newheader,check=True)
 buf=io.BytesIO()
 with zipfile.ZipFile(buf,"w",zipfile.ZIP_DEFLATED) as z:
@@ -69,5 +107,5 @@ with zipfile.ZipFile(out/"DCPRO_IntentShield_1.1.1_Stable_OneClick.zip") as z:
     assert z.testzip() is None
     assert z.read(installer.name)==installer.read_bytes()
 (out/"SHA256SUMS").write_text("".join(f"{sha(p.read_bytes())}  {p.name}\n" for p in sorted(out.iterdir()) if p.suffix in (".sh",".zip")))
-print("PASS: exact RC1 source; 21 plugin checksums, 2 boot checksums; only branding and docs changed; no private keys; SH syntax and ZIP integrity.")
+print("PASS: exact RC1 source; 21 plugin checksums, 2 boot checksums; payload unchanged apart from original Stable branding/docs; installer KPM timeout applied; no private keys; SH syntax and ZIP integrity.")
 print((out/"SHA256SUMS").read_text())

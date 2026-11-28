@@ -14,3 +14,7 @@ Basic 2022 and Basic 2024 have been tested on hardware in the project. The 1.1.1
 
 ### Install
 Download the OneClick SH or the ZIP, then follow the English README. Existing valid licenses are retained. No license registry changes are included.
+
+### Installer hotfix (same 1.1.1 Stable)
+- Bounded KPM metadata operations: list-repo 30 seconds, add-repo 60 seconds, update 120 seconds. Retry once on ordinary update failure; stop on timeout and retain the installer. Requires setsid for fresh KPM installation. No forced interruption of package installation or final storage sync.
+- No changes to the embedded IntentShield code, filtering, license, or experimental Auto Boot. Download the refreshed SH/ZIP and SHA256SUMS from this same release.
